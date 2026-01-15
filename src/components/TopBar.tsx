@@ -40,7 +40,8 @@ export const TopBar = ({
             {title}
           </h1>
           <p className="text-sm text-white/60">
-            Monitorea ventas, horas y margen en tiempo real por línea.
+            Elige sede y fechas para ver ventas, horas y margen por línea en un
+            vistazo.
           </p>
         </div>
       </div>
@@ -94,7 +95,9 @@ export const TopBar = ({
         </div>
         <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white/70 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40">
           <SlidersHorizontal className="h-4 w-4 text-white/60" />
-          <span className="text-xs uppercase tracking-[0.2em]">Segmento</span>
+          <span className="text-xs uppercase tracking-[0.2em]">
+            Estado de línea
+          </span>
           <select
             value={lineFilter}
             onChange={(event) => onLineFilterChange(event.target.value)}
@@ -104,10 +107,10 @@ export const TopBar = ({
               Todas las líneas
             </option>
             <option value="critical" className="bg-slate-950">
-              Línea crítica
+              Líneas críticas (alerta)
             </option>
             <option value="improving" className="bg-slate-950">
-              Líneas en mejora
+              Líneas en mejora (atención)
             </option>
           </select>
         </label>

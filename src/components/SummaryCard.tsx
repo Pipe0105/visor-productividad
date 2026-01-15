@@ -59,7 +59,7 @@ export const SummaryCard = ({
       <div className="mt-6 grid gap-4 text-sm text-white/70 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Horas totales
+            Horas registradas
           </p>
           <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
             <Timer className="h-4 w-4 text-sky-200" />
@@ -68,7 +68,7 @@ export const SummaryCard = ({
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Costo horas
+            Costo de nómina
           </p>
           <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
             <PiggyBank className="h-4 w-4 text-amber-200" />
@@ -77,7 +77,7 @@ export const SummaryCard = ({
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Ventas por hora
+            Venta por hora
           </p>
           <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
             <Gauge className="h-4 w-4 text-sky-200" />
@@ -86,7 +86,7 @@ export const SummaryCard = ({
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Margen total
+            Margen acumulado
           </p>
           <div className="mt-2 space-y-1">
             <p className={`text-lg font-semibold ${status.textClass}`}>
@@ -99,7 +99,7 @@ export const SummaryCard = ({
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-            Margen por hora
+            Margen por hora trabajada
           </p>
           <p className={`mt-2 text-lg font-semibold ${status.textClass}`}>
             {formatCOP(marginPerHour)}

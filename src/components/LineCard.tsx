@@ -72,13 +72,13 @@ export const LineCard = ({
       </div>
       <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
         <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
-          <span>Evolución diaria</span>
+          <span>Ventas día a día</span>
           <span>{rangeLabel}</span>
         </div>
         <Sparkline data={dailySeries} />
         <div className="mt-1 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
-          <span>Evolución semanal</span>
-          <span>Totales</span>
+          <span>Ventas por semana</span>
+          <span>Total semanal</span>
         </div>
         <Sparkline data={weeklySeries} strokeClassName="stroke-sky-200" />
       </div>
@@ -93,7 +93,7 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-white/60">Costo horas</span>
+          <span className="text-white/60">Costo de mano de obra</span>
           <span className="text-base font-semibold text-white">
             {formatCOP(cost)}
           </span>
@@ -112,7 +112,7 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-white/60">Margen (%)</span>
+          <span className="text-white/60">Margen sobre ventas</span>
           <span className={`text-base font-semibold ${status.textClass}`}>
             {formatPercent(marginRatio)}
           </span>

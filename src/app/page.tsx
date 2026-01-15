@@ -42,8 +42,8 @@ export default function Home() {
     [availableDates, endDate, startDate]
   );
   const rangeLabel = rangeDates.length
-    ? `Últimos ${rangeDates.length} días`
-    : "Sin rango";
+    ? `Rango seleccionado: ${rangeDates.length} días`
+    : "Rango sin datos";
 
   const dailyData = useMemo(() => {
     return (
@@ -178,9 +178,9 @@ export default function Home() {
         <TopBar
           title={
             <span>
-              Visualizador de{" "}
-              <span className="text-mercamio-200/90">Productividad</span> por
-              Día
+              Tablero diario de{" "}
+              <span className="text-mercamio-200/90">productividad</span> por
+              línea
             </span>
           }
           selectedSede={selectedSede}
@@ -226,10 +226,10 @@ export default function Home() {
               Sin datos
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-white">
-              No hay información para esta sede y rango.
+              No hay datos en este rango para la sede seleccionada.
             </h2>
             <p className="mt-2 text-sm text-white/60">
-              Ajusta los filtros para ver las líneas con actividad.
+              Prueba otro rango o sede para ver actividad.
             </p>
           </section>
         ) : (
