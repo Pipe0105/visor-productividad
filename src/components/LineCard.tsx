@@ -1,17 +1,20 @@
 import {
   Apple,
-  BadgeDollarSign,
   Beef,
   Box,
   Clock,
   Factory,
   Fish,
   Flame,
-  Gauge,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { calcLineCost, calcLineMargin, formatCOP } from "@/lib/calc";
+import {
+  calcLineCost,
+  calcLineMargin,
+  formatCOP,
+  formatPercent,
+} from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 import { Sparkline } from "@/components/Sparkline";
@@ -33,9 +36,8 @@ export const LineCard = ({
 }: LineCardProps) => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
+  const marginRatio = line.sales ? margin / line.sales : 0;
   const status = getLineStatus(sede, line.id, margin);
-  const salesPerHour = line.hours ? line.sales / line.hours : 0;
-  const marginPerHour = line.hours ? margin / line.hours : 0;
 
   const iconMap = {
     cajas: Box,
@@ -83,29 +85,11 @@ export const LineCard = ({
       <div className="grid gap-4 text-sm text-white/70">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <BadgeDollarSign className="h-4 w-4 text-emerald-200" />
-            Venta total
-          </span>
-          <span className="text-base font-semibold text-white">
-            {formatCOP(line.sales)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-sky-200" />
             Horas trabajadas
           </span>
           <span className="text-base font-semibold text-white">
             {line.hours}h
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Gauge className="h-4 w-4 text-sky-200" />
-            Ventas por hora
-          </span>
-          <span className="text-base font-semibold text-white">
-            {formatCOP(salesPerHour)}
           </span>
         </div>
         <div className="flex items-center justify-between">
@@ -128,9 +112,9 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-white/60">Margen por hora</span>
+          <span className="text-white/60">Margen (%)</span>
           <span className={`text-base font-semibold ${status.textClass}`}>
-            {formatCOP(marginPerHour)}
+            {formatPercent(marginRatio)}
           </span>
         </div>
       </div>

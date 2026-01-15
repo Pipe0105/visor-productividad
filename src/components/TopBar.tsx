@@ -10,7 +10,6 @@ interface TopBarProps {
   dates: string[];
   lineFilter: string;
   onSedeChange: (value: string) => void;
-  onDateChange: (value: string) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onLineFilterChange: (value: string) => void;
