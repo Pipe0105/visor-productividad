@@ -14,13 +14,23 @@ import {
 import { calcLineCost, calcLineMargin, formatCOP } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
+import { Sparkline } from "@/components/Sparkline";
 
 interface LineCardProps {
   line: LineMetrics;
   sede: string;
+  dailySeries: number[];
+  weeklySeries: number[];
+  rangeLabel: string;
 }
 
-export const LineCard = ({ line, sede }: LineCardProps) => {
+export const LineCard = ({
+  line,
+  sede,
+  dailySeries,
+  weeklySeries,
+  rangeLabel,
+}: LineCardProps) => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
   const status = getLineStatus(sede, line.id, margin);
@@ -57,6 +67,18 @@ export const LineCard = ({ line, sede }: LineCardProps) => {
         >
           {status.label}
         </span>
+      </div>
+      <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+        <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
+          <span>Evolución diaria</span>
+          <span>{rangeLabel}</span>
+        </div>
+        <Sparkline data={dailySeries} />
+        <div className="mt-1 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
+          <span>Evolución semanal</span>
+          <span>Totales</span>
+        </div>
+        <Sparkline data={weeklySeries} strokeClassName="stroke-sky-200" />
       </div>
       <div className="grid gap-4 text-sm text-white/70">
         <div className="flex items-center justify-between">

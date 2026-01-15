@@ -4,18 +4,46 @@ import { useMemo, useState } from "react";
 import { LineCard } from "@/components/LineCard";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
-import { calcDailySummary } from "@/lib/calc";
+import { calcDailySummary, calcLineMargin } from "@/lib/calc";
 import { mockDailyData, sedes } from "@/lib/mock-data";
+import { getLineStatus } from "@/lib/status";
+
+const parseDateKey = (dateKey: string) => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+const getWeekKey = (dateKey: string) => {
+  const date = parseDateKey(dateKey);
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() - (day - 1));
+  return toDateKey(date);
+};
 
 export default function Home() {
   const availableDates = useMemo(
-    () => Array.from(new Set(mockDailyData.map((item) => item.date))),
+    () =>
+      Array.from(new Set(mockDailyData.map((item) => item.date))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
     []
   );
   const [selectedSede, setSelectedSede] = useState(sedes[0]?.id ?? "floresta");
-  const [selectedDate, setSelectedDate] = useState(
-    availableDates[0] ?? "2024-06-18"
+  const [startDate, setStartDate] = useState(availableDates[0] ?? "2024-06-18");
+  const [endDate, setEndDate] = useState(
+    availableDates[availableDates.length - 1] ?? "2024-06-20"
   );
+  const [lineFilter, setLineFilter] = useState("all");
+  const [isLoading] = useState(false);
+
+  const selectedDate = endDate;
+  const rangeDates = useMemo(
+    () => availableDates.filter((date) => date >= startDate && date <= endDate),
+    [availableDates, endDate, startDate]
+  );
+  const rangeLabel = rangeDates.length
+    ? `Últimos ${rangeDates.length} días`
+    : "Sin rango";
 
   const dailyData = useMemo(() => {
     return (
@@ -26,6 +54,21 @@ export default function Home() {
   }, [selectedDate, selectedSede]);
 
   const lines = dailyData?.lines ?? [];
+  const filteredLines = useMemo(() => {
+    if (lineFilter === "all") {
+      return lines;
+    }
+    return lines.filter((line) => {
+      const status = getLineStatus(selectedSede, line.id, calcLineMargin(line));
+      if (lineFilter === "critical") {
+        return status.label === "Problema";
+      }
+      if (lineFilter === "improving") {
+        return status.label === "Atención";
+      }
+      return true;
+    });
+  }, [lineFilter, lines, selectedSede]);
   const summary = calcDailySummary(lines);
   const selectedMonth = selectedDate.slice(0, 7);
   const monthlySummary = useMemo(() => {
@@ -47,12 +90,7 @@ export default function Home() {
       });
     return map;
   }, [selectedSede]);
-  const parseDate = (dateKey: string) => {
-    const [year, month, day] = dateKey.split("-").map(Number);
-    return new Date(Date.UTC(year, month - 1, day));
-  };
-  const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
-  const selectedDateValue = parseDate(selectedDate);
+  const selectedDateValue = parseDateKey(selectedDate);
   const previousDay = new Date(selectedDateValue);
   previousDay.setUTCDate(previousDay.getUTCDate() - 1);
   const previousWeek = new Date(selectedDateValue);
@@ -90,6 +128,45 @@ export default function Home() {
     { label: "Vs. semana anterior", baseline: previousWeekSummary ?? null },
     { label: "Vs. promedio mensual", baseline: monthlyAverageSummary },
   ];
+  const rangeData = useMemo(() => {
+    return mockDailyData
+      .filter(
+        (item) =>
+          item.sede === selectedSede &&
+          item.date >= startDate &&
+          item.date <= endDate
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [endDate, selectedSede, startDate]);
+  const rangeDataByDate = useMemo(() => {
+    const map = new Map(rangeData.map((item) => [item.date, item]));
+    return map;
+  }, [rangeData]);
+  const lineSeriesById = useMemo(() => {
+    const dailySeries = new Map<string, number[]>();
+    const weeklySeries = new Map<string, number[]>();
+    const weekKeys = Array.from(
+      new Set(rangeData.map((item) => getWeekKey(item.date)))
+    ).sort((a, b) => a.localeCompare(b));
+    lines.forEach((line) => {
+      const dailyValues = rangeDates.map((date) => {
+        const item = rangeDataByDate.get(date);
+        const match = item?.lines.find((entry) => entry.id === line.id);
+        return match?.sales ?? 0;
+      });
+      dailySeries.set(line.id, dailyValues);
+      const weeklyValues = weekKeys.map((weekKey) => {
+        return rangeData
+          .filter((item) => getWeekKey(item.date) === weekKey)
+          .reduce((acc, item) => {
+            const match = item.lines.find((entry) => entry.id === line.id);
+            return acc + (match?.sales ?? 0);
+          }, 0);
+      });
+      weeklySeries.set(line.id, weeklyValues);
+    });
+    return { dailySeries, weeklySeries };
+  }, [lines, rangeData, rangeDataByDate, rangeDates]);
 
   const monthLabel = new Intl.DateTimeFormat("es-CO", {
     month: "long",
@@ -108,29 +185,112 @@ export default function Home() {
           }
           selectedSede={selectedSede}
           sedes={sedes}
-          selectedDate={selectedDate}
+          startDate={startDate}
+          endDate={endDate}
           dates={availableDates}
+          lineFilter={lineFilter}
           onSedeChange={setSelectedSede}
-          onDateChange={setSelectedDate}
+          onStartDateChange={(value) => {
+            setStartDate(value);
+            if (value > endDate) {
+              setEndDate(value);
+            }
+          }}
+          onEndDateChange={(value) => {
+            setEndDate(value);
+            if (value < startDate) {
+              setStartDate(value);
+            }
+          }}
+          onLineFilterChange={setLineFilter}
         />
-        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {lines.map((line) => (
-            <LineCard key={line.id} line={line} sede={selectedSede} />
-          ))}
-        </section>
-        <SummaryCard
-          summary={summary}
-          title="Resumen del día"
-          salesLabel="Venta total"
-          sede={selectedSede}
-          comparisons={dailyComparisons}
-        />
-        <SummaryCard
-          summary={monthlySummary}
-          title={`Resumen del mes · ${monthLabel}`}
-          salesLabel="Ventas del mes"
-          sede={selectedSede}
-        />
+        {isLoading ? (
+          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={`line-skeleton-${index}`}
+                className="h-80 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+              >
+                <div className="flex h-full flex-col gap-4 animate-pulse">
+                  <div className="h-6 w-32 rounded-full bg-white/10" />
+                  <div className="h-4 w-24 rounded-full bg-white/10" />
+                  <div className="h-12 rounded-2xl bg-white/10" />
+                  <div className="flex-1 rounded-2xl bg-white/10" />
+                </div>
+              </div>
+            ))}
+          </section>
+        ) : lines.length === 0 ? (
+          <section className="rounded-3xl border border-dashed border-white/15 bg-slate-950/40 p-10 text-center">
+            <p className="text-sm uppercase tracking-[0.3em] text-white/40">
+              Sin datos
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">
+              No hay información para esta sede y rango.
+            </h2>
+            <p className="mt-2 text-sm text-white/60">
+              Ajusta los filtros para ver las líneas con actividad.
+            </p>
+          </section>
+        ) : (
+          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {filteredLines.map((line) => (
+              <LineCard
+                key={line.id}
+                line={line}
+                sede={selectedSede}
+                dailySeries={lineSeriesById.dailySeries.get(line.id) ?? []}
+                weeklySeries={lineSeriesById.weeklySeries.get(line.id) ?? []}
+                rangeLabel={rangeLabel}
+              />
+            ))}
+          </section>
+        )}
+        {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
+          <section className="rounded-3xl border border-dashed border-white/15 bg-slate-950/40 p-8 text-center">
+            <p className="text-sm uppercase tracking-[0.3em] text-white/40">
+              Sin coincidencias
+            </p>
+            <h3 className="mt-3 text-xl font-semibold text-white">
+              No hay líneas para este segmento.
+            </h3>
+            <p className="mt-2 text-sm text-white/60">
+              Prueba otro filtro o revisa un rango distinto.
+            </p>
+          </section>
+        ) : null}
+        {isLoading ? (
+          <div className="space-y-6">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div
+                key={`summary-skeleton-${index}`}
+                className="h-64 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+              >
+                <div className="flex h-full flex-col gap-4 animate-pulse">
+                  <div className="h-5 w-40 rounded-full bg-white/10" />
+                  <div className="h-8 w-32 rounded-full bg-white/10" />
+                  <div className="flex-1 rounded-2xl bg-white/10" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : lines.length > 0 ? (
+          <>
+            <SummaryCard
+              summary={summary}
+              title="Resumen del día"
+              salesLabel="Venta total"
+              sede={selectedSede}
+              comparisons={dailyComparisons}
+            />
+            <SummaryCard
+              summary={monthlySummary}
+              title={`Resumen del mes · ${monthLabel}`}
+              salesLabel="Ventas del mes"
+              sede={selectedSede}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
