@@ -1,12 +1,18 @@
 import { PiggyBank, Timer } from "lucide-react";
 import { DailySummary } from "@/types";
-import { formatCOP } from "@/lib/calc";
+import { formatCOP, formatPercent } from "@/lib/calc";
 
 interface SummaryCardProps {
   summary: DailySummary;
+  title: string;
+  salesLabel: string;
 }
 
-export const SummaryCard = ({ summary }: SummaryCardProps) => {
+export const SummaryCard = ({
+  summary,
+  title,
+  salesLabel,
+}: SummaryCardProps) => {
   const status =
     summary.margin >= 1200000
       ? {
@@ -31,18 +37,25 @@ export const SummaryCard = ({ summary }: SummaryCardProps) => {
           className: "bg-rose-500/20 text-rose-200",
           textClass: "text-rose-200",
         };
+  const marginRatio = summary.sales ? summary.margin / summary.sales : 0;
+  const marginPercentClass =
+    marginRatio > 0
+      ? "text-emerald-200"
+      : marginRatio < 0
+      ? "text-rose-200"
+      : "text-slate-200";
 
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-white/50">
-            Resumen del día
+            {title}
           </p>
           <h3 className="text-2xl font-semibold text-white">
             {formatCOP(summary.sales)}
           </h3>
-          <p className="text-sm text-white/60">Venta total</p>
+          <p className="text-sm text-white/60">{salesLabel}</p>
         </div>
         <span
           className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${status.className}`}
@@ -73,9 +86,14 @@ export const SummaryCard = ({ summary }: SummaryCardProps) => {
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">
             Margen total
           </p>
-          <p className={`mt-2 text-lg font-semibold ${status.textClass}`}>
-            {formatCOP(summary.margin)}
-          </p>
+          <div className="mt-2 space-y-1">
+            <p className={`text-lg font-semibold ${status.textClass}`}>
+              {formatCOP(summary.margin)}
+            </p>
+            <p className={`text-xs font-semibold ${marginPercentClass}`}>
+              {formatPercent(marginRatio)} margen
+            </p>
+          </div>
         </div>
       </div>
     </section>

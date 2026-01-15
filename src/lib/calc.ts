@@ -8,6 +8,14 @@ export const formatCOP = (value: number) => {
   }).format(value);
 };
 
+export const formatPercent = (value: number) => {
+  return new Intl.NumberFormat("es-CO", {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+};
+
 export const calcLineCost = (line: LineMetrics) => line.hours * line.hourlyRate;
 
 export const calcLineMargin = (line: LineMetrics) =>
