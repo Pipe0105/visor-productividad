@@ -7,43 +7,25 @@ import {
   Factory,
   Fish,
   Flame,
+  Gauge,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { calcLineCost, calcLineMargin, formatCOP } from "@/lib/calc";
+import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
 interface LineCardProps {
   line: LineMetrics;
+  sede: string;
 }
 
-export const LineCard = ({ line }: LineCardProps) => {
+export const LineCard = ({ line, sede }: LineCardProps) => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
-  const status =
-    margin >= 500000
-      ? {
-          label: "Excelente",
-          className: "bg-emerald-500/20 text-emerald-200",
-          textClass: "text-emerald-200",
-        }
-      : margin >= 0
-      ? {
-          label: "Normal",
-          className: "bg-slate-400/15 text-slate-200",
-          textClass: "text-slate-200",
-        }
-      : margin >= -200000
-      ? {
-          label: "Atención",
-          className: "bg-amber-500/20 text-amber-200",
-          textClass: "text-amber-200",
-        }
-      : {
-          label: "Problema",
-          className: "bg-rose-500/20 text-rose-200",
-          textClass: "text-rose-200",
-        };
+  const status = getLineStatus(sede, line.id, margin);
+  const salesPerHour = line.hours ? line.sales / line.hours : 0;
+  const marginPerHour = line.hours ? margin / line.hours : 0;
 
   const iconMap = {
     cajas: Box,
@@ -96,6 +78,15 @@ export const LineCard = ({ line }: LineCardProps) => {
           </span>
         </div>
         <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-sky-200" />
+            Ventas por hora
+          </span>
+          <span className="text-base font-semibold text-white">
+            {formatCOP(salesPerHour)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
           <span className="text-white/60">Costo horas</span>
           <span className="text-base font-semibold text-white">
             {formatCOP(cost)}
@@ -112,6 +103,12 @@ export const LineCard = ({ line }: LineCardProps) => {
           </span>
           <span className={`text-base font-semibold ${status.textClass}`}>
             {formatCOP(margin)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-white/60">Margen por hora</span>
+          <span className={`text-base font-semibold ${status.textClass}`}>
+            {formatCOP(marginPerHour)}
           </span>
         </div>
       </div>
