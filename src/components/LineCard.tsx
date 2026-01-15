@@ -1,14 +1,4 @@
-import {
-  Apple,
-  Beef,
-  Box,
-  Clock,
-  Factory,
-  Fish,
-  Flame,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { Clock, TrendingDown, TrendingUp } from "lucide-react";
 import {
   calcLineCost,
   calcLineMargin,
@@ -17,37 +7,17 @@ import {
 } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
-import { Sparkline } from "@/components/Sparkline";
 
 interface LineCardProps {
   line: LineMetrics;
   sede: string;
-  dailySeries: number[];
-  weeklySeries: number[];
-  rangeLabel: string;
 }
 
-export const LineCard = ({
-  line,
-  sede,
-  dailySeries,
-  weeklySeries,
-  rangeLabel,
-}: LineCardProps) => {
+export const LineCard = ({ line, sede }: LineCardProps) => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
   const marginRatio = line.sales ? margin / line.sales : 0;
   const status = getLineStatus(sede, line.id, margin);
-
-  const iconMap = {
-    cajas: Box,
-    fruver: Apple,
-    industria: Factory,
-    carnes: Beef,
-    "pollo y pescado": Fish,
-    asadero: Flame,
-  };
-  const Icon = iconMap[line.id];
 
   return (
     <article className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-linear-to-br from-white/10 via-white/5 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)] transition hover:border-mercamio-300/40">
@@ -57,30 +27,12 @@ export const LineCard = ({
             Línea
           </p>
           <h2 className="text-xl font-semibold text-white">{line.name}</h2>
-          <div className="mt-2 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-mercamio-200/80">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mercamio-400/15 text-mercamio-200">
-              <Icon className="h-4 w-4" />
-            </span>
-            Operación
-          </div>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${status.className}`}
         >
           {status.label}
         </span>
-      </div>
-      <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
-          <span>Ventas día a día</span>
-          <span>{rangeLabel}</span>
-        </div>
-        <Sparkline data={dailySeries} />
-        <div className="mt-1 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/40">
-          <span>Ventas por semana</span>
-          <span>Total semanal</span>
-        </div>
-        <Sparkline data={weeklySeries} strokeClassName="stroke-sky-200" />
       </div>
       <div className="grid gap-4 text-sm text-white/70">
         <div className="flex items-center justify-between">
