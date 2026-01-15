@@ -43,12 +43,6 @@ export default function Home() {
     month: "long",
     year: "numeric",
   }).format(new Date(`${selectedMonth}-01T00:00:00`));
-  const selectedMonth = selectedDate.slice(0, 7);
-  const monthlySummary = useMemo(() => {
-    const monthLines = mockDailyData.filter(
-      (Item) => Item.sede === selectedSede && item.date.startsWith
-    );
-  });
   return (
     <div className="min-h-screen bg-slate-950 px-4 pb-16 pt-10 text-white sm:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
