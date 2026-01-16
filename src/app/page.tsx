@@ -204,7 +204,25 @@ export default function Home() {
               </button>
             </div>
             {showComparison ? (
-              <LineComparisonTable lines={lines} sede={selectedSede} />
+              filteredLines.length > 0 ? (
+                <LineComparisonTable
+                  lines={filteredLines}
+                  sede={selectedSede}
+                />
+              ) : (
+                <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center">
+                  <p className="text-sm uppercase tracking-[0.3em] text-slate-700">
+                    {" "}
+                    Sin coincidencias
+                  </p>
+                  <h3 className="mt-3 text-xl font-semibold text-slate-900">
+                    No hay líneas para comparar con este filtro.
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-700">
+                    Ajusta el filtro para ver el comparativo de líneas.
+                  </p>
+                </section>
+              )
             ) : (
               <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredLines.map((line) => (
@@ -214,7 +232,10 @@ export default function Home() {
             )}
           </div>
         )}
-        {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
+        {!showComparison &&
+        !isLoading &&
+        lines.length > 0 &&
+        filteredLines.length === 0 ? (
           <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center">
             <p className="text-sm uppercase tracking-[0.3em] text-slate-700">
               {" "}
