@@ -13,12 +13,6 @@ const parseDateKey = (dateKey: string) => {
   return new Date(Date.UTC(year, month - 1, day));
 };
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
-const getWeekKey = (dateKey: string) => {
-  const date = parseDateKey(dateKey);
-  const day = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() - (day - 1));
-  return toDateKey(date);
-};
 
 export default function Home() {
   const availableDates = useMemo(
@@ -37,13 +31,6 @@ export default function Home() {
   const [isLoading] = useState(false);
 
   const selectedDate = endDate;
-  const rangeDates = useMemo(
-    () => availableDates.filter((date) => date >= startDate && date <= endDate),
-    [availableDates, endDate, startDate]
-  );
-  const rangeLabel = rangeDates.length
-    ? `Rango seleccionado: ${rangeDates.length} días`
-    : "Rango sin datos";
 
   const dailyData = useMemo(() => {
     return (
@@ -128,45 +115,6 @@ export default function Home() {
     { label: "Vs. semana anterior", baseline: previousWeekSummary ?? null },
     { label: "Vs. promedio mensual", baseline: monthlyAverageSummary },
   ];
-  const rangeData = useMemo(() => {
-    return mockDailyData
-      .filter(
-        (item) =>
-          item.sede === selectedSede &&
-          item.date >= startDate &&
-          item.date <= endDate
-      )
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [endDate, selectedSede, startDate]);
-  const rangeDataByDate = useMemo(() => {
-    const map = new Map(rangeData.map((item) => [item.date, item]));
-    return map;
-  }, [rangeData]);
-  const lineSeriesById = useMemo(() => {
-    const dailySeries = new Map<string, number[]>();
-    const weeklySeries = new Map<string, number[]>();
-    const weekKeys = Array.from(
-      new Set(rangeData.map((item) => getWeekKey(item.date)))
-    ).sort((a, b) => a.localeCompare(b));
-    lines.forEach((line) => {
-      const dailyValues = rangeDates.map((date) => {
-        const item = rangeDataByDate.get(date);
-        const match = item?.lines.find((entry) => entry.id === line.id);
-        return match?.sales ?? 0;
-      });
-      dailySeries.set(line.id, dailyValues);
-      const weeklyValues = weekKeys.map((weekKey) => {
-        return rangeData
-          .filter((item) => getWeekKey(item.date) === weekKey)
-          .reduce((acc, item) => {
-            const match = item.lines.find((entry) => entry.id === line.id);
-            return acc + (match?.sales ?? 0);
-          }, 0);
-      });
-      weeklySeries.set(line.id, weeklyValues);
-    });
-    return { dailySeries, weeklySeries };
-  }, [lines, rangeData, rangeDataByDate, rangeDates]);
 
   const monthLabel = new Intl.DateTimeFormat("es-CO", {
     month: "long",
@@ -235,13 +183,7 @@ export default function Home() {
         ) : (
           <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filteredLines.map((line) => (
-              <LineCard
-                key={line.id}
-                line={line}
-                sede={selectedSede}
-                dailySeries={lineSeriesById.dailySeries.get(line.id) ?? []}
-                rangeLabel={rangeLabel}
-              />
+              <LineCard key={line.id} line={line} sede={selectedSede} />
             ))}
           </section>
         )}

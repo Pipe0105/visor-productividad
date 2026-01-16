@@ -7,21 +7,13 @@ import {
 } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
-import { Sparkline } from "@/components/Sparkline";
 
 interface LineCardProps {
   line: LineMetrics;
   sede: string;
-  dailySeries: number[];
-  rangeLabel: string;
 }
 
-export const LineCard = ({
-  line,
-  sede,
-  dailySeries,
-  rangeLabel,
-}: LineCardProps) => {
+export const LineCard = ({ line, sede }: LineCardProps) => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
   const marginRatio = line.sales ? margin / line.sales : 0;
@@ -78,22 +70,6 @@ export const LineCard = ({
           <span className={`text-base font-semibold ${status.textClass}`}>
             {formatPercent(marginRatio)}
           </span>
-        </div>
-      </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-700">
-          {" "}
-          <span>Actividad</span>
-          <span>{rangeLabel}</span>
-        </div>
-        <div className="grid gap-3 text-xs text-slate-700">
-          <div className="space-y-1">
-            <span className="uppercase tracking-[0.2em]">Diario</span>
-            <Sparkline
-              data={dailySeries}
-              strokeClassName="stroke-emerald-300"
-            />
-          </div>
         </div>
       </div>
     </article>
