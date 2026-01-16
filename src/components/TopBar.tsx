@@ -41,15 +41,15 @@ export const TopBar = ({
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">
             {title}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-white/60">
+          <p className="text-sm text-slate-600 dark:text-white/70">
             Elige sede y fechas para ver ventas, horas y margen por línea en un
             vistazo.
           </p>
         </div>
       </div>
       <div className="grid w-full gap-4 sm:w-auto sm:min-w-[320px]">
-        <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-600 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/70">
-          <MapPin className="h-4 w-4 text-slate-400 dark:text-white/60" />
+        <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-700 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/80">
+          <MapPin className="h-4 w-4 text-slate-500 dark:text-white/70" />
           <span className="text-xs uppercase tracking-[0.2em]">Sede</span>
           <select
             value={selectedSede}
@@ -68,8 +68,8 @@ export const TopBar = ({
           </select>
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-600 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/70">
-            <CalendarDays className="h-4 w-4 text-slate-400 dark:text-white/60" />
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-700 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/80">
+            <CalendarDays className="h-4 w-4 text-slate-500 dark:text-white/70" />
             <span className="text-xs uppercase tracking-[0.2em]">Desde</span>
             <select
               value={startDate}
@@ -87,8 +87,8 @@ export const TopBar = ({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-600 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/70">
-            <CalendarDays className="h-4 w-4 text-slate-400 dark:text-white/60" />
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-700 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/80">
+            <CalendarDays className="h-4 w-4 text-slate-500 dark:text-white/70" />
             <span className="text-xs uppercase tracking-[0.2em]">Hasta</span>
             <select
               value={endDate}
@@ -107,8 +107,8 @@ export const TopBar = ({
             </select>
           </label>
         </div>
-        <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-600 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/70">
-          <SlidersHorizontal className="h-4 w-4 text-slate-400 dark:text-white/60" />
+        <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm text-slate-700 transition focus-within:border-mercamio-300/70 focus-within:ring-1 focus-within:ring-mercamio-300/40 dark:border-white/10 dark:bg-slate-950/70 dark:text-white/80">
+          <SlidersHorizontal className="h-4 w-4 text-slate-500 dark:text-white/70" />
           <span className="text-xs uppercase tracking-[0.2em]">
             Estado de línea
           </span>

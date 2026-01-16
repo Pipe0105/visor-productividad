@@ -34,7 +34,8 @@ export const LineCard = ({
       {" "}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-500 dark:text-white/50">
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-700 dark:text-white/70">
+            {" "}
             Línea
           </p>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
@@ -47,7 +48,7 @@ export const LineCard = ({
           {status.label}
         </span>
       </div>
-      <div className="grid gap-4 text-sm text-slate-600 dark:text-white/70">
+      <div className="grid gap-4 text-sm text-slate-700 dark:text-white/80">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-sky-500 dark:text-sky-200" />
@@ -58,7 +59,7 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-slate-500 dark:text-white/60">
+          <span className="text-slate-600 dark:text-white/70">
             Costo de mano de obra
           </span>
           <span className="text-base font-semibold text-slate-900 dark:text-white">
@@ -66,7 +67,7 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2 text-slate-500 dark:text-white/60">
+          <span className="flex items-center gap-2 text-slate-600 dark:text-white/70">
             {margin >= 0 ? (
               <TrendingUp className={`h-4 w-4 ${status.textClass}`} />
             ) : (
@@ -79,7 +80,7 @@ export const LineCard = ({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-slate-500 dark:text-white/60">
+          <span className="text-slate-600 dark:text-white/70">
             Margen sobre ventas
           </span>
           <span className={`text-base font-semibold ${status.textClass}`}>
@@ -88,11 +89,12 @@ export const LineCard = ({
         </div>
       </div>
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-400 dark:text-white/50">
+        <div className="flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-600 dark:text-white/70">
+          {" "}
           <span>Actividad</span>
           <span>{rangeLabel}</span>
         </div>
-        <div className="grid gap-3 text-xs text-slate-500 dark:text-white/60">
+        <div className="grid gap-3 text-xs text-slate-600 dark:text-white/70">
           <div className="space-y-1">
             <span className="uppercase tracking-[0.2em]">Diario</span>
             <Sparkline
