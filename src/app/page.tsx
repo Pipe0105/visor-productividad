@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { LineCard } from "@/components/LineCard";
+import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
 import { calcDailySummary, calcLineMargin } from "@/lib/calc";
@@ -29,6 +30,7 @@ export default function Home() {
   );
   const [lineFilter, setLineFilter] = useState("all");
   const [isLoading] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
 
   const selectedDate = endDate;
 
@@ -181,11 +183,36 @@ export default function Home() {
             </p>
           </section>
         ) : (
-          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {filteredLines.map((line) => (
-              <LineCard key={line.id} line={line} sede={selectedSede} />
-            ))}
-          </section>
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+                  Vista de líneas
+                </p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {showComparison
+                    ? "Comparativo de rentabilidad"
+                    : "Tarjetas detalladas"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowComparison((prev) => !prev)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-mercamio-300/40 hover:bg-white"
+              >
+                {showComparison ? "Volver a tarjetas" : "Ver comparativo"}
+              </button>
+            </div>
+            {showComparison ? (
+              <LineComparisonTable lines={filteredLines} sede={selectedSede} />
+            ) : (
+              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {filteredLines.map((line) => (
+                  <LineCard key={line.id} line={line} sede={selectedSede} />
+                ))}
+              </section>
+            )}
+          </div>
         )}
         {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
           <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center">
