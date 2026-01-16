@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Visualizador de Productividad por Día",
   description: "Panel diario de productividad por línea",
+  referrer: "strict-origin-when-cross-origin",
 };
 
 export default function RootLayout({
