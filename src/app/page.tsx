@@ -173,14 +173,16 @@ export default function Home() {
     year: "numeric",
   }).format(new Date(`${selectedMonth}-01T00:00:00`));
   return (
-    <div className="min-h-screen bg-slate-950 px-4 pb-16 pt-10 text-white sm:px-8">
+    <div className="min-h-screen bg-background px-4 pb-16 pt-10 text-foreground sm:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <TopBar
           title={
             <span>
               Tablero diario de{" "}
-              <span className="text-mercamio-200/90">productividad</span> por
-              línea
+              <span className="text-mercamio-500 dark:text-mercamio-200/90">
+                productividad
+              </span>{" "}
+              por línea
             </span>
           }
           selectedSede={selectedSede}
@@ -209,26 +211,26 @@ export default function Home() {
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`line-skeleton-${index}`}
-                className="h-80 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+                className="h-80 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
               >
                 <div className="flex h-full flex-col gap-4 animate-pulse">
-                  <div className="h-6 w-32 rounded-full bg-white/10" />
-                  <div className="h-4 w-24 rounded-full bg-white/10" />
-                  <div className="h-12 rounded-2xl bg-white/10" />
-                  <div className="flex-1 rounded-2xl bg-white/10" />
+                  <div className="h-6 w-32 rounded-full bg-slate-200/70 dark:bg-white/10" />
+                  <div className="h-4 w-24 rounded-full bg-slate-200/70 dark:bg-white/10" />
+                  <div className="h-12 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
+                  <div className="flex-1 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
                 </div>
               </div>
             ))}
           </section>
         ) : lines.length === 0 ? (
-          <section className="rounded-3xl border border-dashed border-white/15 bg-slate-950/40 p-10 text-center">
-            <p className="text-sm uppercase tracking-[0.3em] text-white/40">
+          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-10 text-center dark:border-white/15 dark:bg-slate-950/40">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-400 dark:text-white/40">
               Sin datos
             </p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">
               No hay datos en este rango para la sede seleccionada.
             </h2>
-            <p className="mt-2 text-sm text-white/60">
+            <p className="mt-2 text-sm text-slate-500 dark:text-white/60">
               Prueba otro rango o sede para ver actividad.
             </p>
           </section>
@@ -247,14 +249,14 @@ export default function Home() {
           </section>
         )}
         {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
-          <section className="rounded-3xl border border-dashed border-white/15 bg-slate-950/40 p-8 text-center">
-            <p className="text-sm uppercase tracking-[0.3em] text-white/40">
+          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center dark:border-white/15 dark:bg-slate-950/40">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-400 dark:text-white/40">
               Sin coincidencias
             </p>
-            <h3 className="mt-3 text-xl font-semibold text-white">
+            <h3 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">
               No hay líneas para este segmento.
             </h3>
-            <p className="mt-2 text-sm text-white/60">
+            <p className="mt-2 text-sm text-slate-500 dark:text-white/60">
               Prueba otro filtro o revisa un rango distinto.
             </p>
           </section>
@@ -264,12 +266,12 @@ export default function Home() {
             {Array.from({ length: 2 }).map((_, index) => (
               <div
                 key={`summary-skeleton-${index}`}
-                className="h-64 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+                className="h-64 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
               >
                 <div className="flex h-full flex-col gap-4 animate-pulse">
-                  <div className="h-5 w-40 rounded-full bg-white/10" />
-                  <div className="h-8 w-32 rounded-full bg-white/10" />
-                  <div className="flex-1 rounded-2xl bg-white/10" />
+                  <div className="h-5 w-40 rounded-full bg-slate-200/70 dark:bg-white/10" />
+                  <div className="h-8 w-32 rounded-full bg-slate-200/70 dark:bg-white/10" />
+                  <div className="flex-1 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
                 </div>
               </div>
             ))}
