@@ -55,13 +55,10 @@ const lineLabels = {
 };
 
 const statusClasses = {
-  excellent:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
-  normal:
-    "bg-slate-200 text-slate-600 dark:bg-slate-400/15 dark:text-slate-200",
-  attention:
-    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
-  problem: "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200",
+  excellent: "bg-emerald-100 text-emerald-700",
+  normal: "bg-slate-200 text-slate-600",
+  attention: "bg-amber-100 text-amber-700",
+  problem: "bg-rose-100 text-rose-700",
 };
 
 export const getSummaryStatus = (sede: string, margin: number) => {
@@ -88,26 +85,26 @@ const resolveStatus = (
     return {
       label: labels.excellent,
       className: statusClasses.excellent,
-      textClass: "text-emerald-600 dark:text-emerald-200",
+      textClass: "text-emerald-600",
     };
   }
   if (margin >= thresholds.normal) {
     return {
       label: labels.normal,
       className: statusClasses.normal,
-      textClass: "text-slate-600 dark:text-slate-200",
+      textClass: "text-slate-600",
     };
   }
   if (margin >= thresholds.attention) {
     return {
       label: labels.attention,
       className: statusClasses.attention,
-      textClass: "text-amber-600 dark:text-amber-200",
+      textClass: "text-amber-600",
     };
   }
   return {
     label: labels.problem,
     className: statusClasses.problem,
-    textClass: "text-rose-600 dark:text-rose-200",
+    textClass: "text-rose-600",
   };
 };

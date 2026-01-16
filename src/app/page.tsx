@@ -179,10 +179,7 @@ export default function Home() {
           title={
             <span>
               Tablero diario de{" "}
-              <span className="text-mercamio-500 dark:text-mercamio-200/90">
-                productividad
-              </span>{" "}
-              por línea
+              <span className="text-mercamio-500">productividad</span> por línea
             </span>
           }
           selectedSede={selectedSede}
@@ -211,27 +208,27 @@ export default function Home() {
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`line-skeleton-${index}`}
-                className="h-80 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+                className="h-80 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
               >
                 <div className="flex h-full flex-col gap-4 animate-pulse">
-                  <div className="h-6 w-32 rounded-full bg-slate-200/70 dark:bg-white/10" />
-                  <div className="h-4 w-24 rounded-full bg-slate-200/70 dark:bg-white/10" />
-                  <div className="h-12 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
-                  <div className="flex-1 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
+                  <div className="h-6 w-32 rounded-full bg-slate-200/70" />
+                  <div className="h-4 w-24 rounded-full bg-slate-200/70" />
+                  <div className="h-12 rounded-2xl bg-slate-200/70" />
+                  <div className="flex-1 rounded-2xl bg-slate-200/70" />
                 </div>
               </div>
             ))}
           </section>
         ) : lines.length === 0 ? (
-          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-10 text-center dark:border-white/15 dark:bg-slate-950/40">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-700 dark:text-white/60">
+          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-10 text-center">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-700">
               {" "}
               Sin datos
             </p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">
               No hay datos en este rango para la sede seleccionada.
             </h2>
-            <p className="mt-2 text-sm text-slate-700 dark:text-white/70">
+            <p className="mt-2 text-sm text-slate-700">
               Prueba otro rango o sede para ver actividad.
             </p>
           </section>
@@ -250,15 +247,15 @@ export default function Home() {
           </section>
         )}
         {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
-          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center dark:border-white/15 dark:bg-slate-950/40">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-700 dark:text-white/60">
+          <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-700">
               {" "}
               Sin coincidencias
             </p>
-            <h3 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">
+            <h3 className="mt-3 text-xl font-semibold text-slate-900">
               No hay líneas para este segmento.
             </h3>
-            <p className="mt-2 text-sm text-slate-700 dark:text-white/70">
+            <p className="mt-2 text-sm text-slate-700">
               Prueba otro filtro o revisa un rango distinto.
             </p>
           </section>
@@ -268,12 +265,12 @@ export default function Home() {
             {Array.from({ length: 2 }).map((_, index) => (
               <div
                 key={`summary-skeleton-${index}`}
-                className="h-64 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_60px_-40px_rgba(15,23,42,0.9)]"
+                className="h-64 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
               >
                 <div className="flex h-full flex-col gap-4 animate-pulse">
-                  <div className="h-5 w-40 rounded-full bg-slate-200/70 dark:bg-white/10" />
-                  <div className="h-8 w-32 rounded-full bg-slate-200/70 dark:bg-white/10" />
-                  <div className="flex-1 rounded-2xl bg-slate-200/70 dark:bg-white/10" />
+                  <div className="h-5 w-40 rounded-full bg-slate-200/70" />
+                  <div className="h-8 w-32 rounded-full bg-slate-200/70" />
+                  <div className="flex-1 rounded-2xl bg-slate-200/70" />
                 </div>
               </div>
             ))}
