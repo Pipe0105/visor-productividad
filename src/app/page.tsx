@@ -224,7 +224,7 @@ export default function Home() {
           </section>
         ) : lines.length === 0 ? (
           <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-10 text-center dark:border-white/15 dark:bg-slate-950/40">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-600 dark:text-white/60">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-700 dark:text-white/60">
               {" "}
               Sin datos
             </p>
@@ -251,7 +251,7 @@ export default function Home() {
         )}
         {!isLoading && lines.length > 0 && filteredLines.length === 0 ? (
           <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-8 text-center dark:border-white/15 dark:bg-slate-950/40">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-600 dark:text-white/60">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-700 dark:text-white/60">
               {" "}
               Sin coincidencias
             </p>

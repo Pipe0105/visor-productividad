@@ -126,7 +126,7 @@ export const SummaryCard = ({
                   key={comparison.label}
                   className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-950/40"
                 >
-                  <p className="uppercase tracking-[0.2em] text-slate-500 dark:text-white/40">
+                  <p className="uppercase tracking-[0.2em] text-slate-600 dark:text-white/40">
                     {" "}
                     {comparison.label}
                   </p>
@@ -146,7 +146,7 @@ export const SummaryCard = ({
                 ? "text-emerald-600 dark:text-emerald-200"
                 : delta < 0
                 ? "text-rose-600 dark:text-rose-200"
-                : "text-slate-600 dark:text-slate-200";
+                : "text-slate-700 dark:text-slate-200";
             return (
               <div
                 key={comparison.label}
