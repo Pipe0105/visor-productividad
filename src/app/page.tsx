@@ -240,7 +240,6 @@ export default function Home() {
                 line={line}
                 sede={selectedSede}
                 dailySeries={lineSeriesById.dailySeries.get(line.id) ?? []}
-                weeklySeries={lineSeriesById.weeklySeries.get(line.id) ?? []}
                 rangeLabel={rangeLabel}
               />
             ))}

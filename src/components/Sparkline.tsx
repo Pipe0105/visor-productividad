@@ -10,13 +10,7 @@ export const Sparkline = ({
   strokeClassName = "stroke-mercamio-200",
 }: SparklineProps) => {
   if (data.length < 2) {
-    return (
-      <div
-        className={`flex h-10 items-center justify-center rounded-xl border border-dashed border-slate-200/70 bg-slate-50 text-xs text-slate-700 ${className}`}
-      >
-        Sin historial
-      </div>
-    );
+    return <div></div>;
   }
 
   const min = Math.min(...data);

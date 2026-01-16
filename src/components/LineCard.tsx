@@ -13,7 +13,6 @@ interface LineCardProps {
   line: LineMetrics;
   sede: string;
   dailySeries: number[];
-  weeklySeries: number[];
   rangeLabel: string;
 }
 
@@ -21,7 +20,6 @@ export const LineCard = ({
   line,
   sede,
   dailySeries,
-  weeklySeries,
   rangeLabel,
 }: LineCardProps) => {
   const cost = calcLineCost(line);
@@ -95,10 +93,6 @@ export const LineCard = ({
               data={dailySeries}
               strokeClassName="stroke-emerald-300"
             />
-          </div>
-          <div className="space-y-1">
-            <span className="uppercase tracking-[0.2em]">Semanal</span>
-            <Sparkline data={weeklySeries} strokeClassName="stroke-sky-300" />
           </div>
         </div>
       </div>
