@@ -34,7 +34,7 @@ export const SummaryCard = ({
       ? "text-emerald-600 dark:text-emerald-200"
       : marginRatio < 0
       ? "text-rose-600 dark:text-rose-200"
-      : "text-slate-600 dark:text-slate-300";
+      : "text-slate-700 dark:text-slate-300";
   const salesPerHour = summary.hours ? summary.sales / summary.hours : 0;
   const marginPerHour = summary.hours ? summary.margin / summary.hours : 0;
 
@@ -43,14 +43,14 @@ export const SummaryCard = ({
       {" "}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-700 dark:text-white/70">
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-800 dark:text-white/70">
             {" "}
             {title}
           </p>
           <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">
             {formatCOP(summary.sales)}
           </h3>
-          <p className="text-sm text-slate-600 dark:text-white/70">
+          <p className="text-sm text-slate-700 dark:text-white/70">
             {salesLabel}
           </p>
         </div>
@@ -60,10 +60,10 @@ export const SummaryCard = ({
           {status.label}
         </span>
       </div>
-      <div className="mt-6 grid gap-4 text-sm text-slate-700 dark:text-white/80 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-4 text-sm text-slate-800 dark:text-white/80 sm:grid-cols-2 lg:grid-cols-5">
         {" "}
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
             {" "}
             Horas registradas
           </p>
@@ -73,7 +73,7 @@ export const SummaryCard = ({
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
             {" "}
             Costo de nómina
           </p>
@@ -83,7 +83,7 @@ export const SummaryCard = ({
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
             {" "}
             Venta por hora
           </p>
@@ -93,7 +93,7 @@ export const SummaryCard = ({
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
             {" "}
             Margen acumulado
           </p>
@@ -107,7 +107,7 @@ export const SummaryCard = ({
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
             {" "}
             Margen por hora trabajada
           </p>
@@ -117,7 +117,7 @@ export const SummaryCard = ({
         </div>
       </div>
       {comparisons.length ? (
-        <div className="mt-6 grid gap-3 text-xs text-slate-700 dark:text-white/80 sm:grid-cols-3">
+        <div className="mt-6 grid gap-3 text-xs text-slate-800 dark:text-white/80 sm:grid-cols-3">
           {" "}
           {comparisons.map((comparison) => {
             if (!comparison.baseline) {
@@ -126,10 +126,11 @@ export const SummaryCard = ({
                   key={comparison.label}
                   className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-950/40"
                 >
-                  <p className="uppercase tracking-[0.2em] text-slate-400 dark:text-white/40">
+                  <p className="uppercase tracking-[0.2em] text-slate-500 dark:text-white/40">
+                    {" "}
                     {comparison.label}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-white/70">
+                  <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-white/70">
                     {" "}
                     Sin datos
                   </p>
@@ -151,7 +152,8 @@ export const SummaryCard = ({
                 key={comparison.label}
                 className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-950/40"
               >
-                <p className="uppercase tracking-[0.2em] text-slate-600 dark:text-white/60">
+                <p className="uppercase tracking-[0.2em] text-slate-700 dark:text-white/60">
+                  {" "}
                   {comparison.label}
                 </p>
                 <p
