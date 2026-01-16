@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
 import { calcDailySummary, calcLineMargin } from "@/lib/calc";
-import { mockDailyData, sedes } from "@/lib/mock-data";
+import { DailyProductivity } from "@/types";
 import { getLineStatus } from "@/lib/status";
 
 const parseDateKey = (dateKey: string) => {
@@ -15,32 +15,91 @@ const parseDateKey = (dateKey: string) => {
 };
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
+type ApiResponse = {
+  dailyData: DailyProductivity[];
+  sedes: Array<{ id: string; name: string }>;
+};
+
 export default function Home() {
-  const availableDates = useMemo(
-    () =>
-      Array.from(new Set(mockDailyData.map((item) => item.date))).sort((a, b) =>
-        a.localeCompare(b)
-      ),
-    []
-  );
-  const [selectedSede, setSelectedSede] = useState(sedes[0]?.id ?? "floresta");
-  const [startDate, setStartDate] = useState(availableDates[0] ?? "2024-06-18");
-  const [endDate, setEndDate] = useState(
-    availableDates[availableDates.length - 1] ?? "2024-06-20"
-  );
+  const [dailyDataSet, setDailyDataSet] = useState<DailyProductivity[]>([]);
+  const [availableSedes, setAvailableSedes] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [selectedSede, setSelectedSede] = useState("floresta");
+  const [startDate, setStartDate] = useState("2024-06-18");
+  const [endDate, setEndDate] = useState("2024-06-20");
   const [lineFilter, setLineFilter] = useState("all");
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/productivity");
+        if (!response.ok) {
+          throw new Error("No se pudo cargar la data.");
+        }
+        const payload = (await response.json()) as ApiResponse;
+        if (isMounted) {
+          setDailyDataSet(payload.dailyData ?? []);
+          setAvailableSedes(payload.sedes ?? []);
+        }
+      } catch {
+        if (isMounted) {
+          setDailyDataSet([]);
+          setAvailableSedes([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const availableDates = useMemo(() => {
+    return Array.from(new Set(dailyDataSet.map((item) => item.date))).sort(
+      (a, b) => a.localeCompare(b),
+    );
+  }, [dailyDataSet]);
+
+  useEffect(() => {
+    if (availableSedes.length === 0) {
+      return;
+    }
+    if (!availableSedes.some((sede) => sede.id === selectedSede)) {
+      setSelectedSede(availableSedes[0].id);
+    }
+  }, [availableSedes, selectedSede]);
+
+  useEffect(() => {
+    if (availableDates.length === 0) {
+      return;
+    }
+    if (!availableDates.includes(startDate)) {
+      setStartDate(availableDates[0]);
+    }
+    if (!availableDates.includes(endDate)) {
+      setEndDate(availableDates[availableDates.length - 1]);
+    }
+  }, [availableDates, endDate, startDate]);
 
   const selectedDate = endDate;
 
   const dailyData = useMemo(() => {
     return (
-      mockDailyData.find(
-        (item) => item.date === selectedDate && item.sede === selectedSede
+      dailyDataSet.find(
+        (item) => item.date === selectedDate && item.sede === selectedSede,
       ) ?? null
     );
-  }, [selectedDate, selectedSede]);
+  }, [dailyDataSet, selectedDate, selectedSede]);
 
   const lines = dailyData?.lines ?? [];
   const filteredLines = useMemo(() => {
@@ -61,10 +120,10 @@ export default function Home() {
   const summary = calcDailySummary(lines);
   const selectedMonth = selectedDate.slice(0, 7);
   const monthlySummary = useMemo(() => {
-    const monthLines = mockDailyData
+    const monthLines = dailyDataSet
       .filter(
         (item) =>
-          item.sede === selectedSede && item.date.startsWith(selectedMonth)
+          item.sede === selectedSede && item.date.startsWith(selectedMonth),
       )
       .flatMap((item) => item.lines);
     return calcDailySummary(monthLines);
@@ -72,7 +131,7 @@ export default function Home() {
 
   const summariesByDate = useMemo(() => {
     const map = new Map<string, ReturnType<typeof calcDailySummary>>();
-    mockDailyData
+    dailyDataSet
       .filter((item) => item.sede === selectedSede)
       .forEach((item) => {
         map.set(item.date, calcDailySummary(item.lines));
@@ -86,10 +145,10 @@ export default function Home() {
   previousWeek.setUTCDate(previousWeek.getUTCDate() - 7);
   const previousDaySummary = summariesByDate.get(toDateKey(previousDay));
   const previousWeekSummary = summariesByDate.get(toDateKey(previousWeek));
-  const monthlyDailySummaries = mockDailyData
+  const monthlyDailySummaries = dailyDataSet
     .filter(
       (item) =>
-        item.sede === selectedSede && item.date.startsWith(selectedMonth)
+        item.sede === selectedSede && item.date.startsWith(selectedMonth),
     )
     .map((item) => calcDailySummary(item.lines));
   const monthlyAverage = monthlyDailySummaries.length
@@ -100,7 +159,7 @@ export default function Home() {
           cost: acc.cost + item.cost,
           margin: acc.margin + item.margin,
         }),
-        { sales: 0, hours: 0, cost: 0, margin: 0 }
+        { sales: 0, hours: 0, cost: 0, margin: 0 },
       )
     : null;
   const monthlyAverageSummary =
@@ -133,7 +192,7 @@ export default function Home() {
             </span>
           }
           selectedSede={selectedSede}
-          sedes={sedes}
+          sedes={availableSedes}
           startDate={startDate}
           endDate={endDate}
           dates={availableDates}
