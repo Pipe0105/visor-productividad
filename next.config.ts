@@ -1,10 +1,9 @@
-import { Value } from "@radix-ui/react-select";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    Value: [
+    value: [
       "default-src 'self'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
