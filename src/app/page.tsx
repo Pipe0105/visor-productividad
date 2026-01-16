@@ -204,7 +204,7 @@ export default function Home() {
               </button>
             </div>
             {showComparison ? (
-              <LineComparisonTable lines={filteredLines} sede={selectedSede} />
+              <LineComparisonTable lines={lines} sede={selectedSede} />
             ) : (
               <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredLines.map((line) => (
