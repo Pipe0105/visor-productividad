@@ -1,4 +1,5 @@
 import { getPool } from "@/lib/db";
+import { mockDailyData, sedes as mockSedes } from "@/lib/mock-data";
 import { DailyProductivity } from "@/types";
 
 type ProductivityRow = {
@@ -58,6 +59,10 @@ export async function GET() {
       { status: 400 },
     );
   }
+
+  if (process.env.USE_MOCK_DATA === "true") {
+    return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+  }
   let pool;
   try {
     pool = getPool();
@@ -66,6 +71,9 @@ export async function GET() {
       error instanceof Error
         ? error.message
         : "No se pudo conectar a la base de datos.";
+    if (process.env.NODE_ENV !== "production") {
+      return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+    }
     return Response.json({ error: message }, { status: 500 });
   }
 
@@ -89,6 +97,9 @@ export async function GET() {
       error instanceof Error
         ? error.message
         : "No se pudo consultar la base de datos.";
+    if (process.env.NODE_ENV !== "production") {
+      return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+    }
     return Response.json({ error: message }, { status: 500 });
   }
 
