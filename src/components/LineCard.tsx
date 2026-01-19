@@ -20,8 +20,11 @@ export const LineCard = ({ line, sede }: LineCardProps) => {
   const status = getLineStatus(sede, line.id, margin);
 
   return (
-    <article className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-linear-to-br from-white via-slate-50 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition hover:border-mercamio-300/40">
-      {" "}
+    <article
+      data-animate="line-card"
+      className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-linear-to-br from-white via-slate-50 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition hover:border-mercamio-300/40"
+    >
+      s{" "}
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-slate-800">

@@ -29,9 +29,13 @@ export const TopBar = ({
   onLineFilterChange,
 }: TopBarProps) => {
   return (
-    <header className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+    <header
+      data-animate="top-bar"
+      className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] backdrop-blur sm:flex-row sm:items-center sm:justify-between"
+    >
       {" "}
       <div className="flex items-start gap-4">
+        |
         <div className="h-12 w-1.5 rounded-full bg-mercamio-400/70 shadow-[0_0_18px_rgba(60,173,152,0.35)]" />
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-mercamio-700">

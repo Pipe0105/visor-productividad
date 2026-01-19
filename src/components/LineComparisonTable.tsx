@@ -23,7 +23,11 @@ export const LineComparisonTable = ({
   });
 
   return (
-    <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <section
+      data-animate="comparison-card"
+      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
+    >
+      {" "}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
@@ -67,6 +71,7 @@ export const LineComparisonTable = ({
               return (
                 <tr
                   key={line.id}
+                  data-animate="comparison-row"
                   className="rounded-2xl bg-slate-50 text-slate-800"
                 >
                   <td className="px-4 py-3 font-semibold text-slate-900">

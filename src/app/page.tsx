@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Script from "next/script";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -37,6 +38,7 @@ export default function Home() {
   const [lineFilter, setLineFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [animeReady, setAnimeReady] = useState(false);
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
@@ -250,8 +252,87 @@ export default function Home() {
     month: "long",
     year: "numeric",
   }).format(new Date(`${selectedMonth}-01T00:00:00`));
+
+  useEffect(() => {
+    if (!animeReady || isLoading) {
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    const animeInstance = (
+      window as Window & {
+        anime?: (params: Record<string, unknown>) => {
+          pause?: () => void;
+          remove?: (targets: unknown) => void;
+        };
+      }
+    ).anime;
+    if (!animeInstance) {
+      return;
+    }
+    animeInstance.remove?.("[data-animate]");
+
+    const runAnimations = () => {
+      animeInstance({
+        targets: "[data-animate='top-bar']",
+        translateY: [-16, 0],
+        opacity: [0, 1],
+        duration: 650,
+        easing: "easeOutCubic",
+      });
+      animeInstance({
+        targets: "[data-animate='line-card']",
+        translateY: [18, 0],
+        opacity: [0, 1],
+        delay: (el: Element, index: number) => index * 90,
+        duration: 650,
+        easing: "easeOutCubic",
+      });
+      animeInstance({
+        targets: "[data-animate='summary-card']",
+        scale: [0.97, 1],
+        opacity: [0, 1],
+        delay: (el: Element, index: number) => index * 120,
+        duration: 600,
+        easing: "easeOutCubic",
+      });
+      if (showComparison) {
+        animeInstance({
+          targets: "[data-animate='comparison-card']",
+          translateY: [-8, 0],
+          opacity: [0, 1],
+          duration: 550,
+          easing: "easeOutCubic",
+        });
+        animeInstance({
+          targets: "[data-animate='comparison-row']",
+          translateX: [-12, 0],
+          opacity: [0, 1],
+          delay: (el: Element, index: number) => index * 40,
+          duration: 450,
+          easing: "easeOutCubic",
+        });
+      }
+    };
+
+    const animationFrame = window.requestAnimationFrame(runAnimations);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [
+    animeReady,
+    filteredLines.length,
+    isLoading,
+    lines.length,
+    showComparison,
+  ]);
+
   return (
     <div className="min-h-screen bg-background px-4 pb-16 pt-10 text-foreground sm:px-8">
+      <Script
+        src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"
+        strategy="afterInteractive"
+        onLoad={() => setAnimeReady(true)}
+      />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <TopBar
           title={

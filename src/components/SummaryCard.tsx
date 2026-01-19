@@ -33,13 +33,16 @@ export const SummaryCard = ({
     marginRatio > 0
       ? "text-emerald-600"
       : marginRatio < 0
-      ? "text-rose-600"
-      : "text-slate-700";
+        ? "text-rose-600"
+        : "text-slate-700";
   const salesPerHour = summary.hours ? summary.sales / summary.hours : 0;
   const marginPerHour = summary.hours ? summary.margin / summary.hours : 0;
 
   return (
-    <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <section
+      data-animate="summary-card"
+      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
+    >
       {" "}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -143,8 +146,8 @@ export const SummaryCard = ({
               delta > 0
                 ? "text-emerald-600"
                 : delta < 0
-                ? "text-rose-600"
-                : "text-slate-700";
+                  ? "text-rose-600"
+                  : "text-slate-700";
             return (
               <div
                 key={comparison.label}
