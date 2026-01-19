@@ -6,13 +6,25 @@ const getPool = () => {
     return new Pool({ connectionString });
   }
 
-  const {
-    DB_HOST = "localhost",
-    DB_PORT = "5432",
-    DB_NAME = "produXdia",
-    DB_USER = "postgres",
-    DB_PASS = "1234",
-  } = process.env;
+  const { DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS } = process.env;
+
+  const missingVars = [
+    ["DB_HOST", DB_HOST],
+    ["DB_PORT", DB_PORT],
+    ["DB_NAME", DB_NAME],
+    ["DB_USER", DB_USER],
+    ["DB_PASS", DB_PASS],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missingVars.length > 0) {
+    throw new Error(
+      `Missing database environment variables: ${missingVars.join(
+        ", ",
+      )}. Set DATABASE_URL or provide all DB_* values.`,
+    );
+  }
 
   return new Pool({
     host: DB_HOST,

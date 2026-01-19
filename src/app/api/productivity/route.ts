@@ -48,9 +48,16 @@ const resolveLineGroup = (row: ProductivityRow): LineGroup => {
 
 export async function GET() {
   const tableName = process.env.PRODUCTIVITY_TABLE ?? "movimientos";
-  const safeTableName = /^[a-zA-Z0-9_.]+$/.test(tableName)
-    ? tableName
-    : "movimientos";
+  const isValidTableName = /^[a-zA-Z0-9_.]+$/.test(tableName);
+  if (!isValidTableName) {
+    return Response.json(
+      {
+        error:
+          "PRODUCTIVITY_TABLE must contain only letters, numbers, underscores, or dots.",
+      },
+      { status: 400 },
+    );
+  }
   const result = await pool.query<ProductivityRow>(
     `
       SELECT
@@ -60,7 +67,7 @@ export async function GET() {
         nombre_linea1 AS line_name,
         cantidad AS quantity,
         ven_totales AS sales
-      FROM ${safeTableName}
+      FROM ${tableName}
       ORDER BY date ASC, sede ASC, line_name ASC
     `,
   );
