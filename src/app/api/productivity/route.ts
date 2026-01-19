@@ -229,8 +229,8 @@ export async function GET() {
   });
 
   const dailyData = Array.from(grouped.values());
-  const cached = (await readCache()) ?? [];
-  const mergedDailyData = mergeDailyData(cached, dailyData);
+  const cachedDailyData = (await readCache()) ?? [];
+  const mergedDailyData = mergeDailyData(cachedDailyData, dailyData);
   await writeCache(mergedDailyData);
   const sedes = buildSedes(mergedDailyData);
 
