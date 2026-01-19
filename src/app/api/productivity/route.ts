@@ -6,9 +6,8 @@ type ProductivityRow = {
   sede: string;
   line_id: string;
   line_name: string;
+  quantity: number;
   sales: number;
-  hours: number;
-  hourly_rate: number;
 };
 
 type LineGroup = {
@@ -48,17 +47,20 @@ const resolveLineGroup = (row: ProductivityRow): LineGroup => {
 };
 
 export async function GET() {
+  const tableName = process.env.PRODUCTIVITY_TABLE ?? "movimientos";
+  const safeTableName = /^[a-zA-Z0-9_.]+$/.test(tableName)
+    ? tableName
+    : "movimientos";
   const result = await pool.query<ProductivityRow>(
     `
       SELECT
-        date,
-        sede,
-        line_id,
-        line_name,
-        sales,
-        hours,
-        hourly_rate
-      FROM productivity_lines
+        fecha_dcto AS date,
+        empresa AS sede,
+        id_linea1 AS line_id,
+        nombre_linea1 AS line_name,
+        cantidad AS quantity,
+        ven_totales AS sales
+      FROM ${safeTableName}
       ORDER BY date ASC, sede ASC, line_name ASC
     `,
   );
@@ -90,8 +92,8 @@ export async function GET() {
     };
 
     const sales = Number(row.sales ?? 0);
-    const hours = Number(row.hours ?? 0);
-    const hourlyRate = Number(row.hourly_rate ?? 0);
+    const hours = Number(row.quantity ?? 0);
+    const hourlyRate = 0;
 
     existing.sales += Number.isNaN(sales) ? 0 : sales;
     existing.hours += Number.isNaN(hours) ? 0 : hours;
