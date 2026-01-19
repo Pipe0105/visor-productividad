@@ -265,11 +265,7 @@ export default function Home() {
       pause?: () => void;
       remove?: (targets: unknown) => void;
     };
-    const animeInstance = (
-      window as Window & {
-      }
-    ).anime;
-    const animeInstance = window.anime;
+    const animeInstance = (window as Window & { anime?: AnimeInstance }).anime;
     if (!animeInstance) {
       return;
     }
