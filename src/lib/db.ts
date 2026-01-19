@@ -26,15 +26,14 @@ const getPool = () => {
     );
   }
 
-  return new Pool({
+  pool = new Pool({
     host: DB_HOST,
     port: Number(DB_PORT),
     database: DB_NAME,
     user: DB_USER,
     password: DB_PASS,
   });
+  return pool;
 };
 
-const pool = getPool();
-
-export { pool };
+export { getPool };

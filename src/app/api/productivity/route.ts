@@ -1,4 +1,4 @@
-import { pool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { DailyProductivity } from "@/types";
 
 type ProductivityRow = {
@@ -58,19 +58,39 @@ export async function GET() {
       { status: 400 },
     );
   }
-  const result = await pool.query<ProductivityRow>(
-    `
-      SELECT
-        fecha_dcto AS date,
-        empresa AS sede,
-        id_linea1 AS line_id,
-        nombre_linea1 AS line_name,
-        cantidad AS quantity,
-        ven_totales AS sales
-      FROM ${tableName}
-      ORDER BY date ASC, sede ASC, line_name ASC
-    `,
-  );
+  let pool;
+  try {
+    pool = getPool();
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "No se pudo conectar a la base de datos.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+
+  let result;
+  try {
+    result = await pool.query<ProductivityRow>(
+      `
+        SELECT
+          fecha_dcto AS date,
+          empresa AS sede,
+          id_linea1 AS line_id,
+          nombre_linea1 AS line_name,
+          cantidad AS quantity,
+          ven_totales AS sales
+        FROM ${tableName}
+        ORDER BY date ASC, sede ASC, line_name ASC
+      `,
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "No se pudo consultar la base de datos.";
+    return Response.json({ error: message }, { status: 500 });
+  }
 
   const grouped = new Map<string, DailyProductivity>();
   const lineTotals = new Map<
