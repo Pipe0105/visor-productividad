@@ -272,14 +272,14 @@ export default function Home() {
       animate("[data-animate='line-card']", {
         translateY: [18, 0],
         opacity: [0, 1],
-        delay: (el: Element, index: number) => index * 90,
+        delay: (_el: unknown, index: number) => index * 90,
         duration: 650,
         easing: "easeOutCubic",
       });
       animate("[data-animate='summary-card']", {
         scale: [0.97, 1],
         opacity: [0, 1],
-        delay: (el: Element, index: number) => index * 120,
+        delay: (_el: unknown, index: number) => index * 120,
         duration: 600,
         easing: "easeOutCubic",
       });
@@ -293,7 +293,7 @@ export default function Home() {
         animate("[data-animate='comparison-row']", {
           translateX: [-12, 0],
           opacity: [0, 1],
-          delay: (el: Element, index: number) => index * 40,
+          delay: (_el: unknown, index: number) => index * 40,
           duration: 450,
           easing: "easeOutCubic",
         });
