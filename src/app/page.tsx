@@ -71,10 +71,14 @@ export default function Home() {
   }, []);
 
   const availableDates = useMemo(() => {
-    return Array.from(new Set(dailyDataSet.map((item) => item.date))).sort(
-      (a, b) => a.localeCompare(b),
-    );
-  }, [dailyDataSet]);
+    return Array.from(
+      new Set(
+        dailyDataSet
+          .filter((item) => item.sede === selectedSede)
+          .map((item) => item.date),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [dailyDataSet, selectedSede]);
 
   useEffect(() => {
     if (availableSedes.length === 0) {
@@ -111,15 +115,53 @@ export default function Home() {
     return `del ${formatDateLabel(startDate)} al ${formatDateLabel(endDate)}`;
   }, [endDate, startDate]);
 
-  const dailyData = useMemo(() => {
-    return (
-      dailyDataSet.find(
-        (item) => item.date === selectedDate && item.sede === selectedSede,
-      ) ?? null
+  const rangeDailyData = useMemo(() => {
+    if (!startDate || !endDate) {
+      return [];
+    }
+    return dailyDataSet.filter(
+      (item) =>
+        item.sede === selectedSede &&
+        item.date >= startDate &&
+        item.date <= endDate,
     );
-  }, [dailyDataSet, selectedDate, selectedSede]);
+  }, [dailyDataSet, endDate, selectedSede, startDate]);
 
-  const lines = dailyData?.lines ?? [];
+  const lines = useMemo(() => {
+    if (rangeDailyData.length === 0) {
+      return [];
+    }
+    const lineMap = new Map<
+      string,
+      { id: string; name: string; sales: number; hours: number; cost: number }
+    >();
+    rangeDailyData.forEach((day) => {
+      day.lines.forEach((line) => {
+        const cost = line.hours * line.hourlyRate;
+        const existing = lineMap.get(line.id);
+        if (existing) {
+          existing.sales += line.sales;
+          existing.hours += line.hours;
+          existing.cost += cost;
+        } else {
+          lineMap.set(line.id, {
+            id: line.id,
+            name: line.name,
+            sales: line.sales,
+            hours: line.hours,
+            cost,
+          });
+        }
+      });
+    });
+    return Array.from(lineMap.values()).map((line) => ({
+      id: line.id,
+      name: line.name,
+      sales: line.sales,
+      hours: line.hours,
+      hourlyRate: line.hours ? line.cost / line.hours : 0,
+    }));
+  }, [rangeDailyData]);
   const filteredLines = useMemo(() => {
     if (lineFilter === "all") {
       return lines;
