@@ -48,8 +48,17 @@ export default function Home() {
         }
         const payload = (await response.json()) as ApiResponse;
         if (isMounted) {
-          setDailyDataSet(payload.dailyData ?? []);
-          setAvailableSedes(payload.sedes ?? []);
+          const resolvedDailyData = payload.dailyData ?? [];
+          const resolvedSedes =
+            payload.sedes?.length > 0
+              ? payload.sedes
+              : Array.from(
+                  new Map(
+                    resolvedDailyData.map((item) => [item.sede, item.sede]),
+                  ).entries(),
+                ).map(([id, name]) => ({ id, name }));
+          setDailyDataSet(resolvedDailyData);
+          setAvailableSedes(resolvedSedes);
         }
       } catch {
         if (isMounted) {

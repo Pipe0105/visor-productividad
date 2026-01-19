@@ -54,8 +54,14 @@ export const TopBar = ({
           <select
             value={selectedSede}
             onChange={(event) => onSedeChange(event.target.value)}
+            disabled={sedes.length === 0}
             className="ml-auto w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
           >
+            {sedes.length === 0 ? (
+              <option value="" className="bg-white text-slate-500">
+                Sin sedes disponibles
+              </option>
+            ) : null}
             {sedes.map((sede) => (
               <option
                 key={sede.id}
@@ -74,8 +80,14 @@ export const TopBar = ({
             <select
               value={startDate}
               onChange={(event) => onStartDateChange(event.target.value)}
+              disabled={dates.length === 0}
               className="ml-auto w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
             >
+              {dates.length === 0 ? (
+                <option value="" className="bg-white text-slate-500">
+                  Sin fechas disponibles
+                </option>
+              ) : null}
               {dates.map((date) => (
                 <option
                   key={date}
@@ -93,8 +105,14 @@ export const TopBar = ({
             <select
               value={endDate}
               onChange={(event) => onEndDateChange(event.target.value)}
+              disabled={dates.length === 0}
               className="ml-auto w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
             >
+              {dates.length === 0 ? (
+                <option value="" className="bg-white text-slate-500">
+                  Sin fechas disponibles
+                </option>
+              ) : null}
               {dates.map((date) => (
                 <option
                   key={date}
