@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Script from "next/script";
+import { animate } from "animejs";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -38,7 +38,6 @@ export default function Home() {
   const [lineFilter, setLineFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
-  const [animeReady, setAnimeReady] = useState(false);
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
@@ -198,7 +197,7 @@ export default function Home() {
       )
       .flatMap((item) => item.lines);
     return calcDailySummary(monthLines);
-  }, [selectedMonth, selectedSede]);
+  }, [dailyDataSet, selectedMonth, selectedSede]);
 
   const summariesByDate = useMemo(() => {
     const map = new Map<string, ReturnType<typeof calcDailySummary>>();
@@ -208,7 +207,7 @@ export default function Home() {
         map.set(item.date, calcDailySummary(item.lines));
       });
     return map;
-  }, [selectedSede]);
+  }, [dailyDataSet, selectedSede]);
   const selectedDateValue = parseDateKey(selectedDate);
   const previousDay = new Date(selectedDateValue);
   previousDay.setUTCDate(previousDay.getUTCDate() - 1);
@@ -254,33 +253,24 @@ export default function Home() {
   }).format(new Date(`${selectedMonth}-01T00:00:00`));
 
   useEffect(() => {
-    if (!animeReady || isLoading) {
+    if (isLoading) {
       return;
     }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
 
-    type AnimeInstance = ((params: Record<string, unknown>) => void) & {
-      pause?: () => void;
-      remove?: (targets: unknown) => void;
-    };
-    const animeInstance = (window as Window & { anime?: AnimeInstance }).anime;
-    if (!animeInstance) {
-      return;
-    }
-
-    animeInstance.remove?.("[data-animate]");
+    animate.remove?.("[data-animate]");
 
     const runAnimations = () => {
-      animeInstance({
+      animate({
         targets: "[data-animate='top-bar']",
         translateY: [-16, 0],
         opacity: [0, 1],
         duration: 650,
         easing: "easeOutCubic",
       });
-      animeInstance({
+      animate({
         targets: "[data-animate='line-card']",
         translateY: [18, 0],
         opacity: [0, 1],
@@ -288,7 +278,7 @@ export default function Home() {
         duration: 650,
         easing: "easeOutCubic",
       });
-      animeInstance({
+      animate({
         targets: "[data-animate='summary-card']",
         scale: [0.97, 1],
         opacity: [0, 1],
@@ -297,14 +287,14 @@ export default function Home() {
         easing: "easeOutCubic",
       });
       if (showComparison) {
-        animeInstance({
+        animate({
           targets: "[data-animate='comparison-card']",
           translateY: [-8, 0],
           opacity: [0, 1],
           duration: 550,
           easing: "easeOutCubic",
         });
-        animeInstance({
+        animate({
           targets: "[data-animate='comparison-row']",
           translateX: [-12, 0],
           opacity: [0, 1],
@@ -317,21 +307,10 @@ export default function Home() {
 
     const animationFrame = window.requestAnimationFrame(runAnimations);
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [
-    animeReady,
-    filteredLines.length,
-    isLoading,
-    lines.length,
-    showComparison,
-  ]);
+  }, [filteredLines.length, isLoading, lines.length, showComparison]);
 
   return (
     <div className="min-h-screen bg-background px-4 pb-16 pt-10 text-foreground sm:px-8">
-      <Script
-        src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"
-        strategy="afterInteractive"
-        onLoad={() => setAnimeReady(true)}
-      />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <TopBar
           title={

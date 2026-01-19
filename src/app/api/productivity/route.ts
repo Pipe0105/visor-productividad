@@ -49,10 +49,57 @@ const resolveLineGroup = (row: ProductivityRow): LineGroup => {
   return { id: "industria", name: "Industria" };
 };
 
-const cacheFilePath = path.resolve(
-  process.cwd(),
-  process.env.PRODUCTIVITY_CACHE_PATH ?? "data/productivity-cache.json",
-);
+const resolveCachePath = () => {
+  const defaultPath = "data/productivity-cache.json";
+  const envPath = process.env.PRODUCTIVITY_CACHE_PATH?.trim();
+  if (!envPath) {
+    return path.resolve(process.cwd(), defaultPath);
+  }
+  const isSafeRelative =
+    !path.isAbsolute(envPath) &&
+    !envPath.split(path.sep).includes("..") &&
+    /^[\w./-]+$/.test(envPath);
+  if (!isSafeRelative) {
+    return path.resolve(process.cwd(), defaultPath);
+  }
+  return path.resolve(process.cwd(), envPath);
+};
+
+const cacheFilePath = resolveCachePath();
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 120;
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+const getClientIp = (request: Request) => {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return (
+    request.headers.get("x-real-ip") ??
+    request.headers.get("cf-connecting-ip") ??
+    "unknown"
+  );
+};
+
+const checkRateLimit = (request: Request) => {
+  const now = Date.now();
+  const clientIp = getClientIp(request);
+  const entry = rateLimitStore.get(clientIp);
+  if (!entry || entry.resetAt <= now) {
+    rateLimitStore.set(clientIp, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return null;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return entry.resetAt;
+  }
+  entry.count += 1;
+  return null;
+};
 
 const readCache = async (): Promise<DailyProductivity[] | null> => {
   try {
@@ -105,7 +152,21 @@ const buildSedes = (dailyData: DailyProductivity[]) =>
     name: sede,
   }));
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limitedUntil = checkRateLimit(request);
+  if (limitedUntil) {
+    const retryAfterSeconds = Math.ceil((limitedUntil - Date.now()) / 1000);
+    return Response.json(
+      { error: "Demasiadas solicitudes. Intenta más tarde." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": retryAfterSeconds.toString(),
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
   const tableName = process.env.PRODUCTIVITY_TABLE ?? "movimientos";
   const isValidTableName = /^[a-zA-Z0-9_.]+$/.test(tableName);
   if (!isValidTableName) {
@@ -114,25 +175,31 @@ export async function GET() {
         error:
           "PRODUCTIVITY_TABLE must contain only letters, numbers, underscores, or dots.",
       },
-      { status: 400 },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
 
   if (process.env.USE_MOCK_DATA === "true") {
-    return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+    return Response.json(
+      { dailyData: mockDailyData, sedes: mockSedes },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
   let pool;
   try {
     pool = getPool();
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "No se pudo conectar a la base de datos.";
+    const message = "No se pudo conectar a la base de datos.";
     if (process.env.NODE_ENV !== "production") {
-      return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+      return Response.json(
+        { dailyData: mockDailyData, sedes: mockSedes },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     }
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: message },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   let result;
@@ -152,18 +219,27 @@ export async function GET() {
     );
   } catch (error) {
     const message =
-      error instanceof Error
+      process.env.NODE_ENV !== "production" && error instanceof Error
         ? error.message
         : "No se pudo consultar la base de datos.";
     if (process.env.NODE_ENV !== "production") {
-      return Response.json({ dailyData: mockDailyData, sedes: mockSedes });
+      return Response.json(
+        { dailyData: mockDailyData, sedes: mockSedes },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     }
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: message },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const cached = await readCache();
   if (cached) {
-    return Response.json({ dailyData: cached, sedes: buildSedes(cached) });
+    return Response.json(
+      { dailyData: cached, sedes: buildSedes(cached) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const grouped = new Map<string, DailyProductivity>();
@@ -234,5 +310,8 @@ export async function GET() {
   await writeCache(mergedDailyData);
   const sedes = buildSedes(mergedDailyData);
 
-  return Response.json({ dailyData: mergedDailyData, sedes });
+  return Response.json(
+    { dailyData: mergedDailyData, sedes },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
