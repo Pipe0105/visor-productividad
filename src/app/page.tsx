@@ -270,7 +270,6 @@ export default function Home() {
       return;
     }
 
-     anime?: AnimeInstance
     animeInstance.remove?.("[data-animate]");
 
     const runAnimations = () => {
