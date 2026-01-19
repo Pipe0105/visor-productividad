@@ -11,11 +11,40 @@ type ProductivityRow = {
   hourly_rate: number;
 };
 
+type LineGroup = {
+  id: string;
+  name: string;
+};
+
 const toDateKey = (value: Date | string) => {
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);
   }
   return value.slice(0, 10);
+};
+
+const normalizeLineId = (value: string) => value.trim().padStart(2, "0");
+
+const resolveLineGroup = (row: ProductivityRow): LineGroup => {
+  const lineName = row.line_name?.toLowerCase().trim() ?? "";
+  if (lineName === "cajas" || lineName === "caja") {
+    return { id: "cajas", name: "Cajas" };
+  }
+  if (lineName === "asadero" || lineName === "asaderp") {
+    return { id: "asadero", name: "Asadero" };
+  }
+
+  const lineId = normalizeLineId(String(row.line_id ?? ""));
+  if (lineId === "01") {
+    return { id: "fruver", name: "Fruver" };
+  }
+  if (lineId === "02") {
+    return { id: "carnes", name: "Carnes" };
+  }
+  if (lineId === "03" || lineId === "04") {
+    return { id: "pollo y pescado", name: "Pollo y pescado" };
+  }
+  return { id: "industria", name: "Industria" };
 };
 
 export async function GET() {
@@ -35,31 +64,69 @@ export async function GET() {
   );
 
   const grouped = new Map<string, DailyProductivity>();
+  const lineTotals = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      sales: number;
+      hours: number;
+      laborCost: number;
+    }
+  >();
   const sedesMap = new Map<string, string>();
 
   result.rows.forEach((row) => {
     const dateKey = toDateKey(row.date);
-    const key = `${dateKey}-${row.sede}`;
-    const existing =
-      grouped.get(key) ??
-      ({
+    const dailyKey = `${dateKey}|${row.sede}`;
+    const lineGroup = resolveLineGroup(row);
+    const lineKey = `${dailyKey}|${lineGroup.id}`;
+    const existing = lineTotals.get(lineKey) ?? {
+      id: lineGroup.id,
+      name: lineGroup.name,
+      sales: 0,
+      hours: 0,
+      laborCost: 0,
+    };
+
+    const sales = Number(row.sales ?? 0);
+    const hours = Number(row.hours ?? 0);
+    const hourlyRate = Number(row.hourly_rate ?? 0);
+
+    existing.sales += Number.isNaN(sales) ? 0 : sales;
+    existing.hours += Number.isNaN(hours) ? 0 : hours;
+    existing.laborCost +=
+      (Number.isNaN(hours) ? 0 : hours) *
+      (Number.isNaN(hourlyRate) ? 0 : hourlyRate);
+    lineTotals.set(lineKey, existing);
+
+    if (!grouped.has(dailyKey)) {
+      grouped.set(dailyKey, {
         date: dateKey,
         sede: row.sede,
         lines: [],
-      } satisfies DailyProductivity);
-
-    existing.lines.push({
-      id: row.line_id,
-      name: row.line_name,
-      sales: Number(row.sales),
-      hours: Number(row.hours),
-      hourlyRate: Number(row.hourly_rate),
-    });
-
-    grouped.set(key, existing);
+      });
+    }
     if (!sedesMap.has(row.sede)) {
       sedesMap.set(row.sede, row.sede);
     }
+  });
+
+  lineTotals.forEach((line, key) => {
+    const [dateKey, sede] = key.split("|");
+    const dailyKey = `${dateKey}|${sede}`;
+    const dailyEntry = grouped.get(dailyKey);
+    if (!dailyEntry) {
+      return;
+    }
+    const hourlyRate = line.hours ? line.laborCost / line.hours : 0;
+    dailyEntry.lines.push({
+      id: line.id,
+      name: line.name,
+      sales: line.sales,
+      hours: line.hours,
+      hourlyRate,
+    });
   });
 
   const dailyData = Array.from(grouped.values());
