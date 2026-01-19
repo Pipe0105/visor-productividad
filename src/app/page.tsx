@@ -269,6 +269,7 @@ export default function Home() {
       window as Window & {
       }
     ).anime;
+    const animeInstance = window.anime;
     if (!animeInstance) {
       return;
     }
