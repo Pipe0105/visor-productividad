@@ -260,17 +260,20 @@ export default function Home() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
+
+    type AnimeInstance = ((params: Record<string, unknown>) => void) & {
+      pause?: () => void;
+      remove?: (targets: unknown) => void;
+    };
     const animeInstance = (
       window as Window & {
-        anime?: (params: Record<string, unknown>) => {
-          pause?: () => void;
-          remove?: (targets: unknown) => void;
-        };
       }
     ).anime;
     if (!animeInstance) {
       return;
     }
+
+     anime?: AnimeInstance
     animeInstance.remove?.("[data-animate]");
 
     const runAnimations = () => {
