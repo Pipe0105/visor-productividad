@@ -1,9 +1,13 @@
 import { Pool } from "pg";
-
+let pool: Pool | null = null;
 const getPool = () => {
+  if (pool) {
+    return pool;
+  }
   const connectionString = process.env.DATABASE_URL;
   if (connectionString) {
-    return new Pool({ connectionString });
+    pool = new Pool({ connectionString });
+    return pool;
   }
 
   const { DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS } = process.env;
