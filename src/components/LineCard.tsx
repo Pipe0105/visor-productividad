@@ -53,6 +53,12 @@ export const LineCard = ({ line, sede }: LineCardProps) => {
           </span>
         </div>
         <div className="flex items-center justify-between">
+          <span className="text-slate-700">Ventas</span>
+          <span className="text-base font-semibold text-slate-900">
+            {formatCOP(line.sales)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-slate-700">
             {margin >= 0 ? (
               <TrendingUp className={`h-4 w-4 ${status.textClass}`} />
