@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { animate } from "animejs";
+import { animate, remove } from "animejs";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -260,26 +260,23 @@ export default function Home() {
       return;
     }
 
-    animate.remove?.("[data-animate]");
+    remove?.("[data-animate]");
 
     const runAnimations = () => {
-      animate({
-        targets: "[data-animate='top-bar']",
+      animate("[data-animate='top-bar']", {
         translateY: [-16, 0],
         opacity: [0, 1],
         duration: 650,
         easing: "easeOutCubic",
       });
-      animate({
-        targets: "[data-animate='line-card']",
+      animate("[data-animate='line-card']", {
         translateY: [18, 0],
         opacity: [0, 1],
         delay: (el: Element, index: number) => index * 90,
         duration: 650,
         easing: "easeOutCubic",
       });
-      animate({
-        targets: "[data-animate='summary-card']",
+      animate("[data-animate='summary-card']", {
         scale: [0.97, 1],
         opacity: [0, 1],
         delay: (el: Element, index: number) => index * 120,
@@ -287,15 +284,13 @@ export default function Home() {
         easing: "easeOutCubic",
       });
       if (showComparison) {
-        animate({
-          targets: "[data-animate='comparison-card']",
+        animate("[data-animate='comparison-card']", {
           translateY: [-8, 0],
           opacity: [0, 1],
           duration: 550,
           easing: "easeOutCubic",
         });
-        animate({
-          targets: "[data-animate='comparison-row']",
+        animate("[data-animate='comparison-row']", {
           translateX: [-12, 0],
           opacity: [0, 1],
           delay: (el: Element, index: number) => index * 40,
