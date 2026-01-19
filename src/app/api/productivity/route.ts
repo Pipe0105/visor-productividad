@@ -1,6 +1,8 @@
 import { getPool } from "@/lib/db";
 import { mockDailyData, sedes as mockSedes } from "@/lib/mock-data";
 import { DailyProductivity } from "@/types";
+import { promises as fs } from "fs";
+import path from "path";
 
 type ProductivityRow = {
   date: Date | string;
@@ -46,6 +48,62 @@ const resolveLineGroup = (row: ProductivityRow): LineGroup => {
   }
   return { id: "industria", name: "Industria" };
 };
+
+const cacheFilePath = path.resolve(
+  process.cwd(),
+  process.env.PRODUCTIVITY_CACHE_PATH ?? "data/productivity-cache.json",
+);
+
+const readCache = async (): Promise<DailyProductivity[] | null> => {
+  try {
+    const raw = await fs.readFile(cacheFilePath, "utf-8");
+    const parsed = JSON.parse(raw) as { dailyData?: DailyProductivity[] };
+    if (!Array.isArray(parsed.dailyData)) {
+      return null;
+    }
+    return parsed.dailyData;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    return null;
+  }
+};
+
+const writeCache = async (dailyData: DailyProductivity[]) => {
+  await fs.mkdir(path.dirname(cacheFilePath), { recursive: true });
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    dailyData,
+  };
+  await fs.writeFile(cacheFilePath, JSON.stringify(payload, null, 2));
+};
+
+const mergeDailyData = (
+  cached: DailyProductivity[],
+  fresh: DailyProductivity[],
+) => {
+  const merged = new Map<string, DailyProductivity>();
+  cached.forEach((entry) => {
+    merged.set(`${entry.date}|${entry.sede}`, entry);
+  });
+  fresh.forEach((entry) => {
+    merged.set(`${entry.date}|${entry.sede}`, entry);
+  });
+  return Array.from(merged.values()).sort((a, b) => {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+    return a.sede.localeCompare(b.sede);
+  });
+};
+
+const buildSedes = (dailyData: DailyProductivity[]) =>
+  Array.from(new Set(dailyData.map((item) => item.sede))).map((sede) => ({
+    id: sede,
+    name: sede,
+  }));
 
 export async function GET() {
   const tableName = process.env.PRODUCTIVITY_TABLE ?? "movimientos";
@@ -103,6 +161,11 @@ export async function GET() {
     return Response.json({ error: message }, { status: 500 });
   }
 
+  const cached = await readCache();
+  if (cached) {
+    return Response.json({ dailyData: cached, sedes: buildSedes(cached) });
+  }
+
   const grouped = new Map<string, DailyProductivity>();
   const lineTotals = new Map<
     string,
@@ -114,7 +177,6 @@ export async function GET() {
       laborCost: number;
     }
   >();
-  const sedesMap = new Map<string, string>();
 
   result.rows.forEach((row) => {
     const dateKey = toDateKey(row.date);
@@ -147,9 +209,6 @@ export async function GET() {
         lines: [],
       });
     }
-    if (!sedesMap.has(row.sede)) {
-      sedesMap.set(row.sede, row.sede);
-    }
   });
 
   lineTotals.forEach((line, key) => {
@@ -170,10 +229,10 @@ export async function GET() {
   });
 
   const dailyData = Array.from(grouped.values());
-  const sedes = Array.from(sedesMap.values()).map((sede) => ({
-    id: sede,
-    name: sede,
-  }));
+  const cached = (await readCache()) ?? [];
+  const mergedDailyData = mergeDailyData(cached, dailyData);
+  await writeCache(mergedDailyData);
+  const sedes = buildSedes(mergedDailyData);
 
-  return Response.json({ dailyData, sedes });
+  return Response.json({ dailyData: mergedDailyData, sedes });
 }
