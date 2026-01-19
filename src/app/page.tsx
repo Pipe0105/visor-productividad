@@ -14,6 +14,12 @@ const parseDateKey = (dateKey: string) => {
   return new Date(Date.UTC(year, month - 1, day));
 };
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+const formatDateLabel = (dateKey: string) =>
+  new Intl.DateTimeFormat("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parseDateKey(dateKey));
 
 type ApiResponse = {
   dailyData: DailyProductivity[];
@@ -92,6 +98,18 @@ export default function Home() {
   }, [availableDates, endDate, startDate]);
 
   const selectedDate = endDate;
+  const selectedSedeName =
+    availableSedes.find((sede) => sede.id === selectedSede)?.name ??
+    selectedSede;
+  const dateRangeLabel = useMemo(() => {
+    if (!startDate || !endDate) {
+      return "";
+    }
+    if (startDate === endDate) {
+      return `el ${formatDateLabel(startDate)}`;
+    }
+    return `del ${formatDateLabel(startDate)} al ${formatDateLabel(endDate)}`;
+  }, [endDate, startDate]);
 
   const dailyData = useMemo(() => {
     return (
@@ -235,10 +253,10 @@ export default function Home() {
               Sin datos
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-slate-900">
-              No hay datos en este rango para la sede seleccionada.
+              No hay datos para {selectedSedeName} {dateRangeLabel}.
             </h2>
             <p className="mt-2 text-sm text-slate-700">
-              Prueba otro rango o sede para ver actividad.
+              Prueba otra fecha o sede para ver actividad.
             </p>
           </section>
         ) : (
