@@ -12,102 +12,172 @@ interface LineComparisonTableProps {
   sede: string;
 }
 
+// ============================================================================
+// TIPOS
+// ============================================================================
+
+type LineWithMetrics = LineMetrics & {
+  cost: number;
+  margin: number;
+  marginRatio: number;
+  marginPerHour: number;
+  status: ReturnType<typeof getLineStatus>;
+};
+
+// ============================================================================
+// COMPONENTES AUXILIARES
+// ============================================================================
+
+const TableHeader = () => (
+  <thead>
+    <tr className="text-xs uppercase tracking-[0.2em] text-slate-500">
+      <th className="px-4 py-2 text-left font-semibold">Ranking</th>
+      <th className="px-4 py-2 text-left font-semibold">Línea</th>
+      <th className="px-4 py-2 text-left font-semibold">Ventas</th>
+      <th className="px-4 py-2 text-left font-semibold">Horas</th>
+      <th className="px-4 py-2 text-left font-semibold">Costo</th>
+      <th className="px-4 py-2 text-left font-semibold">Margen</th>
+      <th className="px-4 py-2 text-left font-semibold">Margen %</th>
+      <th className="px-4 py-2 text-left font-semibold">Margen/h</th>
+      <th className="px-4 py-2 text-left font-semibold">Estado</th>
+    </tr>
+  </thead>
+);
+
+const TableRow = ({
+  line,
+  index,
+}: {
+  line: LineWithMetrics;
+  index: number;
+}) => (
+  <tr
+    data-animate="comparison-row"
+    className="rounded-2xl bg-slate-50 transition-all hover:bg-slate-100"
+  >
+    <td className="rounded-l-2xl px-4 py-3 font-semibold text-slate-900">
+      #{index + 1}
+    </td>
+    <td className="px-4 py-3">
+      <p className="font-semibold text-slate-900">{line.name}</p>
+      <p className="text-xs text-slate-500">{line.id}</p>
+    </td>
+    <td className="px-4 py-3 font-semibold text-slate-900">
+      {formatCOP(line.sales)}
+    </td>
+    <td className="px-4 py-3 text-slate-700">{line.hours}h</td>
+    <td className="px-4 py-3 text-slate-700">{formatCOP(line.cost)}</td>
+    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
+      {formatCOP(line.margin)}
+    </td>
+    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
+      {formatPercent(line.marginRatio)}
+    </td>
+    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
+      {formatCOP(line.marginPerHour)}
+    </td>
+    <td className="rounded-r-2xl px-4 py-3">
+      <span
+        className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${line.status.className}`}
+      >
+        {line.status.label}
+      </span>
+    </td>
+  </tr>
+);
+
+const TableSummary = ({ count }: { count: number }) => (
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
+        Comparativo de líneas
+      </p>
+      <h3 className="text-2xl font-semibold text-slate-900">
+        Rentabilidad en comparación
+      </h3>
+      <p className="mt-2 text-sm text-slate-600">
+        Ordenado por margen total para identificar rápido las líneas más
+        rentables.
+      </p>
+    </div>
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
+      {count} {count === 1 ? "línea" : "líneas"}
+    </span>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="py-12 text-center">
+    <p className="text-sm uppercase tracking-[0.2em] text-slate-500">
+      Sin datos
+    </p>
+    <p className="mt-2 text-slate-700">No hay líneas para comparar</p>
+  </div>
+);
+
+// ============================================================================
+// UTILIDADES
+// ============================================================================
+
+const enrichLineWithMetrics = (
+  line: LineMetrics,
+  sede: string,
+): LineWithMetrics => {
+  const cost = calcLineCost(line);
+  const margin = calcLineMargin(line);
+  const marginRatio = line.sales ? margin / line.sales : 0;
+  const marginPerHour = line.hours ? margin / line.hours : 0;
+  const status = getLineStatus(sede, line.id, margin);
+
+  return {
+    ...line,
+    cost,
+    margin,
+    marginRatio,
+    marginPerHour,
+    status,
+  };
+};
+
+const sortLinesByMargin = (lines: LineWithMetrics[]): LineWithMetrics[] => {
+  return [...lines].sort((a, b) => b.margin - a.margin);
+};
+
+// ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
+
 export const LineComparisonTable = ({
   lines,
   sede,
 }: LineComparisonTableProps) => {
-  const sortedLines = [...lines].sort((a, b) => {
-    const marginA = calcLineMargin(a);
-    const marginB = calcLineMargin(b);
-    return marginB - marginA;
-  });
+  // Enriquecer líneas con métricas calculadas
+  const enrichedLines = lines.map((line) => enrichLineWithMetrics(line, sede));
+
+  // Ordenar por margen
+  const sortedLines = sortLinesByMargin(enrichedLines);
 
   return (
     <section
       data-animate="comparison-card"
-      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
+      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)]"
     >
-      {" "}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
-            Comparativo de líneas
-          </p>
-          <h3 className="text-2xl font-semibold text-slate-900">
-            Rentabilidad en comparación
-          </h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Ordenado por margen total para identificar rápido las líneas más
-            rentables.
-          </p>
-        </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
-          {sortedLines.length} líneas
-        </span>
-      </div>
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-720px border-separate border-spacing-y-2 text-left text-sm">
-          <thead>
-            <tr className="text-xs uppercase tracking-[0.2em] text-slate-500">
-              <th className="px-4">Ranking</th>
-              <th className="px-4">Línea</th>
-              <th className="px-4">Ventas</th>
-              <th className="px-4">Horas</th>
-              <th className="px-4">Costo</th>
-              <th className="px-4">Margen</th>
-              <th className="px-4">Margen %</th>
-              <th className="px-4">Margen/h</th>
-              <th className="px-4">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedLines.map((line, index) => {
-              const cost = calcLineCost(line);
-              const margin = calcLineMargin(line);
-              const marginRatio = line.sales ? margin / line.sales : 0;
-              const marginPerHour = line.hours ? margin / line.hours : 0;
-              const status = getLineStatus(sede, line.id, margin);
+      <TableSummary count={sortedLines.length} />
 
-              return (
-                <tr
-                  key={line.id}
-                  data-animate="comparison-row"
-                  className="rounded-2xl bg-slate-50 text-slate-800"
-                >
-                  <td className="px-4 py-3 font-semibold text-slate-900">
-                    #{index + 1}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-900">{line.name}</p>
-                    <p className="text-xs text-slate-500">{line.id}</p>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">
-                    {formatCOP(line.sales)}
-                  </td>
-                  <td className="px-4 py-3">{line.hours}h</td>
-                  <td className="px-4 py-3">{formatCOP(cost)}</td>
-                  <td className={`px-4 py-3 font-semibold ${status.textClass}`}>
-                    {formatCOP(margin)}
-                  </td>
-                  <td className={`px-4 py-3 font-semibold ${status.textClass}`}>
-                    {formatPercent(marginRatio)}
-                  </td>
-                  <td className={`px-4 py-3 font-semibold ${status.textClass}`}>
-                    {formatCOP(marginPerHour)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${status.className}`}
-                    >
-                      {status.label}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {sortedLines.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full min-w-180 border-separate border-spacing-y-2 text-left text-sm">
+            <TableHeader />
+            <tbody>
+              {sortedLines.map((line, index) => (
+                <TableRow key={line.id} line={line} index={index} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 };
