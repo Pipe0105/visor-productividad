@@ -1,24 +1,6 @@
-import { getPool, getPoolConfigError } from "@/lib/db";
 import { DailyProductivity } from "@/types";
 import { promises as fs } from "fs";
 import path from "path";
-import type { Pool } from "pg";
-
-type ProductivityRow = {
-  date: Date | string;
-  sede: string;
-  line_id: string;
-  line_name: string;
-  quantity: number;
-  sales: number;
-};
-
-const toDateKey = (value: Date | string) => {
-  if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
-  }
-  return value.slice(0, 10);
-};
 
 const resolveCachePath = () => {
   const defaultPath = "data/productivity-cache.json";
@@ -88,15 +70,6 @@ const readCache = async (): Promise<DailyProductivity[] | null> => {
   }
 };
 
-const writeCache = async (dailyData: DailyProductivity[]) => {
-  await fs.mkdir(path.dirname(cacheFilePath), { recursive: true });
-  const payload = {
-    updatedAt: new Date().toISOString(),
-    dailyData,
-  };
-  await fs.writeFile(cacheFilePath, JSON.stringify(payload, null, 2));
-};
-
 const buildCacheResponse = (dailyData: DailyProductivity[]) =>
   Response.json(
     { dailyData, sedes: buildSedes(dailyData) },
@@ -123,83 +96,11 @@ const buildFallbackResponse = (message: string) =>
     },
   );
 
-const mergeDailyData = (
-  cached: DailyProductivity[],
-  fresh: DailyProductivity[],
-) => {
-  const merged = new Map<string, DailyProductivity>();
-  cached.forEach((entry) => {
-    merged.set(`${entry.date}|${entry.sede}`, entry);
-  });
-  fresh.forEach((entry) => {
-    merged.set(`${entry.date}|${entry.sede}`, entry);
-  });
-  return Array.from(merged.values()).sort((a, b) => {
-    const dateCompare = a.date.localeCompare(b.date);
-    if (dateCompare !== 0) {
-      return dateCompare;
-    }
-    return a.sede.localeCompare(b.sede);
-  });
-};
-
 const buildSedes = (dailyData: DailyProductivity[]) =>
   Array.from(new Set(dailyData.map((item) => item.sede))).map((sede) => ({
     id: sede,
     name: sede,
   }));
-
-const isValidTableName = (tableName: string) =>
-  /^[a-zA-Z0-9_.]+$/.test(tableName);
-
-const fetchLineRows = async (
-  pool: Pool,
-  {
-    tableName,
-    lineId,
-    lineName,
-    salesColumn,
-  }: {
-    tableName: string;
-    lineId: string;
-    lineName: string;
-    salesColumn: string;
-  },
-) => {
-  return pool.query<ProductivityRow>(
-    `
-      SELECT
-        fecha_dcto AS date,
-        empresa_bd AS sede,
-        '${lineId}' AS line_id,
-        '${lineName}' AS line_name,
-        0 AS quantity,
-        SUM(${salesColumn}) AS sales
-      FROM ${tableName}
-      GROUP BY fecha_dcto, empresa_bd
-      ORDER BY date ASC, sede ASC
-    `,
-  );
-};
-
-const getDbErrorMessage = (error: unknown) => {
-  if (error && typeof error === "object") {
-    const maybePgError = error as { code?: string; message?: string };
-    if (maybePgError.code === "28P01") {
-      return "Autenticación fallida. Revisa las credenciales de la base de datos.";
-    }
-    if (
-      process.env.NODE_ENV !== "production" &&
-      typeof maybePgError.message === "string"
-    ) {
-      return maybePgError.message;
-    }
-  }
-  if (process.env.NODE_ENV !== "production" && error instanceof Error) {
-    return error.message;
-  }
-  return "No se pudo consultar la base de datos.";
-};
 
 export async function GET(request: Request) {
   const limitedUntil = checkRateLimit(request);
@@ -216,187 +117,9 @@ export async function GET(request: Request) {
       },
     );
   }
-  const cajasTable = process.env.PRODUCTIVITY_TABLE_CAJAS ?? "ventas_cajas";
-  const fruverTable = process.env.PRODUCTIVITY_TABLE_FRUVER ?? cajasTable;
-  const carnesTable = process.env.PRODUCTIVITY_TABLE_CARNES ?? "ventas_cajas";
-  const industriaTable =
-    process.env.PRODUCTIVITY_TABLE_INDUSTRIA ?? "ventas_industria";
-  const polloPescTable =
-    process.env.PRODUCTIVITY_TABLE_POLLO_PESC ?? "ventas_pollo_pesc";
-  const tableNames = [
-    cajasTable,
-    fruverTable,
-    carnesTable,
-    industriaTable,
-    polloPescTable,
-  ];
-  if (!tableNames.every(isValidTableName)) {
-    return Response.json(
-      {
-        error:
-          "Productivity tables must contain only letters, numbers, underscores, or dots.",
-      },
-      { status: 400, headers: { "Cache-Control": "no-store" } },
-    );
+  const cached = await readCache();
+  if (cached && cached.length > 0) {
+    return buildCacheResponse(cached);
   }
-
-  const configError = getPoolConfigError();
-  if (configError) {
-    const cached = await readCache();
-    if (cached && cached.length > 0) {
-      return buildCacheResponse(cached);
-    }
-    const message =
-      process.env.NODE_ENV !== "production"
-        ? configError
-        : "No se pudo conectar a la base de datos.";
-    return buildFallbackResponse(message);
-  }
-
-  const pool = getPool();
-  if (!pool) {
-    const cached = await readCache();
-    if (cached && cached.length > 0) {
-      return buildCacheResponse(cached);
-    }
-    const message =
-      process.env.NODE_ENV !== "production"
-        ? "Missing database configuration."
-        : "No se pudo conectar a la base de datos.";
-    return buildFallbackResponse(message);
-  }
-
-  try {
-    const [
-      cajasResult,
-      fruverResult,
-      carnesResult,
-      industriaResult,
-      polloPescResult,
-    ] = await Promise.all([
-      fetchLineRows(pool, {
-        tableName: cajasTable,
-        lineId: "cajas",
-        lineName: "Cajas",
-        salesColumn: "total_bruto",
-      }),
-      fetchLineRows(pool, {
-        tableName: fruverTable,
-        lineId: "fruver",
-        lineName: "Fruver",
-        salesColumn: "total_bruto",
-      }),
-      fetchLineRows(pool, {
-        tableName: carnesTable,
-        lineId: "carnes",
-        lineName: "Carnes",
-        salesColumn: "total_bruto",
-      }),
-      fetchLineRows(pool, {
-        tableName: industriaTable,
-        lineId: "industria",
-        lineName: "Industria",
-        salesColumn: "total_bruto",
-      }),
-      fetchLineRows(pool, {
-        tableName: polloPescTable,
-        lineId: "pollo y pescado",
-        lineName: "Pollo y pescado",
-        salesColumn: "total_bruto",
-      }),
-    ]);
-
-    const rows = [
-      ...cajasResult.rows,
-      ...fruverResult.rows,
-      ...carnesResult.rows,
-      ...industriaResult.rows,
-      ...polloPescResult.rows,
-    ];
-    const cached = await readCache();
-
-    const grouped = new Map<string, DailyProductivity>();
-    const lineTotals = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        sales: number;
-        hours: number;
-        laborCost: number;
-      }
-    >();
-
-    rows.forEach((row) => {
-      const dateKey = toDateKey(row.date);
-      const dailyKey = `${dateKey}|${row.sede}`;
-      const lineKey = `${dailyKey}|${row.line_id}`;
-      const existing = lineTotals.get(lineKey) ?? {
-        id: row.line_id,
-        name: row.line_name,
-        sales: 0,
-        hours: 0,
-        laborCost: 0,
-      };
-
-      const sales = Number(row.sales ?? 0);
-      const hours = Number(row.quantity ?? 0);
-      const hourlyRate = 0;
-
-      existing.sales += Number.isNaN(sales) ? 0 : sales;
-      existing.hours += Number.isNaN(hours) ? 0 : hours;
-      existing.laborCost +=
-        (Number.isNaN(hours) ? 0 : hours) *
-        (Number.isNaN(hourlyRate) ? 0 : hourlyRate);
-      lineTotals.set(lineKey, existing);
-
-      if (!grouped.has(dailyKey)) {
-        grouped.set(dailyKey, {
-          date: dateKey,
-          sede: row.sede,
-          lines: [],
-        });
-      }
-    });
-
-    lineTotals.forEach((line, key) => {
-      const [dateKey, sede] = key.split("|");
-      const dailyKey = `${dateKey}|${sede}`;
-      const dailyEntry = grouped.get(dailyKey);
-      if (!dailyEntry) {
-        return;
-      }
-      const hourlyRate = line.hours ? line.laborCost / line.hours : 0;
-      dailyEntry.lines.push({
-        id: line.id,
-        name: line.name,
-        sales: line.sales,
-        hours: line.hours,
-        hourlyRate,
-      });
-    });
-
-    const dailyData = Array.from(grouped.values());
-    const cachedDailyData = cached ?? [];
-    const mergedDailyData = mergeDailyData(cachedDailyData, dailyData);
-    await writeCache(mergedDailyData);
-    const sedes = buildSedes(mergedDailyData);
-
-    return Response.json(
-      { dailyData: mergedDailyData, sedes },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } catch (error) {
-    const message = getDbErrorMessage(error);
-    if (process.env.NODE_ENV !== "production") {
-      console.error("Productivity DB query failed.", error);
-    } else {
-      console.error("Productivity DB query failed.", message);
-    }
-    const cached = await readCache();
-    if (cached && cached.length > 0) {
-      return buildCacheResponse(cached);
-    }
-    return buildFallbackResponse(message);
-  }
+  return buildFallbackResponse("No hay datos de productividad disponibles.");
 }
