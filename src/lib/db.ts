@@ -1,13 +1,9 @@
 import { Pool } from "pg";
 let pool: Pool | null = null;
-const getPool = () => {
-  if (pool) {
-    return pool;
-  }
+const getPoolConfigError = () => {
   const connectionString = process.env.DATABASE_URL;
   if (connectionString) {
-    pool = new Pool({ connectionString });
-    return pool;
+    return null;
   }
 
   const { DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS } = process.env;
@@ -23,11 +19,32 @@ const getPool = () => {
     .map(([name]) => name);
 
   if (missingVars.length > 0) {
-    throw new Error(
-      `Missing database environment variables: ${missingVars.join(
-        ", ",
-      )}. Set DATABASE_URL or provide all DB_* values.`,
-    );
+    return `Missing database environment variables: ${missingVars.join(
+      ", ",
+    )}. Set DATABASE_URL or provide all DB_* values.`;
+  }
+
+  return null;
+};
+
+const getPool = () => {
+  if (pool) {
+    return pool;
+  }
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString) {
+    pool = new Pool({ connectionString });
+    return pool;
+  }
+
+  const configError = getPoolConfigError();
+  if (configError) {
+    return null;
+  }
+
+  const { DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS } = process.env;
+  if (!DB_HOST || !DB_PORT || !DB_NAME || !DB_USER || !DB_PASS) {
+    return null;
   }
 
   pool = new Pool({
@@ -40,4 +57,4 @@ const getPool = () => {
   return pool;
 };
 
-export { getPool };
+export { getPool, getPoolConfigError };

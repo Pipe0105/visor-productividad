@@ -1,7 +1,8 @@
-import { getPool } from "@/lib/db";
+import { getPool, getPoolConfigError } from "@/lib/db";
 import { DailyProductivity } from "@/types";
 import { promises as fs } from "fs";
 import path from "path";
+import type { Pool } from "pg";
 
 type ProductivityRow = {
   date: Date | string;
@@ -152,7 +153,7 @@ const isValidTableName = (tableName: string) =>
   /^[a-zA-Z0-9_.]+$/.test(tableName);
 
 const fetchLineRows = async (
-  pool: ReturnType<typeof getPool>,
+  pool: Pool,
   {
     tableName,
     lineId,
@@ -220,17 +221,28 @@ export async function GET(request: Request) {
     );
   }
 
-  let pool;
-  try {
-    pool = getPool();
-  } catch (error) {
+  const configError = getPoolConfigError();
+  if (configError) {
     const cached = await readCache();
     if (cached && cached.length > 0) {
       return buildCacheResponse(cached);
     }
     const message =
-      process.env.NODE_ENV !== "production" && error instanceof Error
-        ? error.message
+      process.env.NODE_ENV !== "production"
+        ? configError
+        : "No se pudo conectar a la base de datos.";
+    return buildFallbackResponse(message);
+  }
+
+  const pool = getPool();
+  if (!pool) {
+    const cached = await readCache();
+    if (cached && cached.length > 0) {
+      return buildCacheResponse(cached);
+    }
+    const message =
+      process.env.NODE_ENV !== "production"
+        ? "Missing database configuration."
         : "No se pudo conectar a la base de datos.";
     return buildFallbackResponse(message);
   }
