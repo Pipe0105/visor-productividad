@@ -387,11 +387,16 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    console.error("Productivity DB query failed.", error);
+    const message = getDbErrorMessage(error);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Productivity DB query failed.", error);
+    } else {
+      console.error("Productivity DB query failed.", message);
+    }
     const cached = await readCache();
     if (cached && cached.length > 0) {
       return buildCacheResponse(cached);
     }
-    return buildFallbackResponse(getDbErrorMessage(error));
+    return buildFallbackResponse(message);
   }
 }
