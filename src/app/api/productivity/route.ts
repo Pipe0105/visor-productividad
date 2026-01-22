@@ -148,8 +148,9 @@ const fetchLineRows = async (
         '${lineId}' AS line_id,
         '${lineName}' AS line_name,
         0 AS quantity,
-        ${salesColumn} AS sales
+        SUM(${salesColumn}) AS sales
       FROM ${tableName}
+      GROUP BY fecha_dcto, empresa_bd
       ORDER BY date ASC, sede ASC
     `,
   );
@@ -171,7 +172,7 @@ export async function GET(request: Request) {
     );
   }
   const cajasTable = process.env.PRODUCTIVITY_TABLE_CAJAS ?? "ventas_cajas";
-  const fruverTable = process.env.PRODUCTIVITY_TABLE_FRUVER ?? "ventas_fruver";
+  const fruverTable = process.env.PRODUCTIVITY_TABLE_FRUVER ?? cajasTable;
   if (!isValidTableName(cajasTable) || !isValidTableName(fruverTable)) {
     return Response.json(
       {

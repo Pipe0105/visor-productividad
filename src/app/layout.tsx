@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     template: "%s | Mercamio",
   },
   description:
-    "Panel diario de productividad por línea. Analiza ventas, horas trabajadas y márgenes por sede en tiempo real.",
+    "Panel diario de productividad por línea. Analiza ventas por sede en tiempo real.",
   keywords: [
     "productividad",
     "análisis",
@@ -52,14 +52,14 @@ export const metadata: Metadata = {
     locale: "es_CO",
     title: "Visualizador de Productividad - Mercamio",
     description:
-      "Panel diario de productividad por línea. Analiza ventas, horas trabajadas y márgenes por sede.",
+      "Panel diario de productividad por línea. Analiza ventas por sede.",
     siteName: "Mercamio",
   },
   twitter: {
     card: "summary_large_image",
     title: "Visualizador de Productividad - Mercamio",
     description:
-      "Panel diario de productividad por línea. Analiza ventas, horas trabajadas y márgenes por sede.",
+      "Panel diario de productividad por línea. Analiza ventas por sede.",
   },
 };
 

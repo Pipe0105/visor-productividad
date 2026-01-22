@@ -1,10 +1,4 @@
-import { Clock, TrendingDown, TrendingUp } from "lucide-react";
-import {
-  calcLineCost,
-  calcLineMargin,
-  formatCOP,
-  formatPercent,
-} from "@/lib/calc";
+import { calcLineMargin, formatCOP } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
@@ -35,11 +29,8 @@ const MetricRow = ({
 );
 
 export const LineCard = ({ line, sede }: LineCardProps) => {
-  const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
-  const marginRatio = line.sales ? margin / line.sales : 0;
   const status = getLineStatus(sede, line.id, margin);
-  const isPositiveMargin = margin >= 0;
 
   return (
     <article
@@ -63,34 +54,7 @@ export const LineCard = ({ line, sede }: LineCardProps) => {
 
       {/* Metrics */}
       <div className="grid gap-4 text-sm">
-        <MetricRow
-          label="Horas trabajadas"
-          value={`${line.hours}h`}
-          icon={<Clock className="h-4 w-4 text-sky-500" />}
-        />
-
-        <MetricRow label="Costo de mano de obra" value={formatCOP(cost)} />
-
         <MetricRow label="Ventas" value={formatCOP(line.sales)} />
-
-        <MetricRow
-          label="Margen"
-          value={formatCOP(margin)}
-          icon={
-            isPositiveMargin ? (
-              <TrendingUp className={`h-4 w-4 ${status.textClass}`} />
-            ) : (
-              <TrendingDown className={`h-4 w-4 ${status.textClass}`} />
-            )
-          }
-          valueClassName={status.textClass}
-        />
-
-        <MetricRow
-          label="Margen sobre ventas"
-          value={formatPercent(marginRatio)}
-          valueClassName={status.textClass}
-        />
       </div>
     </article>
   );
