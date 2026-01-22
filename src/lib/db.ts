@@ -9,44 +9,63 @@ type DbEnv = {
   pass?: string;
 };
 
+const cleanEnvValue = (value?: string): string | undefined => {
+  if (!value) {
+    return value;
+  }
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+
 const resolveEnv = (): DbEnv => {
   const env = process.env;
   return {
-    host:
+    host: cleanEnvValue(
       env.DB_HOST ??
-      env.PGHOST ??
-      env.MYSQL_HOST ??
-      env.DB_HOSTNAME ??
-      env.DATABASE_HOST,
-    port:
+        env.PGHOST ??
+        env.MYSQL_HOST ??
+        env.DB_HOSTNAME ??
+        env.DATABASE_HOST,
+    ),
+    port: cleanEnvValue(
       env.DB_PORT ??
-      env.PGPORT ??
-      env.MYSQL_PORT ??
-      env.DB_PORT_NUMBER ??
-      env.DATABASE_PORT,
-    name:
+        env.PGPORT ??
+        env.MYSQL_PORT ??
+        env.DB_PORT_NUMBER ??
+        env.DATABASE_PORT,
+    ),
+    name: cleanEnvValue(
       env.DB_NAME ??
-      env.PGDATABASE ??
-      env.MYSQL_DATABASE ??
-      env.DB_DATABASE ??
-      env.DATABASE_NAME,
-    user:
+        env.PGDATABASE ??
+        env.MYSQL_DATABASE ??
+        env.DB_DATABASE ??
+        env.DATABASE_NAME,
+    ),
+    user: cleanEnvValue(
       env.DB_USER ??
-      env.PGUSER ??
-      env.MYSQL_USER ??
-      env.DB_USERNAME ??
-      env.DATABASE_USER,
-    pass:
+        env.PGUSER ??
+        env.MYSQL_USER ??
+        env.DB_USERNAME ??
+        env.DATABASE_USER,
+    ),
+    pass: cleanEnvValue(
       env.DB_PASS ??
-      env.PGPASSWORD ??
-      env.MYSQL_PASSWORD ??
-      env.DB_PASSWORD ??
-      env.DATABASE_PASSWORD,
+        env.PGPASSWORD ??
+        env.MYSQL_PASSWORD ??
+        env.DB_PASSWORD ??
+        env.DATABASE_PASSWORD,
+    ),
   };
 };
 
 const getPoolConfigError = () => {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = cleanEnvValue(process.env.DATABASE_URL);
   if (connectionString) {
     return null;
   }
