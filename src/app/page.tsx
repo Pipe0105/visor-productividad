@@ -45,6 +45,7 @@ const formatMonthLabel = (yearMonth: string): string =>
 type ApiResponse = {
   dailyData: DailyProductivity[];
   sedes: Array<{ id: string; name: string }>;
+  error?: string;
 };
 
 type Sede = { id: string; name: string };
@@ -74,10 +75,6 @@ const useProductivityData = () => {
       try {
         const response = await fetch("/api/productivity");
 
-        if (!response.ok) {
-          throw new Error("No se pudo cargar la información");
-        }
-
         const payload = (await response.json()) as ApiResponse;
 
         if (!isMounted) return;
@@ -88,8 +85,15 @@ const useProductivityData = () => {
             ? payload.sedes
             : extractSedesFromData(resolvedDailyData);
 
+        if (!response.ok) {
+          throw new Error(payload.error ?? "No se pudo cargar la información");
+        }
+
         setDailyDataSet(resolvedDailyData);
         setAvailableSedes(resolvedSedes);
+        if (payload.error) {
+          setError(payload.error);
+        }
       } catch (err) {
         if (isMounted) {
           setError(err instanceof Error ? err.message : "Error desconocido");
@@ -128,45 +132,57 @@ const useAnimations = (
 
     remove?.("[data-animate]");
 
+    const hasTargets = (selector: string) =>
+      document.querySelectorAll(selector).length > 0;
+
     const runAnimations = () => {
-      animate("[data-animate='top-bar']", {
-        translateY: [-16, 0],
-        opacity: [0, 1],
-        duration: 650,
-        easing: "easeOutCubic",
-      });
+      if (hasTargets("[data-animate='top-bar']")) {
+        animate("[data-animate='top-bar']", {
+          translateY: [-16, 0],
+          opacity: [0, 1],
+          delay: (_el: unknown, index: number) => index * 90,
+          duration: 650,
+          easing: "easeOutCubic",
+        });
+      }
 
-      animate("[data-animate='line-card']", {
-        translateY: [18, 0],
-        opacity: [0, 1],
-        delay: (_el: unknown, index: number) => index * 90,
-        duration: 650,
-        easing: "easeOutCubic",
-      });
-
-      animate("[data-animate='summary-card']", {
-        scale: [0.97, 1],
-        opacity: [0, 1],
-        delay: (_el: unknown, index: number) => index * 120,
-        duration: 600,
-        easing: "easeOutCubic",
-      });
-
-      if (showComparison) {
-        animate("[data-animate='comparison-card']", {
-          translateY: [-8, 0],
+      if (hasTargets("[data-animate='line-card']")) {
+        animate("[data-animate='line-card']", {
+          translateY: [18, 0],
           opacity: [0, 1],
           duration: 550,
           easing: "easeOutCubic",
         });
 
-        animate("[data-animate='comparison-row']", {
-          translateX: [-12, 0],
+      if (hasTargets("[data-animate='summary-card']")) {
+        animate("[data-animate='summary-card']", {
+          scale: [0.97, 1],
           opacity: [0, 1],
-          delay: (_el: unknown, index: number) => index * 40,
-          duration: 450,
+          delay: (_el: unknown, index: number) => index * 120,
+          duration: 600,
           easing: "easeOutCubic",
         });
+      }
+      
+      if (showComparison) {
+        if (hasTargets("[data-animate='comparison-card']")) {
+          animate("[data-animate='comparison-card']", {
+            translateY: [-8, 0],
+            opacity: [0, 1],
+            duration: 550,
+            easing: "easeOutCubic",
+          });
+        }
+
+        if (hasTargets("[data-animate='comparison-row']")) {
+          animate("[data-animate='comparison-row']", {
+            translateX: [-12, 0],
+            opacity: [0, 1],
+            delay: (_el: unknown, index: number) => index * 40,
+            duration: 450,
+            easing: "easeOutCubic",
+          });
+        }
       }
     };
 

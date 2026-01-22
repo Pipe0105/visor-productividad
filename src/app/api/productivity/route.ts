@@ -107,6 +107,21 @@ const buildCacheResponse = (dailyData: DailyProductivity[]) =>
     },
   );
 
+const buildFallbackResponse = (message: string) =>
+  Response.json(
+    {
+      dailyData: [],
+      sedes: [],
+      error: message,
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Data-Source": "fallback",
+      },
+    },
+  );
+
 const mergeDailyData = (
   cached: DailyProductivity[],
   fresh: DailyProductivity[],
@@ -217,10 +232,7 @@ export async function GET(request: Request) {
       process.env.NODE_ENV !== "production" && error instanceof Error
         ? error.message
         : "No se pudo conectar a la base de datos.";
-    return Response.json(
-      { error: message },
-      { status: 500, headers: { "Cache-Control": "no-store" } },
-    );
+    return buildFallbackResponse(message);
   }
 
   try {
@@ -352,9 +364,6 @@ export async function GET(request: Request) {
       process.env.NODE_ENV !== "production" && error instanceof Error
         ? error.message
         : "No se pudo consultar la base de datos.";
-    return Response.json(
-      { error: message },
-      { status: 500, headers: { "Cache-Control": "no-store" } },
-    );
+    return buildFallbackResponse(message);
   }
 }
