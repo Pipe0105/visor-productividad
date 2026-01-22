@@ -155,6 +155,8 @@ export const SummaryCard = ({
   hasData = true,
   comparisons = [],
 }: SummaryCardProps) => {
+  const { marginRatio, salesPerHour, marginPerHour, marginPercentClass } =
+    calculateMetrics(summary);
   const status = hasData
     ? getSummaryStatus(sede, summary.margin)
     : {
