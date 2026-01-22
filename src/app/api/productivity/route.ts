@@ -1,5 +1,4 @@
 import { getPool } from "@/lib/db";
-import { mockDailyData, sedes as mockSedes } from "@/lib/mock-data";
 import { DailyProductivity } from "@/types";
 import { promises as fs } from "fs";
 import path from "path";
@@ -195,23 +194,11 @@ export async function GET(request: Request) {
     );
   }
 
-  if (process.env.USE_MOCK_DATA === "true") {
-    return Response.json(
-      { dailyData: mockDailyData, sedes: mockSedes },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  }
   let pool;
   try {
     pool = getPool();
   } catch (error) {
     const message = "No se pudo conectar a la base de datos.";
-    if (process.env.NODE_ENV !== "production") {
-      return Response.json(
-        { dailyData: mockDailyData, sedes: mockSedes },
-        { headers: { "Cache-Control": "no-store" } },
-      );
-    }
     return Response.json(
       { error: message },
       { status: 500, headers: { "Cache-Control": "no-store" } },
@@ -349,12 +336,6 @@ export async function GET(request: Request) {
       process.env.NODE_ENV !== "production" && error instanceof Error
         ? error.message
         : "No se pudo consultar la base de datos.";
-    if (process.env.NODE_ENV !== "production") {
-      return Response.json(
-        { dailyData: mockDailyData, sedes: mockSedes },
-        { headers: { "Cache-Control": "no-store" } },
-      );
-    }
     return Response.json(
       { error: message },
       { status: 500, headers: { "Cache-Control": "no-store" } },
