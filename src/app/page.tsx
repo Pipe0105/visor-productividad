@@ -418,6 +418,7 @@ export default function Home() {
   }, [dailyDataSet, dateRange, selectedSede]);
 
   const lines = useMemo(() => aggregateLines(rangeDailyData), [rangeDailyData]);
+  const hasRangeData = rangeDailyData.length > 0;
 
   const filteredLines = useMemo(
     () => filterLinesByStatus(lines, lineFilter, selectedSede),
@@ -438,6 +439,12 @@ export default function Home() {
       .flatMap((item) => item.lines);
 
     return calcDailySummary(monthLines);
+  }, [dailyDataSet, selectedMonth, selectedSede]);
+  const hasMonthlyData = useMemo(() => {
+    return dailyDataSet.some(
+      (item) =>
+        item.sede === selectedSede && item.date.startsWith(selectedMonth),
+    );
   }, [dailyDataSet, selectedMonth, selectedSede]);
 
   // Comparaciones
@@ -561,6 +568,7 @@ export default function Home() {
                 <LineComparisonTable
                   lines={filteredLines}
                   sede={selectedSede}
+                  hasData={hasRangeData}
                 />
               ) : (
                 <EmptyState
@@ -571,7 +579,12 @@ export default function Home() {
             ) : (
               <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredLines.map((line) => (
-                  <LineCard key={line.id} line={line} sede={selectedSede} />
+                  <LineCard
+                    key={line.id}
+                    line={line}
+                    sede={selectedSede}
+                    hasData={hasRangeData}
+                  />
                 ))}
               </section>
             )}
@@ -596,12 +609,14 @@ export default function Home() {
               salesLabel="Venta total"
               sede={selectedSede}
               comparisons={dailyComparisons}
+              hasData={hasRangeData}
             />
             <SummaryCard
               summary={monthlySummary}
               title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
               salesLabel="Ventas del mes"
               sede={selectedSede}
+              hasData={hasMonthlyData}
             />
           </>
         )}

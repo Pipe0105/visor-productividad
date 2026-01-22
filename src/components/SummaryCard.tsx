@@ -15,6 +15,7 @@ interface SummaryCardProps {
   title: string;
   salesLabel: string;
   sede: string;
+  hasData?: boolean;
   comparisons?: {
     label: string;
     baseline?: DailySummary | null;
@@ -66,11 +67,21 @@ const ComparisonCard = ({
   label,
   currentMargin,
   baselineMargin,
+  hasData,
 }: {
   label: string;
   currentMargin: number;
   baselineMargin?: number | null;
+  hasData: boolean;
 }) => {
+  if (!hasData) {
+    return (
+      <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
+        <p className="uppercase tracking-[0.2em] text-slate-600">{label}</p>
+        <p className="mt-2 text-sm font-semibold text-slate-700">Sin datos</p>
+      </div>
+    );
+  }
   if (baselineMargin === null || baselineMargin === undefined) {
     return (
       <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
@@ -141,11 +152,17 @@ export const SummaryCard = ({
   title,
   salesLabel,
   sede,
+  hasData = true,
   comparisons = [],
 }: SummaryCardProps) => {
-  const status = getSummaryStatus(sede, summary.margin);
-  const { marginRatio, salesPerHour, marginPerHour, marginPercentClass } =
-    calculateMetrics(summary);
+  const status = hasData
+    ? getSummaryStatus(sede, summary.margin)
+    : {
+        label: "Sin datos",
+        className: "bg-slate-100 text-slate-600",
+        textClass: "text-slate-400",
+      };
+  const emptyValueClass = hasData ? "text-slate-900" : "text-slate-400";
 
   return (
     <section
@@ -158,9 +175,7 @@ export const SummaryCard = ({
           <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
             {title}
           </p>
-          <h3 className="text-2xl font-semibold text-slate-900">
-            {formatCOP(summary.sales)}
-          </h3>
+          <h3 className="text-2xl font-semibold text-slate-900"></h3>
           <p className="text-sm text-slate-700">{salesLabel}</p>
         </div>
         <span
@@ -174,16 +189,17 @@ export const SummaryCard = ({
       <div className="mt-6 grid gap-4 text-sm text-slate-800 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           label="Horas registradas"
-          value={summary.hours}
+          value={hasData ? summary.hours : "—"}
           icon={Timer}
           iconColor="text-sky-500"
         />
 
         <MetricCard
           label="Costo de nómina"
-          value={formatCOP(summary.cost)}
+          value={hasData ? formatCOP(summary.cost) : "—"}
           icon={PiggyBank}
           iconColor="text-amber-500"
+          valueClassName={emptyValueClass}
         />
 
         <MetricCard
@@ -195,16 +211,18 @@ export const SummaryCard = ({
 
         <MetricCard
           label="Margen acumulado"
-          value={formatCOP(summary.margin)}
-          valueClassName={status.textClass}
-          subtitle={`${formatPercent(marginRatio)} margen`}
+          value={hasData ? formatCOP(summary.margin) : "—"}
+          valueClassName={hasData ? status.textClass : emptyValueClass}
+          subtitle={
+            hasData ? `${formatPercent(marginRatio)} margen` : undefined
+          }
           subtitleClassName={marginPercentClass}
         />
 
         <MetricCard
           label="Margen por hora trabajada"
-          value={formatCOP(marginPerHour)}
-          valueClassName={status.textClass}
+          value={hasData ? formatCOP(marginPerHour) : "—"}
+          valueClassName={hasData ? status.textClass : emptyValueClass}
         />
       </div>
 

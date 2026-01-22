@@ -1,10 +1,11 @@
-import { calcLineMargin, formatCOP } from "@/lib/calc";
+import { calcLineCost, calcLineMargin, formatCOP } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
 interface LineCardProps {
   line: LineMetrics;
   sede: string;
+  hasData?: boolean;
 }
 
 // Componente extraído para mejor legibilidad
@@ -28,9 +29,17 @@ const MetricRow = ({
   </div>
 );
 
-export const LineCard = ({ line, sede }: LineCardProps) => {
+export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
   const margin = calcLineMargin(line);
-  const status = getLineStatus(sede, line.id, margin);
+  const cost = calcLineCost(line);
+  const emptyLabel = "—";
+  const status = hasData
+    ? getLineStatus(sede, line.id, margin)
+    : {
+        label: "Sin datos",
+        className: "bg-slate-100 text-slate-600",
+        textClass: "text-slate-400",
+      };
 
   return (
     <article
@@ -53,8 +62,27 @@ export const LineCard = ({ line, sede }: LineCardProps) => {
       </header>
 
       {/* Metrics */}
-      <div className="grid gap-4 text-sm">
-        <MetricRow label="Ventas" value={formatCOP(line.sales)} />
+      <div className="grid gap-3 text-sm">
+        <MetricRow
+          label="Ventas"
+          value={hasData ? formatCOP(line.sales) : emptyLabel}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+        />
+        <MetricRow
+          label="Horas trabajadas"
+          value={hasData ? `${line.hours}h` : emptyLabel}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+        />
+        <MetricRow
+          label="Costo de horas"
+          value={hasData ? formatCOP(cost) : emptyLabel}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+        />
+        <MetricRow
+          label="Margen"
+          value={hasData ? formatCOP(margin) : emptyLabel}
+          valueClassName={hasData ? status.textClass : "text-slate-400"}
+        />
       </div>
     </article>
   );

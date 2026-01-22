@@ -10,6 +10,7 @@ import { LineMetrics } from "@/types";
 interface LineComparisonTableProps {
   lines: LineMetrics[];
   sede: string;
+  hasData?: boolean;
 }
 
 // ============================================================================
@@ -47,6 +48,7 @@ const TableHeader = () => (
 const TableRow = ({
   line,
   index,
+  hasData: boolean;
 }: {
   line: LineWithMetrics;
   index: number;
@@ -63,24 +65,40 @@ const TableRow = ({
       <p className="text-xs text-slate-500">{line.id}</p>
     </td>
     <td className="px-4 py-3 font-semibold text-slate-900">
-      {formatCOP(line.sales)}
+      {hasData ? formatCOP(line.sales) : "—"}
     </td>
-    <td className="px-4 py-3 text-slate-700">{line.hours}h</td>
-    <td className="px-4 py-3 text-slate-700">{formatCOP(line.cost)}</td>
-    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
-      {formatCOP(line.margin)}
+    <td className="px-4 py-3 text-slate-700">
+      {hasData ? `${line.hours}h` : "—"}
     </td>
-    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
-      {formatPercent(line.marginRatio)}
+    <td className="px-4 py-3 text-slate-700">
+      {hasData ? formatCOP(line.cost) : "—"}
+    <td
+      className={`px-4 py-3 font-semibold ${
+        hasData ? line.status.textClass : "text-slate-400"
+      }`}
+    >
+      {hasData ? formatCOP(line.margin) : "—"}
     </td>
-    <td className={`px-4 py-3 font-semibold ${line.status.textClass}`}>
-      {formatCOP(line.marginPerHour)}
+    <td
+      className={`px-4 py-3 font-semibold ${
+        hasData ? line.status.textClass : "text-slate-400"
+      }`}
+    >
+      {hasData ? formatPercent(line.marginRatio) : "—"}
+    </td>
+    <td
+      className={`px-4 py-3 font-semibold ${
+        hasData ? line.status.textClass : "text-slate-400"
+      }`}
+    >
+      {hasData ? formatCOP(line.marginPerHour) : "—"}
     </td>
     <td className="rounded-r-2xl px-4 py-3">
       <span
-        className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${line.status.className}`}
-      >
-        {line.status.label}
+        className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+          hasData ? line.status.className : "bg-slate-100 text-slate-600"
+        }`}      >
+        {hasData ? line.status.label : "Sin datos"}
       </span>
     </td>
   </tr>
@@ -150,6 +168,7 @@ const sortLinesByMargin = (lines: LineWithMetrics[]): LineWithMetrics[] => {
 export const LineComparisonTable = ({
   lines,
   sede,
+  hasData = true,
 }: LineComparisonTableProps) => {
   // Enriquecer líneas con métricas calculadas
   const enrichedLines = lines.map((line) => enrichLineWithMetrics(line, sede));
@@ -172,7 +191,12 @@ export const LineComparisonTable = ({
             <TableHeader />
             <tbody>
               {sortedLines.map((line, index) => (
-                <TableRow key={line.id} line={line} index={index} />
+                <TableRow
+                  key={line.id}
+                  line={line}
+                  index={index}
+                  hasData={hasData}
+                />
               ))}
             </tbody>
           </table>
