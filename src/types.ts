@@ -1,4 +1,11 @@
-export type Linekey = "cajas" | "fruver" | (string & {});
+export type Linekey =
+  | "cajas"
+  | "fruver"
+  | "carnes"
+  | "industria"
+  | "pollo y pescado"
+  | "asadero"
+  | (string & {});
 
 export interface LineMetrics {
   id: Linekey;

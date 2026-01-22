@@ -173,11 +173,23 @@ export async function GET(request: Request) {
   }
   const cajasTable = process.env.PRODUCTIVITY_TABLE_CAJAS ?? "ventas_cajas";
   const fruverTable = process.env.PRODUCTIVITY_TABLE_FRUVER ?? cajasTable;
-  if (!isValidTableName(cajasTable) || !isValidTableName(fruverTable)) {
+  const carnesTable = process.env.PRODUCTIVITY_TABLE_CARNES ?? "ventas_cajas";
+  const industriaTable =
+    process.env.PRODUCTIVITY_TABLE_INDUSTRIA ?? "ventas_industria";
+  const polloPescTable =
+    process.env.PRODUCTIVITY_TABLE_POLLO_PESC ?? "ventas_pollo_pesc";
+  const tableNames = [
+    cajasTable,
+    fruverTable,
+    carnesTable,
+    industriaTable,
+    polloPescTable,
+  ];
+  if (!tableNames.every(isValidTableName)) {
     return Response.json(
       {
         error:
-          "PRODUCTIVITY_TABLE_CAJAS and PRODUCTIVITY_TABLE_FRUVER must contain only letters, numbers, underscores, or dots.",
+          "Productivity tables must contain only letters, numbers, underscores, or dots.",
       },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
@@ -207,7 +219,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [cajasResult, fruverResult] = await Promise.all([
+    const [
+      cajasResult,
+      fruverResult,
+      carnesResult,
+      industriaResult,
+      polloPescResult,
+    ] = await Promise.all([
       fetchLineRows(pool, {
         tableName: cajasTable,
         lineId: "cajas",
@@ -220,9 +238,33 @@ export async function GET(request: Request) {
         lineName: "Fruver",
         salesColumn: "total_bruto",
       }),
+      fetchLineRows(pool, {
+        tableName: carnesTable,
+        lineId: "carnes",
+        lineName: "Carnes",
+        salesColumn: "total_bruto",
+      }),
+      fetchLineRows(pool, {
+        tableName: industriaTable,
+        lineId: "industria",
+        lineName: "Industria",
+        salesColumn: "total_bruto",
+      }),
+      fetchLineRows(pool, {
+        tableName: polloPescTable,
+        lineId: "pollo y pescado",
+        lineName: "Pollo y pescado",
+        salesColumn: "total_bruto",
+      }),
     ]);
 
-    const rows = [...cajasResult.rows, ...fruverResult.rows];
+    const rows = [
+      ...cajasResult.rows,
+      ...fruverResult.rows,
+      ...carnesResult.rows,
+      ...industriaResult.rows,
+      ...polloPescResult.rows,
+    ];
     const cached = await readCache();
     if (cached) {
       return Response.json(

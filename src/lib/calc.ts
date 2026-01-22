@@ -1,6 +1,12 @@
 import { DailySummary, LineMetrics } from "@/types";
 
-const linesWithoutLaborData = new Set(["cajas", "fruver"]);
+const linesWithoutLaborData = new Set([
+  "cajas",
+  "fruver",
+  "carnes",
+  "industria",
+  "pollo y pescado",
+]);
 
 export const hasLaborDataForLine = (lineId: string) =>
   !linesWithoutLaborData.has(lineId);
