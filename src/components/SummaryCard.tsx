@@ -191,14 +191,14 @@ export const SummaryCard = ({
       <div className="mt-6 grid gap-4 text-sm text-slate-800 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           label="Horas registradas"
-          value={hasData ? summary.hours : "—"}
+          value={hasData ? summary.hours : 0}
           icon={Timer}
           iconColor="text-sky-500"
         />
 
         <MetricCard
           label="Costo de nómina"
-          value={hasData ? formatCOP(summary.cost) : "—"}
+          value={hasData ? formatCOP(summary.cost) : formatCOP(0)}
           icon={PiggyBank}
           iconColor="text-amber-500"
           valueClassName={emptyValueClass}
@@ -213,7 +213,7 @@ export const SummaryCard = ({
 
         <MetricCard
           label="Margen acumulado"
-          value={hasData ? formatCOP(summary.margin) : "—"}
+          value={hasData ? formatCOP(summary.margin) : formatCOP(0)}
           valueClassName={hasData ? status.textClass : emptyValueClass}
           subtitle={
             hasData ? `${formatPercent(marginRatio)} margen` : undefined
@@ -223,7 +223,7 @@ export const SummaryCard = ({
 
         <MetricCard
           label="Margen por hora trabajada"
-          value={hasData ? formatCOP(marginPerHour) : "—"}
+          value={hasData ? formatCOP(marginPerHour) : formatCOP(0)}
           valueClassName={hasData ? status.textClass : emptyValueClass}
         />
       </div>

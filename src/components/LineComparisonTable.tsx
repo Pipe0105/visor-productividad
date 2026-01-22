@@ -3,6 +3,7 @@ import {
   calcLineMargin,
   formatCOP,
   formatPercent,
+  hasLaborDataForLine,
 } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
@@ -53,59 +54,66 @@ const TableRow = ({
   line: LineWithMetrics;
   index: number;
   hasData: boolean;
-}) => (
-  <tr
-    data-animate="comparison-row"
-    className="rounded-2xl bg-slate-50 transition-all hover:bg-slate-100"
-  >
-    <td className="rounded-l-2xl px-4 py-3 font-semibold text-slate-900">
-      #{index + 1}
-    </td>
-    <td className="px-4 py-3">
-      <p className="font-semibold text-slate-900">{line.name}</p>
-      <p className="text-xs text-slate-500">{line.id}</p>
-    </td>
-    <td className="px-4 py-3 font-semibold text-slate-900">
-      {hasData ? formatCOP(line.sales) : "—"}
-    </td>
-    <td className="px-4 py-3 text-slate-700">
-      {hasData ? `${line.hours}h` : "—"}
-    </td>
-    <td className="px-4 py-3 text-slate-700">
-      {hasData ? formatCOP(line.cost) : "—"}
-    </td>
-    <td
-      className={`px-4 py-3 font-semibold ${
-        hasData ? line.status.textClass : "text-slate-400"
-      }`}
+}) => {
+  const zeroCurrency = formatCOP(0);
+  const zeroHours = "0h";
+  const zeroPercent = formatPercent(0);
+  const displayHours = hasLaborDataForLine(line.id) ? line.hours : 0;
+
+  return (
+    <tr
+      data-animate="comparison-row"
+      className="rounded-2xl bg-slate-50 transition-all hover:bg-slate-100"
     >
-      {hasData ? formatCOP(line.margin) : "—"}
-    </td>
-    <td
-      className={`px-4 py-3 font-semibold ${
-        hasData ? line.status.textClass : "text-slate-400"
-      }`}
-    >
-      {hasData ? formatPercent(line.marginRatio) : "—"}
-    </td>
-    <td
-      className={`px-4 py-3 font-semibold ${
-        hasData ? line.status.textClass : "text-slate-400"
-      }`}
-    >
-      {hasData ? formatCOP(line.marginPerHour) : "—"}
-    </td>
-    <td className="rounded-r-2xl px-4 py-3">
-      <span
-        className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-          hasData ? line.status.className : "bg-slate-100 text-slate-600"
+      <td className="rounded-l-2xl px-4 py-3 font-semibold text-slate-900">
+        #{index + 1}
+      </td>
+      <td className="px-4 py-3">
+        <p className="font-semibold text-slate-900">{line.name}</p>
+        <p className="text-xs text-slate-500">{line.id}</p>
+      </td>
+      <td className="px-4 py-3 font-semibold text-slate-900">
+        {hasData ? formatCOP(line.sales) : "—"}
+      </td>
+      <td className="px-4 py-3 text-slate-700">
+        {hasData ? `${displayHours}h` : zeroHours}
+      </td>
+      <td className="px-4 py-3 text-slate-700">
+        {hasData ? formatCOP(line.cost) : zeroCurrency}
+      </td>
+      <td
+        className={`px-4 py-3 font-semibold ${
+          hasData ? line.status.textClass : "text-slate-400"
         }`}
       >
-        {hasData ? line.status.label : "Sin datos"}
-      </span>
-    </td>
-  </tr>
-);
+        {hasData ? formatCOP(line.margin) : zeroCurrency}
+      </td>
+      <td
+        className={`px-4 py-3 font-semibold ${
+          hasData ? line.status.textClass : "text-slate-400"
+        }`}
+      >
+        {hasData ? formatPercent(line.marginRatio) : zeroPercent}
+      </td>
+      <td
+        className={`px-4 py-3 font-semibold ${
+          hasData ? line.status.textClass : "text-slate-400"
+        }`}
+      >
+        {hasData ? formatCOP(line.marginPerHour) : zeroCurrency}
+      </td>
+      <td className="rounded-r-2xl px-4 py-3">
+        <span
+          className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+            hasData ? line.status.className : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {hasData ? line.status.label : "Sin datos"}
+        </span>
+      </td>
+    </tr>
+  );
+};
 
 const TableSummary = ({ count }: { count: number }) => (
   <div className="flex flex-wrap items-center justify-between gap-3">

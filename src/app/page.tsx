@@ -6,7 +6,11 @@ import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
-import { calcDailySummary, calcLineMargin } from "@/lib/calc";
+import {
+  calcDailySummary,
+  calcLineMargin,
+  hasLaborDataForLine,
+} from "@/lib/calc";
 import { DailyProductivity, LineMetrics } from "@/types";
 import { getLineStatus } from "@/lib/status";
 
@@ -197,19 +201,22 @@ const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
 
   dailyData.forEach((day) => {
     day.lines.forEach((line) => {
-      const cost = line.hours * line.hourlyRate;
+      const hasLaborData = hasLaborDataForLine(line.id);
+      const hours = hasLaborData ? line.hours : 0;
+      const hourlyRate = hasLaborData ? line.hourlyRate : 0;
+      const cost = hours * hourlyRate;
       const existing = lineMap.get(line.id);
 
       if (existing) {
         existing.sales += line.sales;
-        existing.hours += line.hours;
+        existing.hours += hours;
         existing.cost += cost;
       } else {
         lineMap.set(line.id, {
           id: line.id,
           name: line.name,
           sales: line.sales,
-          hours: line.hours,
+          hours,
           cost,
         });
       }

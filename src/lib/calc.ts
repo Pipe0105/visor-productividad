@@ -1,5 +1,10 @@
 import { DailySummary, LineMetrics } from "@/types";
 
+const linesWithoutLaborData = new Set(["cajas", "fruver"]);
+
+export const hasLaborDataForLine = (lineId: string) =>
+  !linesWithoutLaborData.has(lineId);
+
 export const formatCOP = (value: number) => {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -16,20 +21,32 @@ export const formatPercent = (value: number) => {
   }).format(value);
 };
 
-export const calcLineCost = (line: LineMetrics) => line.hours * line.hourlyRate;
+export const calcLineCost = (line: LineMetrics) => {
+  if (!hasLaborDataForLine(line.id)) {
+    return 0;
+  }
+  return line.hours * line.hourlyRate;
+};
 
-export const calcLineMargin = (line: LineMetrics) =>
-  line.sales - calcLineCost(line);
+export const calcLineMargin = (line: LineMetrics) => {
+  if (!hasLaborDataForLine(line.id)) {
+    return 0;
+  }
+  return line.sales - calcLineCost(line);
+};
 
 export const calcDailySummary = (lines: LineMetrics[]): DailySummary => {
   return lines.reduce(
     (acc, line) => {
-      const cost = calcLineCost(line);
+      const hasLaborData = hasLaborDataForLine(line.id);
+      const cost = hasLaborData ? calcLineCost(line) : 0;
+      const margin = hasLaborData ? calcLineMargin(line) : 0;
+      const hours = hasLaborData ? line.hours : 0;
       return {
         sales: acc.sales + line.sales,
-        hours: acc.hours + line.hours,
+        hours: acc.hours + hours,
         cost: acc.cost + cost,
-        margin: acc.margin + (line.sales - cost),
+        margin: acc.margin + margin,
       };
     },
     {
@@ -37,6 +54,6 @@ export const calcDailySummary = (lines: LineMetrics[]): DailySummary => {
       hours: 0,
       cost: 0,
       margin: 0,
-    }
+    },
   );
 };

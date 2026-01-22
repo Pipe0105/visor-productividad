@@ -1,4 +1,9 @@
-import { calcLineCost, calcLineMargin, formatCOP } from "@/lib/calc";
+import {
+  calcLineCost,
+  calcLineMargin,
+  formatCOP,
+  hasLaborDataForLine,
+} from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
@@ -32,7 +37,11 @@ const MetricRow = ({
 export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
   const margin = calcLineMargin(line);
   const cost = calcLineCost(line);
+  const hasLaborData = hasLaborDataForLine(line.id);
+  const displayHours = hasLaborData ? line.hours : 0;
   const emptyLabel = "—";
+  const zeroCurrency = formatCOP(0);
+  const zeroHours = "0h";
   const status = hasData
     ? getLineStatus(sede, line.id, margin)
     : {
@@ -70,17 +79,17 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
         />
         <MetricRow
           label="Horas trabajadas"
-          value={hasData ? `${line.hours}h` : emptyLabel}
+          value={hasData ? `${displayHours}h` : zeroHours}
           valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
         />
         <MetricRow
           label="Costo de horas"
-          value={hasData ? formatCOP(cost) : emptyLabel}
+          value={hasData ? formatCOP(cost) : zeroCurrency}
           valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
         />
         <MetricRow
           label="Margen"
-          value={hasData ? formatCOP(margin) : emptyLabel}
+          value={hasData ? formatCOP(margin) : zeroCurrency}
           valueClassName={hasData ? status.textClass : "text-slate-400"}
         />
       </div>
