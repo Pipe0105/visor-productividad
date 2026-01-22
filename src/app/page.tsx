@@ -130,6 +130,8 @@ const useAnimations = (
       return;
     }
 
+    const hasLineItems = filteredLinesCount > 0;
+
     remove?.("[data-animate]");
 
     const hasTargets = (selector: string) =>
@@ -146,13 +148,14 @@ const useAnimations = (
         });
       }
 
-      if (hasTargets("[data-animate='line-card']")) {
+      if (hasLineItems && hasTargets("[data-animate='line-card']")) {
         animate("[data-animate='line-card']", {
           translateY: [18, 0],
           opacity: [0, 1],
           duration: 550,
           easing: "easeOutCubic",
         });
+      }
 
       if (hasTargets("[data-animate='summary-card']")) {
         animate("[data-animate='summary-card']", {
@@ -163,7 +166,7 @@ const useAnimations = (
           easing: "easeOutCubic",
         });
       }
-      
+
       if (showComparison) {
         if (hasTargets("[data-animate='comparison-card']")) {
           animate("[data-animate='comparison-card']", {
@@ -174,7 +177,7 @@ const useAnimations = (
           });
         }
 
-        if (hasTargets("[data-animate='comparison-row']")) {
+        if (hasLineItems && hasTargets("[data-animate='comparison-row']")) {
           animate("[data-animate='comparison-row']", {
             translateX: [-12, 0],
             opacity: [0, 1],
