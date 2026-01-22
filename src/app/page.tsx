@@ -180,6 +180,14 @@ const extractSedesFromData = (data: DailyProductivity[]): Sede[] => {
     new Map(data.map((item) => [item.sede, item.sede])).entries(),
   ).map(([id, name]) => ({ id, name }));
 };
+const DEFAULT_LINES: Array<Pick<LineMetrics, "id" | "name">> = [
+  { id: "cajas", name: "Cajas" },
+  { id: "fruver", name: "Fruver" },
+  { id: "industria", name: "Industria" },
+  { id: "carnes", name: "Carnes" },
+  { id: "pollo y pescado", name: "Pollo y pescado" },
+  { id: "asadero", name: "Asadero" },
+];
 
 const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
   const lineMap = new Map<
@@ -206,6 +214,18 @@ const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
         });
       }
     });
+  });
+
+  DEFAULT_LINES.forEach((line) => {
+    if (!lineMap.has(line.id)) {
+      lineMap.set(line.id, {
+        id: line.id,
+        name: line.name,
+        sales: 0,
+        hours: 0,
+        cost: 0,
+      });
+    }
   });
 
   return Array.from(lineMap.values()).map((line) => ({
