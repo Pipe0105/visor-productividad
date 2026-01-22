@@ -253,12 +253,6 @@ export async function GET(request: Request) {
       ...polloPescResult.rows,
     ];
     const cached = await readCache();
-    if (cached) {
-      return Response.json(
-        { dailyData: cached, sedes: buildSedes(cached) },
-        { headers: { "Cache-Control": "no-store" } },
-      );
-    }
 
     const grouped = new Map<string, DailyProductivity>();
     const lineTotals = new Map<
@@ -322,7 +316,7 @@ export async function GET(request: Request) {
     });
 
     const dailyData = Array.from(grouped.values());
-    const cachedDailyData = (await readCache()) ?? [];
+    const cachedDailyData = cached ?? [];
     const mergedDailyData = mergeDailyData(cachedDailyData, dailyData);
     await writeCache(mergedDailyData);
     const sedes = buildSedes(mergedDailyData);
