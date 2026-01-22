@@ -13,40 +13,11 @@ type ProductivityRow = {
   sales: number;
 };
 
-type LineGroup = {
-  id: string;
-  name: string;
-};
-
 const toDateKey = (value: Date | string) => {
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);
   }
   return value.slice(0, 10);
-};
-
-const normalizeLineId = (value: string) => value.trim().padStart(2, "0");
-
-const resolveLineGroup = (row: ProductivityRow): LineGroup => {
-  const lineName = row.line_name?.toLowerCase().trim() ?? "";
-  if (lineName === "cajas" || lineName === "caja") {
-    return { id: "cajas", name: "Cajas" };
-  }
-  if (lineName === "asadero" || lineName === "asaderp") {
-    return { id: "asadero", name: "Asadero" };
-  }
-
-  const lineId = normalizeLineId(String(row.line_id ?? ""));
-  if (lineId === "01") {
-    return { id: "fruver", name: "Fruver" };
-  }
-  if (lineId === "02") {
-    return { id: "carnes", name: "Carnes" };
-  }
-  if (lineId === "03" || lineId === "04") {
-    return { id: "pollo y pescado", name: "Pollo y pescado" };
-  }
-  return { id: "industria", name: "Industria" };
 };
 
 const resolveCachePath = () => {
@@ -152,6 +123,38 @@ const buildSedes = (dailyData: DailyProductivity[]) =>
     name: sede,
   }));
 
+const isValidTableName = (tableName: string) =>
+  /^[a-zA-Z0-9_.]+$/.test(tableName);
+
+const fetchLineRows = async (
+  pool: ReturnType<typeof getPool>,
+  {
+    tableName,
+    lineId,
+    lineName,
+    salesColumn,
+  }: {
+    tableName: string;
+    lineId: string;
+    lineName: string;
+    salesColumn: string;
+  },
+) => {
+  return pool.query<ProductivityRow>(
+    `
+      SELECT
+        fecha_dcto AS date,
+        empresa_bd AS sede,
+        '${lineId}' AS line_id,
+        '${lineName}' AS line_name,
+        0 AS quantity,
+        ${salesColumn} AS sales
+      FROM ${tableName}
+      ORDER BY date ASC, sede ASC
+    `,
+  );
+};
+
 export async function GET(request: Request) {
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
@@ -167,13 +170,13 @@ export async function GET(request: Request) {
       },
     );
   }
-  const tableName = process.env.PRODUCTIVITY_TABLE ?? "movimientos";
-  const isValidTableName = /^[a-zA-Z0-9_.]+$/.test(tableName);
-  if (!isValidTableName) {
+  const cajasTable = process.env.PRODUCTIVITY_TABLE_CAJAS ?? "ventas_cajas";
+  const fruverTable = process.env.PRODUCTIVITY_TABLE_FRUVER ?? "ventas_fruver";
+  if (!isValidTableName(cajasTable) || !isValidTableName(fruverTable)) {
     return Response.json(
       {
         error:
-          "PRODUCTIVITY_TABLE must contain only letters, numbers, underscores, or dots.",
+          "PRODUCTIVITY_TABLE_CAJAS and PRODUCTIVITY_TABLE_FRUVER must contain only letters, numbers, underscores, or dots.",
       },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
@@ -202,20 +205,101 @@ export async function GET(request: Request) {
     );
   }
 
-  let result;
   try {
-    result = await pool.query<ProductivityRow>(
-      `
-        SELECT
-          fecha_dcto AS date,
-          empresa AS sede,
-          id_linea1 AS line_id,
-          nombre_linea1 AS line_name,
-          cantidad AS quantity,
-          ven_totales AS sales
-        FROM ${tableName}
-        ORDER BY date ASC, sede ASC, line_name ASC
-      `,
+    const [cajasResult, fruverResult] = await Promise.all([
+      fetchLineRows(pool, {
+        tableName: cajasTable,
+        lineId: "cajas",
+        lineName: "Cajas",
+        salesColumn: "total_bruto",
+      }),
+      fetchLineRows(pool, {
+        tableName: fruverTable,
+        lineId: "fruver",
+        lineName: "Fruver",
+        salesColumn: "total_bruto",
+      }),
+    ]);
+
+    const rows = [...cajasResult.rows, ...fruverResult.rows];
+    const cached = await readCache();
+    if (cached) {
+      return Response.json(
+        { dailyData: cached, sedes: buildSedes(cached) },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const grouped = new Map<string, DailyProductivity>();
+    const lineTotals = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        sales: number;
+        hours: number;
+        laborCost: number;
+      }
+    >();
+
+    rows.forEach((row) => {
+      const dateKey = toDateKey(row.date);
+      const dailyKey = `${dateKey}|${row.sede}`;
+      const lineKey = `${dailyKey}|${row.line_id}`;
+      const existing = lineTotals.get(lineKey) ?? {
+        id: row.line_id,
+        name: row.line_name,
+        sales: 0,
+        hours: 0,
+        laborCost: 0,
+      };
+
+      const sales = Number(row.sales ?? 0);
+      const hours = Number(row.quantity ?? 0);
+      const hourlyRate = 0;
+
+      existing.sales += Number.isNaN(sales) ? 0 : sales;
+      existing.hours += Number.isNaN(hours) ? 0 : hours;
+      existing.laborCost +=
+        (Number.isNaN(hours) ? 0 : hours) *
+        (Number.isNaN(hourlyRate) ? 0 : hourlyRate);
+      lineTotals.set(lineKey, existing);
+
+      if (!grouped.has(dailyKey)) {
+        grouped.set(dailyKey, {
+          date: dateKey,
+          sede: row.sede,
+          lines: [],
+        });
+      }
+    });
+
+    lineTotals.forEach((line, key) => {
+      const [dateKey, sede] = key.split("|");
+      const dailyKey = `${dateKey}|${sede}`;
+      const dailyEntry = grouped.get(dailyKey);
+      if (!dailyEntry) {
+        return;
+      }
+      const hourlyRate = line.hours ? line.laborCost / line.hours : 0;
+      dailyEntry.lines.push({
+        id: line.id,
+        name: line.name,
+        sales: line.sales,
+        hours: line.hours,
+        hourlyRate,
+      });
+    });
+
+    const dailyData = Array.from(grouped.values());
+    const cachedDailyData = (await readCache()) ?? [];
+    const mergedDailyData = mergeDailyData(cachedDailyData, dailyData);
+    await writeCache(mergedDailyData);
+    const sedes = buildSedes(mergedDailyData);
+
+    return Response.json(
+      { dailyData: mergedDailyData, sedes },
+      { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     const message =
@@ -233,85 +317,4 @@ export async function GET(request: Request) {
       { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
-
-  const cached = await readCache();
-  if (cached) {
-    return Response.json(
-      { dailyData: cached, sedes: buildSedes(cached) },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const grouped = new Map<string, DailyProductivity>();
-  const lineTotals = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      sales: number;
-      hours: number;
-      laborCost: number;
-    }
-  >();
-
-  result.rows.forEach((row) => {
-    const dateKey = toDateKey(row.date);
-    const dailyKey = `${dateKey}|${row.sede}`;
-    const lineGroup = resolveLineGroup(row);
-    const lineKey = `${dailyKey}|${lineGroup.id}`;
-    const existing = lineTotals.get(lineKey) ?? {
-      id: lineGroup.id,
-      name: lineGroup.name,
-      sales: 0,
-      hours: 0,
-      laborCost: 0,
-    };
-
-    const sales = Number(row.sales ?? 0);
-    const hours = Number(row.quantity ?? 0);
-    const hourlyRate = 0;
-
-    existing.sales += Number.isNaN(sales) ? 0 : sales;
-    existing.hours += Number.isNaN(hours) ? 0 : hours;
-    existing.laborCost +=
-      (Number.isNaN(hours) ? 0 : hours) *
-      (Number.isNaN(hourlyRate) ? 0 : hourlyRate);
-    lineTotals.set(lineKey, existing);
-
-    if (!grouped.has(dailyKey)) {
-      grouped.set(dailyKey, {
-        date: dateKey,
-        sede: row.sede,
-        lines: [],
-      });
-    }
-  });
-
-  lineTotals.forEach((line, key) => {
-    const [dateKey, sede] = key.split("|");
-    const dailyKey = `${dateKey}|${sede}`;
-    const dailyEntry = grouped.get(dailyKey);
-    if (!dailyEntry) {
-      return;
-    }
-    const hourlyRate = line.hours ? line.laborCost / line.hours : 0;
-    dailyEntry.lines.push({
-      id: line.id,
-      name: line.name,
-      sales: line.sales,
-      hours: line.hours,
-      hourlyRate,
-    });
-  });
-
-  const dailyData = Array.from(grouped.values());
-  const cachedDailyData = (await readCache()) ?? [];
-  const mergedDailyData = mergeDailyData(cachedDailyData, dailyData);
-  await writeCache(mergedDailyData);
-  const sedes = buildSedes(mergedDailyData);
-
-  return Response.json(
-    { dailyData: mergedDailyData, sedes },
-    { headers: { "Cache-Control": "no-store" } },
-  );
 }
