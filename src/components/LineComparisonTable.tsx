@@ -48,10 +48,11 @@ const TableHeader = () => (
 const TableRow = ({
   line,
   index,
-  hasData: boolean;
+  hasData,
 }: {
   line: LineWithMetrics;
   index: number;
+  hasData: boolean;
 }) => (
   <tr
     data-animate="comparison-row"
@@ -72,6 +73,7 @@ const TableRow = ({
     </td>
     <td className="px-4 py-3 text-slate-700">
       {hasData ? formatCOP(line.cost) : "—"}
+    </td>
     <td
       className={`px-4 py-3 font-semibold ${
         hasData ? line.status.textClass : "text-slate-400"
@@ -97,7 +99,8 @@ const TableRow = ({
       <span
         className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
           hasData ? line.status.className : "bg-slate-100 text-slate-600"
-        }`}      >
+        }`}
+      >
         {hasData ? line.status.label : "Sin datos"}
       </span>
     </td>
