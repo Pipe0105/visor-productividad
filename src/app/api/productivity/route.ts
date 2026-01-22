@@ -182,6 +182,25 @@ const fetchLineRows = async (
   );
 };
 
+const getDbErrorMessage = (error: unknown) => {
+  if (error && typeof error === "object") {
+    const maybePgError = error as { code?: string; message?: string };
+    if (maybePgError.code === "28P01") {
+      return "Autenticación fallida. Revisa las credenciales de la base de datos.";
+    }
+    if (
+      process.env.NODE_ENV !== "production" &&
+      typeof maybePgError.message === "string"
+    ) {
+      return maybePgError.message;
+    }
+  }
+  if (process.env.NODE_ENV !== "production" && error instanceof Error) {
+    return error.message;
+  }
+  return "No se pudo consultar la base de datos.";
+};
+
 export async function GET(request: Request) {
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
@@ -368,14 +387,11 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    console.error("Productivity DB query failed.", error);
     const cached = await readCache();
     if (cached && cached.length > 0) {
       return buildCacheResponse(cached);
     }
-    const message =
-      process.env.NODE_ENV !== "production" && error instanceof Error
-        ? error.message
-        : "No se pudo consultar la base de datos.";
-    return buildFallbackResponse(message);
+    return buildFallbackResponse(getDbErrorMessage(error));
   }
 }
