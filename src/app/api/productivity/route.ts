@@ -96,6 +96,17 @@ const writeCache = async (dailyData: DailyProductivity[]) => {
   await fs.writeFile(cacheFilePath, JSON.stringify(payload, null, 2));
 };
 
+const buildCacheResponse = (dailyData: DailyProductivity[]) =>
+  Response.json(
+    { dailyData, sedes: buildSedes(dailyData) },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Data-Source": "cache",
+      },
+    },
+  );
+
 const mergeDailyData = (
   cached: DailyProductivity[],
   fresh: DailyProductivity[],
@@ -198,7 +209,14 @@ export async function GET(request: Request) {
   try {
     pool = getPool();
   } catch (error) {
-    const message = "No se pudo conectar a la base de datos.";
+    const cached = await readCache();
+    if (cached && cached.length > 0) {
+      return buildCacheResponse(cached);
+    }
+    const message =
+      process.env.NODE_ENV !== "production" && error instanceof Error
+        ? error.message
+        : "No se pudo conectar a la base de datos.";
     return Response.json(
       { error: message },
       { status: 500, headers: { "Cache-Control": "no-store" } },
@@ -326,6 +344,10 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    const cached = await readCache();
+    if (cached && cached.length > 0) {
+      return buildCacheResponse(cached);
+    }
     const message =
       process.env.NODE_ENV !== "production" && error instanceof Error
         ? error.message
