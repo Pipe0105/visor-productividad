@@ -237,6 +237,7 @@ export const SummaryCard = ({
               label={comparison.label}
               currentMargin={summary.margin}
               baselineMargin={comparison.baseline?.margin}
+              hasData={hasData}
             />
           ))}
         </div>
