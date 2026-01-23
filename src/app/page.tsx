@@ -55,6 +55,26 @@ type DateRange = {
   end: string;
 };
 
+const BRANCH_LOCATIONS = [
+  "Ciudad Jardín",
+  "Calle 5ta",
+  "La 39",
+  "Centro Sur",
+  "Floresta",
+  "Plaza Norte",
+  "Floralia",
+  "Guaduales",
+  "Palmira",
+  "Bogotá",
+  "Chia",
+  "Planta",
+];
+
+const DEFAULT_SEDES: Sede[] = BRANCH_LOCATIONS.map((sede) => ({
+  id: sede,
+  name: sede,
+}));
+
 // ============================================================================
 // HOOKS PERSONALIZADOS
 // ============================================================================
@@ -80,10 +100,7 @@ const useProductivityData = () => {
         if (!isMounted) return;
 
         const resolvedDailyData = payload.dailyData ?? [];
-        const resolvedSedes =
-          payload.sedes?.length > 0
-            ? payload.sedes
-            : extractSedesFromData(resolvedDailyData);
+        const resolvedSedes = DEFAULT_SEDES;
 
         if (!response.ok) {
           throw new Error(payload.error ?? "No se pudo cargar la información");
