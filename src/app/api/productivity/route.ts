@@ -126,10 +126,18 @@ const fetchLineSalesTotals = async () => {
   try {
     const results = await Promise.all(
       LINE_TABLES.map(async (line) => {
-        const result = await client.query(
-          `SELECT COALESCE(SUM(total_bruto), 0) AS total FROM ${line.table}`,
-        );
-        const total = Number(result.rows?.[0]?.total ?? 0);
+        let total = 0;
+        try {
+          const result = await client.query(
+            `SELECT COALESCE(SUM(total_bruto), 0) AS total FROM ${line.table}`,
+          );
+          total = Number(result.rows?.[0]?.total ?? 0);
+        } catch (error) {
+          console.warn(
+            `No se pudo consultar la tabla ${line.table}. Se usa total 0.`,
+            error,
+          );
+        }
         return {
           id: line.id,
           name: line.name,
