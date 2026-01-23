@@ -1,4 +1,5 @@
 import { DailyProductivity } from "@/types";
+import { testDbConnection } from "@/lib/db";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -121,5 +122,22 @@ export async function GET(request: Request) {
   if (cached && cached.length > 0) {
     return buildCacheResponse(cached);
   }
-  return buildFallbackResponse("No hay datos de productividad disponibles.");
+  try {
+    await testDbConnection();
+    return Response.json(
+      {
+        dailyData: [],
+        sedes: [],
+        message: "Conexión a base de datos establecida. Sin datos aún.",
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Data-Source": "database",
+        },
+      },
+    );
+  } catch (error) {
+    return buildFallbackResponse("No hay datos de productividad disponibles.");
+  }
 }
