@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
-import { Download, LayoutGrid, Table2, Sparkles } from "lucide-react";
+import { Download, LayoutGrid, Table2, Sparkles, ChevronDown, Search, ArrowUpDown } from "lucide-react";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -388,6 +388,62 @@ const EmptyState = ({
   </section>
 );
 
+const SearchAndSort = ({
+  searchQuery,
+  onSearchChange,
+  sortBy,
+  onSortByChange,
+  sortOrder,
+  onSortOrderToggle,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  sortBy: "sales" | "margin" | "hours" | "name";
+  onSortByChange: (value: "sales" | "margin" | "hours" | "name") => void;
+  sortOrder: "asc" | "desc";
+  onSortOrderToggle: () => void;
+}) => (
+  <div className="rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-3 flex-1">
+        <div className="relative flex-1 min-w-50">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Buscar por nombre o código..."
+            className="w-full rounded-full border border-slate-200/70 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-500 transition-all focus:border-mercamio-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+          Ordenar:
+        </span>
+        <select
+          value={sortBy}
+          onChange={(e) => onSortByChange(e.target.value as "sales" | "margin" | "hours" | "name")}
+          className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+        >
+          <option value="margin">Margen</option>
+          <option value="sales">Ventas</option>
+          <option value="hours">Horas</option>
+          <option value="name">Nombre</option>
+        </select>
+        <button
+          type="button"
+          onClick={onSortOrderToggle}
+          className="rounded-full border border-slate-200/70 bg-slate-50 p-2 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100"
+          title={sortOrder === "asc" ? "Ascendente" : "Descendente"}
+        >
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const ViewToggle = ({
   showComparison,
   onChange,
@@ -447,6 +503,7 @@ const SelectionSummary = ({
   availableDatesCount,
   hasRangeData,
   onDownloadPdf,
+  onDownloadCsv,
   isDownloadDisabled,
 }: {
   selectedSedeName: string;
@@ -457,61 +514,182 @@ const SelectionSummary = ({
   availableDatesCount: number;
   hasRangeData: boolean;
   onDownloadPdf: () => void;
+  onDownloadCsv: () => void;
   isDownloadDisabled: boolean;
-}) => (
-  <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
-          Resumen de filtros
-        </p>
-        <h2 className="mt-2 text-lg font-semibold text-slate-900">
-          {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
-        </p>
+}) => {
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-dropdown="export"]')) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    if (showDownloadMenu) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [showDownloadMenu]);
+
+  return (
+    <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+            Resumen de filtros
+          </p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-900">
+            {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+              hasRangeData
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-amber-50 text-amber-700"
+            }`}
+          >
+            {hasRangeData ? "Datos disponibles" : "Sin datos en el rango"}
+          </span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+            {availableDatesCount} fechas disponibles
+          </span>
+          <div className="relative" data-dropdown="export">
+            <button
+              type="button"
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              disabled={isDownloadDisabled}
+              className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              <Download className="h-4 w-4" />
+              Exportar
+              <ChevronDown className={`h-3 w-3 transition-transform ${showDownloadMenu ? "rotate-180" : ""}`} />
+            </button>
+            {showDownloadMenu && !isDownloadDisabled && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white shadow-lg overflow-hidden z-10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDownloadCsv();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+                >
+                  <Download className="h-4 w-4" />
+                  <div>
+                    <div className="font-semibold">Descargar CSV</div>
+                    <div className="text-xs text-slate-500">Excel, Google Sheets</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDownloadPdf();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-mercamio-50 hover:text-mercamio-700"
+                >
+                  <Download className="h-4 w-4" />
+                  <div>
+                    <div className="font-semibold">Descargar PDF</div>
+                    <div className="text-xs text-slate-500">Reporte imprimible</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-            hasRangeData
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-amber-50 text-amber-700"
-          }`}
-        >
-          {hasRangeData ? "Datos disponibles" : "Sin datos en el rango"}
-        </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-          {availableDatesCount} fechas disponibles
-        </span>
-        <button
-          type="button"
-          onClick={onDownloadPdf}
-          disabled={isDownloadDisabled}
-          className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-400"
-        >
-          <Download className="h-4 w-4" />
-          Descargar PDF
-        </button>
-      </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
 export default function Home() {
-  // Estado
-  const [selectedSede, setSelectedSede] = useState("floresta");
-  const [dateRange, setDateRange] = useState<DateRange>({
-    start: "2024-06-18",
-    end: "2024-06-20",
+  // Estado con persistencia
+  const [selectedSede, setSelectedSede] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedSede") || "floresta";
+    }
+    return "floresta";
   });
-  const [lineFilter, setLineFilter] = useState("all");
-  const [showComparison, setShowComparison] = useState(false);
+
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dateRange");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // Si hay error, usar valores por defecto
+        }
+      }
+    }
+    return {
+      start: "2024-06-18",
+      end: "2024-06-20",
+    };
+  });
+
+  const [lineFilter, setLineFilter] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("lineFilter") || "all";
+    }
+    return "all";
+  });
+
+  const [showComparison, setShowComparison] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("showComparison") === "true";
+    }
+    return false;
+  });
+
+  const [activeTab, setActiveTab] = useState<"lines" | "summaries">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("activeTab");
+      return (saved as "lines" | "summaries") || "lines";
+    }
+    return "lines";
+  });
+
+  // Guardar preferencias en localStorage
+  useEffect(() => {
+    localStorage.setItem("selectedSede", selectedSede);
+  }, [selectedSede]);
+
+  useEffect(() => {
+    localStorage.setItem("dateRange", JSON.stringify(dateRange));
+  }, [dateRange]);
+
+  useEffect(() => {
+    localStorage.setItem("lineFilter", lineFilter);
+  }, [lineFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("showComparison", String(showComparison));
+  }, [showComparison]);
+
+  useEffect(() => {
+    localStorage.setItem("activeTab", activeTab);
+  }, [activeTab]);
+
+  // Estados adicionales para búsqueda y ordenamiento
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"sales" | "margin" | "hours" | "name">("margin");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Cargar datos
   const { dailyDataSet, availableSedes, isLoading, error } =
@@ -578,10 +756,43 @@ export default function Home() {
   const lines = useMemo(() => aggregateLines(rangeDailyData), [rangeDailyData]);
   const hasRangeData = rangeDailyData.length > 0;
 
-  const filteredLines = useMemo(
-    () => filterLinesByStatus(lines, lineFilter, selectedSede),
-    [lineFilter, lines, selectedSede],
-  );
+  const filteredLines = useMemo(() => {
+    let result = filterLinesByStatus(lines, lineFilter, selectedSede);
+
+    // Aplicar búsqueda
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (line) =>
+          line.name.toLowerCase().includes(query) ||
+          line.id.toLowerCase().includes(query)
+      );
+    }
+
+    // Aplicar ordenamiento
+    result.sort((a, b) => {
+      let compareValue = 0;
+
+      switch (sortBy) {
+        case "sales":
+          compareValue = a.sales - b.sales;
+          break;
+        case "margin":
+          compareValue = calcLineMargin(a) - calcLineMargin(b);
+          break;
+        case "hours":
+          compareValue = a.hours - b.hours;
+          break;
+        case "name":
+          compareValue = a.name.localeCompare(b.name);
+          break;
+      }
+
+      return sortOrder === "asc" ? compareValue : -compareValue;
+    });
+
+    return result;
+  }, [lineFilter, lines, selectedSede, searchQuery, sortBy, sortOrder]);
   const pdfLines = useMemo(
     () =>
       [...filteredLines].sort((a, b) => calcLineMargin(b) - calcLineMargin(a)),
@@ -688,24 +899,131 @@ export default function Home() {
     setShowComparison(value);
   }, []);
 
+  const handleSortOrderToggle = useCallback(() => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  }, []);
+
+  const handleDownloadCsv = useCallback(() => {
+    const escapeCsv = (value: string | number) => {
+      const str = String(value);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const formatNumber = (value: number) => {
+      return new Intl.NumberFormat("es-CO", {
+        maximumFractionDigits: 0,
+      }).format(value);
+    };
+
+    const headers = ["#", "Línea", "Código", "Ventas", "Horas", "Costo", "Margen", "Margen %"];
+
+    const rows = pdfLines.map((line, index) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      const hours = hasLaborData ? line.hours : 0;
+      const cost = hasLaborData ? calcLineCost(line) : 0;
+      const margin = hasLaborData ? calcLineMargin(line) : 0;
+      const marginRatio = line.sales ? margin / line.sales : 0;
+
+      return [
+        index + 1,
+        escapeCsv(line.name),
+        escapeCsv(line.id),
+        formatNumber(Math.round(line.sales)),
+        hours,
+        formatNumber(Math.round(cost)),
+        formatNumber(Math.round(margin)),
+        `${(marginRatio * 100).toFixed(2)}%`,
+      ];
+    });
+
+    // Calcular totales
+    const totalSales = pdfLines.reduce((acc, line) => acc + line.sales, 0);
+    const totalHours = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? line.hours : 0);
+    }, 0);
+    const totalCost = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? calcLineCost(line) : 0);
+    }, 0);
+    const totalMargin = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? calcLineMargin(line) : 0);
+    }, 0);
+    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
+
+    const csvLines = [
+      "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
+      "",
+      "",
+      "Información del Reporte",
+      `Sede:,${escapeCsv(selectedSedeName)}`,
+      `Rango:,${escapeCsv(dateRangeLabel || "Sin rango definido")}`,
+      `Filtro:,${escapeCsv(lineFilterLabel)}`,
+      `Generado:,${escapeCsv(formatPdfDate())}`,
+      "",
+      "",
+      "",
+      "DETALLE POR LÍNEA",
+      "",
+      headers.join(","),
+      ...rows.map(row => row.join(",")),
+      "",
+      "",
+      "TOTALES",
+      "",
+      `Total,,,${formatNumber(Math.round(totalSales))},${totalHours},${formatNumber(Math.round(totalCost))},${formatNumber(Math.round(totalMargin))},${(totalMarginRatio * 100).toFixed(2)}%`,
+    ];
+
+    const csvContent = csvLines.join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
+      dateRange.end || "sin-fecha"
+    }.csv`;
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [
+    dateRange.end,
+    dateRange.start,
+    dateRangeLabel,
+    lineFilterLabel,
+    pdfLines,
+    selectedSede,
+    selectedSedeName,
+  ]);
+
   const handleDownloadPdf = useCallback(() => {
     type PdfLine = { text: string; font: string; size: number };
     const columns = [
-      { label: "#", width: 3 },
-      { label: "Linea", width: 26 },
-      { label: "Codigo", width: 14 },
-      { label: "Ventas", width: 14 },
-      { label: "Horas", width: 7 },
-      { label: "Costo", width: 12 },
-      { label: "Margen", width: 12 },
-      { label: "Margen %", width: 9 },
+      { label: "#", width: 3, align: "right" as const },
+      { label: "Linea", width: 26, align: "left" as const },
+      { label: "Codigo", width: 14, align: "left" as const },
+      { label: "Ventas", width: 14, align: "right" as const },
+      { label: "Horas", width: 7, align: "right" as const },
+      { label: "Costo", width: 12, align: "right" as const },
+      { label: "Margen", width: 12, align: "right" as const },
+      { label: "Margen %", width: 9, align: "right" as const },
     ];
+    const fitCell = (cell: string, width: number, align: "left" | "right") => {
+      const safeCell = cell.length > width ? cell.slice(0, width) : cell;
+      return align === "right"
+        ? safeCell.padStart(width)
+        : safeCell.padEnd(width);
+    };
 
     const formatRow = (cells: string[]) =>
       cells
         .map((cell, index) => {
-          const width = columns[index].width;
-          return cell.length >= width ? cell : cell.padEnd(width);
+          const { width, align } = columns[index];
+          return fitCell(cell, width, align);
         })
         .join("  ");
 
@@ -854,6 +1172,58 @@ export default function Home() {
     selectedSedeName,
   ]);
 
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ignorar si está escribiendo en un input
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        // Solo permitir Escape para limpiar búsqueda
+        if (event.key === "Escape" && event.target instanceof HTMLInputElement) {
+          setSearchQuery("");
+          event.target.blur();
+        }
+        return;
+      }
+
+      // Ctrl/Cmd + E: Abrir menú de exportación
+      if ((event.ctrlKey || event.metaKey) && event.key === "e") {
+        event.preventDefault();
+        // Trigger del botón de exportar (se implementará con ref si es necesario)
+      }
+
+      // Ctrl/Cmd + F: Enfocar búsqueda
+      if ((event.ctrlKey || event.metaKey) && event.key === "f") {
+        event.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+
+      // 1: Ir a pestaña Líneas
+      if (event.key === "1" && !event.ctrlKey && !event.metaKey) {
+        setActiveTab("lines");
+      }
+
+      // 2: Ir a pestaña Resúmenes
+      if (event.key === "2" && !event.ctrlKey && !event.metaKey) {
+        setActiveTab("summaries");
+      }
+
+      // T: Toggle vista (tarjetas/comparativo)
+      if (event.key === "t" && activeTab === "lines") {
+        setShowComparison((prev) => !prev);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyPress);
+    return () => document.removeEventListener("keydown", handleKeyPress);
+  }, [activeTab]);
+
   // Animaciones
   useAnimations(isLoading, filteredLines.length, showComparison);
 
@@ -889,12 +1259,41 @@ export default function Home() {
           availableDatesCount={availableDates.length}
           hasRangeData={hasRangeData}
           onDownloadPdf={handleDownloadPdf}
+          onDownloadCsv={handleDownloadCsv}
           isDownloadDisabled={filteredLines.length === 0}
         />
 
         {error && (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center">
             <p className="text-sm font-semibold text-red-900">{error}</p>
+          </div>
+        )}
+
+        {/* Tabs Navigation */}
+        {!isLoading && lines.length > 0 && (
+          <div className="flex items-center gap-2 rounded-3xl border border-slate-200/70 bg-white p-2 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+            <button
+              type="button"
+              onClick={() => setActiveTab("lines")}
+              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
+                activeTab === "lines"
+                  ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Líneas de producción
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("summaries")}
+              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
+                activeTab === "summaries"
+                  ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              Resúmenes
+            </button>
           </div>
         )}
 
@@ -906,69 +1305,80 @@ export default function Home() {
             description="Prueba otra fecha o sede para ver actividad."
           />
         ) : (
-          <div className="space-y-6">
-            <ViewToggle
-              showComparison={showComparison}
-              onChange={handleViewChange}
-            />
+          <>
+            {/* Tab: Lines */}
+            {activeTab === "lines" && (
+              <div className="space-y-6">
+                <SearchAndSort
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  sortBy={sortBy}
+                  onSortByChange={setSortBy}
+                  sortOrder={sortOrder}
+                  onSortOrderToggle={handleSortOrderToggle}
+                />
+                <ViewToggle
+                  showComparison={showComparison}
+                  onChange={handleViewChange}
+                />
 
-            {showComparison ? (
-              filteredLines.length > 0 ? (
-                <LineComparisonTable
-                  lines={filteredLines}
+                {showComparison ? (
+                  filteredLines.length > 0 ? (
+                    <LineComparisonTable
+                      lines={filteredLines}
+                      sede={selectedSede}
+                      hasData={hasRangeData}
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No hay líneas para comparar con este filtro."
+                      description="Ajusta el filtro para ver el comparativo de líneas."
+                    />
+                  )
+                ) : (
+                  <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                    {filteredLines.map((line) => (
+                      <LineCard
+                        key={line.id}
+                        line={line}
+                        sede={selectedSede}
+                        hasData={hasRangeData}
+                      />
+                    ))}
+                  </section>
+                )}
+
+                {!showComparison && filteredLines.length === 0 && (
+                  <EmptyState
+                    title="No hay líneas para este segmento."
+                    description="Prueba otro filtro o revisa un rango distinto."
+                    actionLabel="Ver todas las líneas"
+                    onAction={() => setLineFilter("all")}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Tab: Summaries */}
+            {activeTab === "summaries" && (
+              <div className="space-y-6">
+                <SummaryCard
+                  summary={summary}
+                  title="Resumen del día"
+                  salesLabel="Venta total"
                   sede={selectedSede}
+                  comparisons={dailyComparisons}
                   hasData={hasRangeData}
                 />
-              ) : (
-                <EmptyState
-                  title="No hay líneas para comparar con este filtro."
-                  description="Ajusta el filtro para ver el comparativo de líneas."
+                <SummaryCard
+                  summary={monthlySummary}
+                  title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
+                  salesLabel="Ventas del mes"
+                  sede={selectedSede}
+                  hasData={hasMonthlyData}
                 />
-              )
-            ) : (
-              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {filteredLines.map((line) => (
-                  <LineCard
-                    key={line.id}
-                    line={line}
-                    sede={selectedSede}
-                    hasData={hasRangeData}
-                  />
-                ))}
-              </section>
+              </div>
             )}
-          </div>
-        )}
-
-        {!showComparison &&
-          !isLoading &&
-          lines.length > 0 &&
-          filteredLines.length === 0 && (
-            <EmptyState
-              title="No hay líneas para este segmento."
-              description="Prueba otro filtro o revisa un rango distinto."
-              actionLabel="Ver todas las líneas"
-              onAction={() => setLineFilter("all")}
-            />
-          )}
-
-        {!isLoading && lines.length > 0 && (
-          <>
-            <SummaryCard
-              summary={summary}
-              title="Resumen del día"
-              salesLabel="Venta total"
-              sede={selectedSede}
-              comparisons={dailyComparisons}
-              hasData={hasRangeData}
-            />
-            <SummaryCard
-              summary={monthlySummary}
-              title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
-              salesLabel="Ventas del mes"
-              sede={selectedSede}
-              hasData={hasMonthlyData}
-            />
           </>
         )}
       </div>
