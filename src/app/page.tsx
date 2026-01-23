@@ -49,6 +49,11 @@ const formatPdfDate = () =>
     timeStyle: "short",
   }).format(new Date());
 
+const formatPdfNumber = (value: number) =>
+  new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(value);
+
 const buildPdfRows = (lines: LineMetrics[]) => {
   return lines.map((line, index) => {
     const hasLaborData = hasLaborDataForLine(line.id);
@@ -61,10 +66,10 @@ const buildPdfRows = (lines: LineMetrics[]) => {
       `${index + 1}`,
       line.name,
       line.id,
-      formatCOP(line.sales),
+      formatPdfNumber(line.sales),
       `${hours}h`,
-      formatCOP(cost),
-      formatCOP(margin),
+      formatPdfNumber(cost),
+      formatPdfNumber(margin),
       formatPercent(marginRatio),
     ];
   });
@@ -695,15 +700,12 @@ export default function Home() {
       { label: "Margen %", width: 9 },
     ];
 
-    const truncateText = (text: string, width: number) => {
-      if (text.length <= width) return text.padEnd(width);
-      if (width <= 3) return text.slice(0, width);
-      return `${text.slice(0, width - 3)}...`;
-    };
-
     const formatRow = (cells: string[]) =>
       cells
-        .map((cell, index) => truncateText(cell, columns[index].width))
+        .map((cell, index) => {
+          const width = columns[index].width;
+          return cell.length >= width ? cell : cell.padEnd(width);
+        })
         .join(" ");
 
     const headerRow = formatRow(columns.map((column) => column.label));
