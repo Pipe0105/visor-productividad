@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
+import { LayoutGrid, Table2, Sparkles } from "lucide-react";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -325,9 +326,13 @@ const LoadingSkeleton = () => (
 const EmptyState = ({
   title,
   description,
+  actionLabel,
+  onAction,
 }: {
   title: string;
   description: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }) => (
   <section className="rounded-3xl border border-dashed border-slate-200/70 bg-slate-50 p-10 text-center">
     <p className="text-sm uppercase tracking-[0.3em] text-slate-700">
@@ -335,15 +340,25 @@ const EmptyState = ({
     </p>
     <h2 className="mt-3 text-2xl font-semibold text-slate-900">{title}</h2>
     <p className="mt-2 text-sm text-slate-700">{description}</p>
+    {actionLabel && onAction && (
+      <button
+        type="button"
+        onClick={onAction}
+        className="mt-6 inline-flex items-center gap-2 rounded-full border border-mercamio-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-50"
+      >
+        <Sparkles className="h-4 w-4" />
+        {actionLabel}
+      </button>
+    )}
   </section>
 );
 
 const ViewToggle = ({
   showComparison,
-  onToggle,
+  onChange,
 }: {
   showComparison: boolean;
-  onToggle: () => void;
+  onChange: (value: boolean) => void;
 }) => (
   <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
     <div>
@@ -353,15 +368,87 @@ const ViewToggle = ({
       <p className="text-sm font-semibold text-slate-900">
         {showComparison ? "Comparativo de rentabilidad" : "Tarjetas detalladas"}
       </p>
+      <p className="mt-1 text-xs text-slate-600">
+        Alterna la visualización para detectar oportunidades rápidamente.
+      </p>
     </div>
-    <button
-      type="button"
-      onClick={onToggle}
-      className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-mercamio-300/40 hover:bg-white"
-    >
-      {showComparison ? "Volver a tarjetas" : "Ver comparativo"}
-    </button>
+    <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        aria-pressed={!showComparison}
+        className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+          !showComparison
+            ? "bg-white text-mercamio-700 shadow-sm"
+            : "text-slate-600 hover:text-slate-800"
+        }`}
+      >
+        <LayoutGrid className="h-4 w-4" />
+        Tarjetas
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        aria-pressed={showComparison}
+        className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+          showComparison
+            ? "bg-white text-mercamio-700 shadow-sm"
+            : "text-slate-600 hover:text-slate-800"
+        }`}
+      >
+        <Table2 className="h-4 w-4" />
+        Comparativo
+      </button>
+    </div>
   </div>
+);
+
+const SelectionSummary = ({
+  selectedSedeName,
+  dateRangeLabel,
+  lineFilterLabel,
+  filteredCount,
+  totalCount,
+  availableDatesCount,
+  hasRangeData,
+}: {
+  selectedSedeName: string;
+  dateRangeLabel: string;
+  lineFilterLabel: string;
+  filteredCount: number;
+  totalCount: number;
+  availableDatesCount: number;
+  hasRangeData: boolean;
+}) => (
+  <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          Resumen de filtros
+        </p>
+        <h2 className="mt-2 text-lg font-semibold text-slate-900">
+          {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+            hasRangeData
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {hasRangeData ? "Datos disponibles" : "Sin datos en el rango"}
+        </span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+          {availableDatesCount} fechas disponibles
+        </span>
+      </div>
+    </div>
+  </section>
 );
 
 // ============================================================================
@@ -450,6 +537,14 @@ export default function Home() {
 
   const summary = useMemo(() => calcDailySummary(lines), [lines]);
 
+  const lineFilterLabels: Record<string, string> = {
+    all: "Todas las líneas",
+    critical: "Líneas críticas (alerta)",
+    improving: "Líneas en mejora (atención)",
+  };
+
+  const lineFilterLabel = lineFilterLabels[lineFilter] ?? "Todas las líneas";
+
   // Resumen mensual
   const selectedMonth = dateRange.end.slice(0, 7);
 
@@ -536,8 +631,8 @@ export default function Home() {
     }));
   }, []);
 
-  const toggleComparison = useCallback(() => {
-    setShowComparison((prev) => !prev);
+  const handleViewChange = useCallback((value: boolean) => {
+    setShowComparison(value);
   }, []);
 
   // Animaciones
@@ -566,6 +661,16 @@ export default function Home() {
           onLineFilterChange={setLineFilter}
         />
 
+        <SelectionSummary
+          selectedSedeName={selectedSedeName}
+          dateRangeLabel={dateRangeLabel}
+          lineFilterLabel={lineFilterLabel}
+          filteredCount={filteredLines.length}
+          totalCount={lines.length}
+          availableDatesCount={availableDates.length}
+          hasRangeData={hasRangeData}
+        />
+
         {error && (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center">
             <p className="text-sm font-semibold text-red-900">{error}</p>
@@ -583,7 +688,7 @@ export default function Home() {
           <div className="space-y-6">
             <ViewToggle
               showComparison={showComparison}
-              onToggle={toggleComparison}
+              onChange={handleViewChange}
             />
 
             {showComparison ? (
@@ -621,6 +726,8 @@ export default function Home() {
             <EmptyState
               title="No hay líneas para este segmento."
               description="Prueba otro filtro o revisa un rango distinto."
+              actionLabel="Ver todas las líneas"
+              onAction={() => setLineFilter("all")}
             />
           )}
 
