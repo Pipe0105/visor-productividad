@@ -692,8 +692,8 @@ export default function Home() {
     type PdfLine = { text: string; font: string; size: number };
     const columns = [
       { label: "#", width: 3 },
-      { label: "Línea", width: 26 },
-      { label: "Código", width: 14 },
+      { label: "Linea", width: 26 },
+      { label: "Codigo", width: 14 },
       { label: "Ventas", width: 14 },
       { label: "Horas", width: 7 },
       { label: "Costo", width: 12 },
@@ -714,7 +714,7 @@ export default function Home() {
     const rows = buildPdfRows(pdfLines).map((row) => formatRow(row));
 
     const contentLines: PdfLine[] = [
-      { text: "Reporte de líneas", font: "F2", size: 16 },
+      { text: "Reporte de lineas", font: "F2", size: 16 },
       { text: selectedSedeName, font: "F1", size: 12 },
       { text: "", font: "F1", size: 11 },
       {
@@ -865,7 +865,7 @@ export default function Home() {
           title={
             <span>
               Tablero diario de{" "}
-              <span className="text-mercamio-500">productividad</span> por línea
+              <span className="text-mercamio-500">productividad</span> por linea
             </span>
           }
           selectedSede={selectedSede}
