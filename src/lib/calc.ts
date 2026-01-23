@@ -1,5 +1,4 @@
-import { DailySummary, LineMetrics } from "@/types";
-
+import { DailySummary, LineMetrics } from "../types";
 const linesWithoutLaborData = new Set([
   "cajas",
   "fruver",

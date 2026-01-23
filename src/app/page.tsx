@@ -11,6 +11,7 @@ import {
   calcLineMargin,
   hasLaborDataForLine,
 } from "@/lib/calc";
+import { DEFAULT_LINES, DEFAULT_SEDES, Sede } from "@/lib/constants";
 import { DailyProductivity, LineMetrics } from "@/types";
 import { getLineStatus } from "@/lib/status";
 
@@ -48,32 +49,10 @@ type ApiResponse = {
   error?: string;
 };
 
-type Sede = { id: string; name: string };
-
 type DateRange = {
   start: string;
   end: string;
 };
-
-const BRANCH_LOCATIONS = [
-  "Ciudad Jardín",
-  "Calle 5ta",
-  "La 39",
-  "Centro Sur",
-  "Floresta",
-  "Plaza Norte",
-  "Floralia",
-  "Guaduales",
-  "Palmira",
-  "Bogotá",
-  "Chia",
-  "Planta",
-];
-
-const DEFAULT_SEDES: Sede[] = BRANCH_LOCATIONS.map((sede) => ({
-  id: sede,
-  name: sede,
-}));
 
 // ============================================================================
 // HOOKS PERSONALIZADOS
@@ -87,13 +66,16 @@ const useProductivityData = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const response = await fetch("/api/productivity");
+        const response = await fetch("/api/productivity", {
+          signal: controller.signal,
+        });
 
         const payload = (await response.json()) as ApiResponse;
 
@@ -115,6 +97,9 @@ const useProductivityData = () => {
           setError(payload.error);
         }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
         if (isMounted) {
           setError(err instanceof Error ? err.message : "Error desconocido");
           setDailyDataSet([]);
@@ -131,6 +116,7 @@ const useProductivityData = () => {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -223,15 +209,6 @@ const extractSedesFromData = (data: DailyProductivity[]): Sede[] => {
     new Map(data.map((item) => [item.sede, item.sede])).entries(),
   ).map(([id, name]) => ({ id, name }));
 };
-const DEFAULT_LINES: Array<Pick<LineMetrics, "id" | "name">> = [
-  { id: "cajas", name: "Cajas" },
-  { id: "fruver", name: "Fruver" },
-  { id: "industria", name: "Industria" },
-  { id: "carnes", name: "Carnes" },
-  { id: "pollo y pescado", name: "Pollo y pescado" },
-  { id: "asadero", name: "Asadero" },
-];
-
 const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
   const lineMap = new Map<
     string,
