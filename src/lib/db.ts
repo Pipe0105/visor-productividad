@@ -6,12 +6,17 @@ const dbConfig = {
   password: process.env.DB_PASSWORD ?? "Nomiplus2014$%",
   schema: process.env.DB_SCHEMA ?? "public",
 };
+type DbQueryResult = {
+  rows?: Array<{ total?: number | string | null }>;
+};
+
+type DbClient = {
+  query: (sql: string) => Promise<DbQueryResult>;
+  release: () => void;
+};
 
 let pool: {
-  connect: () => Promise<{
-    query: (sql: string) => Promise<void>;
-    release: () => void;
-  }>;
+  connect: () => Promise<DbClient>;
 } | null = null;
 
 export const getDbPool = async () => {
