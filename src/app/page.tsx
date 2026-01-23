@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
-import { Download, LayoutGrid, Table2, Sparkles, ChevronDown, Search, ArrowUpDown } from "lucide-react";
+import {
+  Download,
+  LayoutGrid,
+  Table2,
+  Sparkles,
+  ChevronDown,
+  Search,
+  ArrowUpDown,
+} from "lucide-react";
+import * as XLSX from "xlsx";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -423,7 +432,11 @@ const SearchAndSort = ({
         </span>
         <select
           value={sortBy}
-          onChange={(e) => onSortByChange(e.target.value as "sales" | "margin" | "hours" | "name")}
+          onChange={(e) =>
+            onSortByChange(
+              e.target.value as "sales" | "margin" | "hours" | "name",
+            )
+          }
           className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
         >
           <option value="margin">Margen</option>
@@ -437,7 +450,9 @@ const SearchAndSort = ({
           className="rounded-full border border-slate-200/70 bg-slate-50 p-2 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100"
           title={sortOrder === "asc" ? "Ascendente" : "Descendente"}
         >
-          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
+          <ArrowUpDown
+            className={`h-4 w-4 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`}
+          />
         </button>
       </div>
     </div>
@@ -494,6 +509,544 @@ const ViewToggle = ({
   </div>
 );
 
+const ChartVisualization = ({
+  lines,
+  sede,
+}: {
+  lines: LineMetrics[];
+  sede: string;
+}) => {
+  const [chartType, setChartType] = useState<"sales" | "margin">("sales");
+
+  const sortedLines = useMemo(() => {
+    return [...lines]
+      .sort((a, b) => {
+        if (chartType === "sales") {
+          return b.sales - a.sales;
+        }
+        return calcLineMargin(b) - calcLineMargin(a);
+      })
+      .slice(0, 6); // Top 6
+  }, [lines, chartType]);
+
+  const maxValue = useMemo(() => {
+    if (sortedLines.length === 0) return 1;
+    if (chartType === "sales") {
+      return Math.max(...sortedLines.map((line) => line.sales));
+    }
+    return Math.max(...sortedLines.map((line) => calcLineMargin(line)));
+  }, [sortedLines, chartType]);
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+            Análisis visual
+          </p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">
+            Top 6 líneas por {chartType === "sales" ? "ventas" : "margen"}
+          </h3>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setChartType("sales")}
+            className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+              chartType === "sales"
+                ? "bg-white text-mercamio-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Ventas
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartType("margin")}
+            className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+              chartType === "margin"
+                ? "bg-white text-mercamio-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Margen
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {sortedLines.map((line, index) => {
+          const value =
+            chartType === "sales" ? line.sales : calcLineMargin(line);
+          const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+          const status = getLineStatus(sede, line.id, calcLineMargin(line));
+
+          return (
+            <div key={line.id} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-slate-500">#{index + 1}</span>
+                  <span className="font-semibold text-slate-900">
+                    {line.name}
+                  </span>
+                  <span className="font-mono text-slate-500">{line.id}</span>
+                </div>
+                <span className="font-semibold text-slate-900">
+                  {formatCOP(value)}
+                </span>
+              </div>
+              <div className="relative h-8 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percentage}%`,
+                    backgroundColor:
+                      status.label === "Problema"
+                        ? "#ef4444"
+                        : status.label === "Atención"
+                          ? "#f59e0b"
+                          : "#10b981",
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center px-3">
+                  <span className="text-xs font-semibold text-slate-700 mix-blend-difference">
+                    {percentage.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {sortedLines.length === 0 && (
+        <p className="text-center text-sm text-slate-500 py-8">
+          No hay datos suficientes para mostrar el gráfico
+        </p>
+      )}
+    </div>
+  );
+};
+
+const LineTrends = ({
+  dailyDataSet,
+  selectedSede,
+  availableDates,
+  lines,
+}: {
+  dailyDataSet: DailyProductivity[];
+  selectedSede: string;
+  availableDates: string[];
+  lines: LineMetrics[];
+}) => {
+  const [selectedLine, setSelectedLine] = useState<string>("");
+  const [metricType, setMetricType] = useState<"sales" | "margin" | "hours">(
+    "sales",
+  );
+
+  // Calculate trend data for selected line
+  const trendData = useMemo(() => {
+    if (!selectedLine) return [];
+
+    const dataByDate = availableDates.map((date) => {
+      const dayData = dailyDataSet.find(
+        (item) => item.sede === selectedSede && item.date === date,
+      );
+      const lineData = dayData?.lines.find((l) => l.id === selectedLine);
+
+      if (!lineData) {
+        return { date, value: 0 };
+      }
+
+      let value = 0;
+      if (metricType === "sales") {
+        value = lineData.sales;
+      } else if (metricType === "margin") {
+        const hasLaborData = hasLaborDataForLine(lineData.id);
+        const hours = hasLaborData ? lineData.hours : 0;
+        const cost = hours * lineData.hourlyRate;
+        value = lineData.sales - cost;
+      } else {
+        value = hasLaborDataForLine(lineData.id) ? lineData.hours : 0;
+      }
+
+      return { date, value };
+    });
+
+    return dataByDate;
+  }, [selectedLine, metricType, dailyDataSet, selectedSede, availableDates]);
+
+  const maxValue = useMemo(() => {
+    if (trendData.length === 0) return 1;
+    return Math.max(...trendData.map((d) => d.value), 1);
+  }, [trendData]);
+
+  const avgValue = useMemo(() => {
+    if (trendData.length === 0) return 0;
+    const sum = trendData.reduce((acc, d) => acc + d.value, 0);
+    return sum / trendData.length;
+  }, [trendData]);
+
+  // Calculate trend direction
+  const trendDirection = useMemo(() => {
+    if (trendData.length < 2) return "stable";
+    const firstHalf = trendData.slice(0, Math.floor(trendData.length / 2));
+    const secondHalf = trendData.slice(Math.floor(trendData.length / 2));
+
+    const firstAvg =
+      firstHalf.reduce((acc, d) => acc + d.value, 0) / firstHalf.length;
+    const secondAvg =
+      secondHalf.reduce((acc, d) => acc + d.value, 0) / secondHalf.length;
+
+    const change = ((secondAvg - firstAvg) / firstAvg) * 100;
+
+    if (Math.abs(change) < 5) return "stable";
+    return change > 0 ? "up" : "down";
+  }, [trendData]);
+
+  if (lines.length === 0 || availableDates.length === 0) return null;
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          Análisis de tendencias
+        </p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+          Evolución temporal por línea
+        </h3>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-600">Línea</span>
+          <select
+            value={selectedLine}
+            onChange={(e) => setSelectedLine(e.target.value)}
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          >
+            <option value="">Selecciona una línea</option>
+            {lines.map((line) => (
+              <option key={line.id} value={line.id}>
+                {line.name} ({line.id})
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-600">Métrica</span>
+          <select
+            value={metricType}
+            onChange={(e) =>
+              setMetricType(e.target.value as "sales" | "margin" | "hours")
+            }
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          >
+            <option value="sales">Ventas</option>
+            <option value="margin">Margen</option>
+            <option value="hours">Horas trabajadas</option>
+          </select>
+        </label>
+      </div>
+
+      {selectedLine && trendData.length > 0 && (
+        <>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-600">Promedio del período</p>
+              <p className="text-2xl font-semibold text-slate-900">
+                {metricType === "hours"
+                  ? `${avgValue.toFixed(1)}h`
+                  : formatCOP(avgValue)}
+              </p>
+            </div>
+            <div
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                trendDirection === "up"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : trendDirection === "down"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {trendDirection === "up" && "↑ Tendencia al alza"}
+              {trendDirection === "down" && "↓ Tendencia a la baja"}
+              {trendDirection === "stable" && "→ Estable"}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {trendData.map((point) => {
+              const percentage =
+                maxValue > 0 ? (point.value / maxValue) * 100 : 0;
+              const isAboveAverage = point.value > avgValue;
+
+              return (
+                <div key={point.date} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-600">
+                      {formatDateLabel(point.date)}
+                    </span>
+                    <span className="font-semibold text-slate-900">
+                      {metricType === "hours"
+                        ? `${point.value.toFixed(1)}h`
+                        : formatCOP(point.value)}
+                    </span>
+                  </div>
+                  <div className="relative h-6 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${percentage}%`,
+                        backgroundColor: isAboveAverage ? "#10b981" : "#f59e0b",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {!selectedLine && (
+        <p className="text-center text-sm text-slate-500 py-8">
+          Selecciona una línea para ver su tendencia temporal
+        </p>
+      )}
+
+      {selectedLine && trendData.length === 0 && (
+        <p className="text-center text-sm text-slate-500 py-8">
+          No hay datos disponibles para esta línea
+        </p>
+      )}
+    </div>
+  );
+};
+
+const PeriodComparison = ({
+  dailyDataSet,
+  selectedSede,
+  availableDates,
+}: {
+  dailyDataSet: DailyProductivity[];
+  selectedSede: string;
+  availableDates: string[];
+}) => {
+  const [period1, setPeriod1] = useState<DateRange>({
+    start: availableDates[0] || "",
+    end: availableDates[0] || "",
+  });
+  const [period2, setPeriod2] = useState<DateRange>({
+    start: availableDates[availableDates.length - 1] || "",
+    end: availableDates[availableDates.length - 1] || "",
+  });
+
+  const period1Data = useMemo(() => {
+    const filtered = dailyDataSet.filter(
+      (item) =>
+        item.sede === selectedSede &&
+        item.date >= period1.start &&
+        item.date <= period1.end,
+    );
+    const lines = aggregateLines(filtered);
+    return calcDailySummary(lines);
+  }, [dailyDataSet, selectedSede, period1]);
+
+  const period2Data = useMemo(() => {
+    const filtered = dailyDataSet.filter(
+      (item) =>
+        item.sede === selectedSede &&
+        item.date >= period2.start &&
+        item.date <= period2.end,
+    );
+    const lines = aggregateLines(filtered);
+    return calcDailySummary(lines);
+  }, [dailyDataSet, selectedSede, period2]);
+
+  const calculateDiff = (val1: number, val2: number) => {
+    if (val2 === 0) return 0;
+    return ((val1 - val2) / val2) * 100;
+  };
+
+  const salesDiff = calculateDiff(period1Data.sales, period2Data.sales);
+  const marginDiff = calculateDiff(period1Data.margin, period2Data.margin);
+  const hoursDiff = calculateDiff(period1Data.hours, period2Data.hours);
+  const costDiff = calculateDiff(period1Data.cost, period2Data.cost);
+
+  const renderMetric = (
+    label: string,
+    value1: number,
+    value2: number,
+    diff: number,
+    isPercentage?: boolean,
+  ) => {
+    const isPositive = diff > 0;
+    const displayValue = (val: number) =>
+      isPercentage ? formatPercent(val) : formatCOP(val);
+
+    return (
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-600">
+          {label}
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-slate-500">Período 1</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {displayValue(value1)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Período 2</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {displayValue(value2)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+              isPositive
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
+            <span>{isPositive ? "↑" : "↓"}</span>
+            <span>{Math.abs(diff).toFixed(1)}%</span>
+          </div>
+          <span className="text-xs text-slate-500">
+            {isPositive ? "incremento" : "disminución"}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  if (availableDates.length === 0) return null;
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          Comparación de períodos
+        </p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+          Compara dos rangos de fechas
+        </h3>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-slate-900">Período 1</p>
+          <div className="space-y-2">
+            <label className="block">
+              <span className="text-xs text-slate-600">Desde</span>
+              <select
+                value={period1.start}
+                onChange={(e) =>
+                  setPeriod1((prev) => ({ ...prev, start: e.target.value }))
+                }
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                {availableDates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-slate-600">Hasta</span>
+              <select
+                value={period1.end}
+                onChange={(e) =>
+                  setPeriod1((prev) => ({ ...prev, end: e.target.value }))
+                }
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                {availableDates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-slate-900">Período 2</p>
+          <div className="space-y-2">
+            <label className="block">
+              <span className="text-xs text-slate-600">Desde</span>
+              <select
+                value={period2.start}
+                onChange={(e) =>
+                  setPeriod2((prev) => ({ ...prev, start: e.target.value }))
+                }
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                {availableDates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-slate-600">Hasta</span>
+              <select
+                value={period2.end}
+                onChange={(e) =>
+                  setPeriod2((prev) => ({ ...prev, end: e.target.value }))
+                }
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                {availableDates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {renderMetric(
+          "Ventas",
+          period1Data.sales,
+          period2Data.sales,
+          salesDiff,
+        )}
+        {renderMetric(
+          "Margen",
+          period1Data.margin,
+          period2Data.margin,
+          marginDiff,
+        )}
+        {renderMetric(
+          "Horas trabajadas",
+          period1Data.hours,
+          period2Data.hours,
+          hoursDiff,
+        )}
+        {renderMetric(
+          "Costos laborales",
+          period1Data.cost,
+          period2Data.cost,
+          costDiff,
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SelectionSummary = ({
   selectedSedeName,
   dateRangeLabel,
@@ -504,6 +1057,7 @@ const SelectionSummary = ({
   hasRangeData,
   onDownloadPdf,
   onDownloadCsv,
+  onDownloadXlsx,
   isDownloadDisabled,
 }: {
   selectedSedeName: string;
@@ -515,6 +1069,7 @@ const SelectionSummary = ({
   hasRangeData: boolean;
   onDownloadPdf: () => void;
   onDownloadCsv: () => void;
+  onDownloadXlsx: () => void;
   isDownloadDisabled: boolean;
 }) => {
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
@@ -572,7 +1127,9 @@ const SelectionSummary = ({
             >
               <Download className="h-4 w-4" />
               Exportar
-              <ChevronDown className={`h-3 w-3 transition-transform ${showDownloadMenu ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`h-3 w-3 transition-transform ${showDownloadMenu ? "rotate-180" : ""}`}
+              />
             </button>
             {showDownloadMenu && !isDownloadDisabled && (
               <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white shadow-lg overflow-hidden z-10">
@@ -587,7 +1144,25 @@ const SelectionSummary = ({
                   <Download className="h-4 w-4" />
                   <div>
                     <div className="font-semibold">Descargar CSV</div>
-                    <div className="text-xs text-slate-500">Excel, Google Sheets</div>
+                    <div className="text-xs text-slate-500">
+                      Excel, Google Sheets
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDownloadXlsx();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Download className="h-4 w-4" />
+                  <div>
+                    <div className="font-semibold">Descargar XLSX</div>
+                    <div className="text-xs text-slate-500">
+                      Excel con formato
+                    </div>
                   </div>
                 </button>
                 <button
@@ -601,7 +1176,9 @@ const SelectionSummary = ({
                   <Download className="h-4 w-4" />
                   <div>
                     <div className="font-semibold">Descargar PDF</div>
-                    <div className="text-xs text-slate-500">Reporte imprimible</div>
+                    <div className="text-xs text-slate-500">
+                      Reporte imprimible
+                    </div>
                   </div>
                 </button>
               </div>
@@ -618,77 +1195,76 @@ const SelectionSummary = ({
 // ============================================================================
 
 export default function Home() {
-  // Estado con persistencia
-  const [selectedSede, setSelectedSede] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("selectedSede") || "floresta";
-    }
-    return "floresta";
-  });
+  // Estado para controlar hidratación
+  const [mounted, setMounted] = useState(false);
 
-  const [dateRange, setDateRange] = useState<DateRange>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("dateRange");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // Si hay error, usar valores por defecto
-        }
+  // Estado con persistencia - siempre inicia con valores por defecto
+  const [selectedSede, setSelectedSede] = useState("floresta");
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start: "2024-06-18",
+    end: "2024-06-20",
+  });
+  const [lineFilter, setLineFilter] = useState("all");
+  const [showComparison, setShowComparison] = useState(false);
+  const [activeTab, setActiveTab] = useState<"lines" | "summaries">("lines");
+
+  // Cargar preferencias desde localStorage después de montar
+  useEffect(() => {
+    setMounted(true);
+
+    const savedSede = localStorage.getItem("selectedSede");
+    if (savedSede) setSelectedSede(savedSede);
+
+    const savedDateRange = localStorage.getItem("dateRange");
+    if (savedDateRange) {
+      try {
+        setDateRange(JSON.parse(savedDateRange));
+      } catch {
+        // Mantener valores por defecto si hay error
       }
     }
-    return {
-      start: "2024-06-18",
-      end: "2024-06-20",
-    };
-  });
 
-  const [lineFilter, setLineFilter] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("lineFilter") || "all";
-    }
-    return "all";
-  });
+    const savedLineFilter = localStorage.getItem("lineFilter");
+    if (savedLineFilter) setLineFilter(savedLineFilter);
 
-  const [showComparison, setShowComparison] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("showComparison") === "true";
-    }
-    return false;
-  });
+    const savedShowComparison = localStorage.getItem("showComparison");
+    if (savedShowComparison) setShowComparison(savedShowComparison === "true");
 
-  const [activeTab, setActiveTab] = useState<"lines" | "summaries">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("activeTab");
-      return (saved as "lines" | "summaries") || "lines";
-    }
-    return "lines";
-  });
+    const savedActiveTab = localStorage.getItem("activeTab");
+    if (savedActiveTab) setActiveTab(savedActiveTab as "lines" | "summaries");
+  }, []);
 
-  // Guardar preferencias en localStorage
+  // Guardar preferencias en localStorage (solo después de montar)
   useEffect(() => {
+    if (!mounted) return;
     localStorage.setItem("selectedSede", selectedSede);
-  }, [selectedSede]);
+  }, [selectedSede, mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     localStorage.setItem("dateRange", JSON.stringify(dateRange));
-  }, [dateRange]);
+  }, [dateRange, mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     localStorage.setItem("lineFilter", lineFilter);
-  }, [lineFilter]);
+  }, [lineFilter, mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     localStorage.setItem("showComparison", String(showComparison));
-  }, [showComparison]);
+  }, [showComparison, mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     localStorage.setItem("activeTab", activeTab);
-  }, [activeTab]);
+  }, [activeTab, mounted]);
 
   // Estados adicionales para búsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"sales" | "margin" | "hours" | "name">("margin");
+  const [sortBy, setSortBy] = useState<"sales" | "margin" | "hours" | "name">(
+    "margin",
+  );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Cargar datos
@@ -765,7 +1341,7 @@ export default function Home() {
       result = result.filter(
         (line) =>
           line.name.toLowerCase().includes(query) ||
-          line.id.toLowerCase().includes(query)
+          line.id.toLowerCase().includes(query),
       );
     }
 
@@ -918,7 +1494,16 @@ export default function Home() {
       }).format(value);
     };
 
-    const headers = ["#", "Línea", "Código", "Ventas", "Horas", "Costo", "Margen", "Margen %"];
+    const headers = [
+      "#",
+      "Línea",
+      "Código",
+      "Ventas",
+      "Horas",
+      "Costo",
+      "Margen",
+      "Margen %",
+    ];
 
     const rows = pdfLines.map((line, index) => {
       const hasLaborData = hasLaborDataForLine(line.id);
@@ -970,7 +1555,7 @@ export default function Home() {
       "DETALLE POR LÍNEA",
       "",
       headers.join(","),
-      ...rows.map(row => row.join(",")),
+      ...rows.map((row) => row.join(",")),
       "",
       "",
       "TOTALES",
@@ -979,7 +1564,9 @@ export default function Home() {
     ];
 
     const csvContent = csvLines.join("\n");
-    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const safeSede = selectedSede.replace(/\s+/g, "-");
@@ -990,6 +1577,142 @@ export default function Home() {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
+  }, [
+    dateRange.end,
+    dateRange.start,
+    dateRangeLabel,
+    lineFilterLabel,
+    pdfLines,
+    selectedSede,
+    selectedSedeName,
+  ]);
+
+  const handleDownloadXlsx = useCallback(() => {
+    // Crear libro de trabajo
+    const workbook = XLSX.utils.book_new();
+
+    // Preparar datos
+    const formatNumber = (value: number) => Math.round(value);
+
+    // Fila de título y metadatos
+    const metaData = [
+      ["REPORTE DE PRODUCTIVIDAD POR LÍNEA"],
+      [],
+      ["Información del Reporte"],
+      ["Sede:", selectedSedeName],
+      ["Rango:", dateRangeLabel || "Sin rango definido"],
+      ["Filtro:", lineFilterLabel],
+      ["Generado:", formatPdfDate()],
+      [],
+      [],
+    ];
+
+    // Headers
+    const headers = [
+      "#",
+      "Línea",
+      "Código",
+      "Ventas",
+      "Horas",
+      "Costo",
+      "Margen",
+      "Margen %",
+    ];
+
+    // Filas de datos
+    const dataRows = pdfLines.map((line, index) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      const hours = hasLaborData ? line.hours : 0;
+      const cost = hasLaborData ? calcLineCost(line) : 0;
+      const margin = hasLaborData ? calcLineMargin(line) : 0;
+      const marginRatio = line.sales ? margin / line.sales : 0;
+
+      return [
+        index + 1,
+        line.name,
+        line.id,
+        formatNumber(line.sales),
+        hours,
+        formatNumber(cost),
+        formatNumber(margin),
+        marginRatio, // Excel formateará como porcentaje
+      ];
+    });
+
+    // Calcular totales
+    const totalSales = pdfLines.reduce((acc, line) => acc + line.sales, 0);
+    const totalHours = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? line.hours : 0);
+    }, 0);
+    const totalCost = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? calcLineCost(line) : 0);
+    }, 0);
+    const totalMargin = pdfLines.reduce((acc, line) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      return acc + (hasLaborData ? calcLineMargin(line) : 0);
+    }, 0);
+    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
+
+    // Fila de totales
+    const totalsRow = [
+      "",
+      "TOTAL",
+      "",
+      formatNumber(totalSales),
+      totalHours,
+      formatNumber(totalCost),
+      formatNumber(totalMargin),
+      totalMarginRatio,
+    ];
+
+    // Combinar todos los datos
+    const sheetData = [...metaData, [headers], ...dataRows, [], [totalsRow]];
+
+    // Crear hoja
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Configurar anchos de columna
+    worksheet["!cols"] = [
+      { wch: 5 }, // #
+      { wch: 30 }, // Línea
+      { wch: 15 }, // Código
+      { wch: 15 }, // Ventas
+      { wch: 10 }, // Horas
+      { wch: 15 }, // Costo
+      { wch: 15 }, // Margen
+      { wch: 12 }, // Margen %
+    ];
+
+    // Aplicar formato de porcentaje a la columna de Margen %
+    const headerRowIndex = metaData.length;
+    dataRows.forEach((_, index) => {
+      const rowIndex = headerRowIndex + index + 1;
+      const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: 7 });
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].z = "0.00%";
+      }
+    });
+
+    // Formato para la fila de totales
+    const totalRowIndex = headerRowIndex + dataRows.length + 2;
+    const totalPercentCell = XLSX.utils.encode_cell({ r: totalRowIndex, c: 7 });
+    if (worksheet[totalPercentCell]) {
+      worksheet[totalPercentCell].z = "0.00%";
+    }
+
+    // Agregar hoja al libro
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Productividad");
+
+    // Generar nombre de archivo
+    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
+      dateRange.end || "sin-fecha"
+    }.xlsx`;
+
+    // Descargar archivo
+    XLSX.writeFile(workbook, fileName);
   }, [
     dateRange.end,
     dateRange.start,
@@ -1182,7 +1905,10 @@ export default function Home() {
         event.target instanceof HTMLSelectElement
       ) {
         // Solo permitir Escape para limpiar búsqueda
-        if (event.key === "Escape" && event.target instanceof HTMLInputElement) {
+        if (
+          event.key === "Escape" &&
+          event.target instanceof HTMLInputElement
+        ) {
           setSearchQuery("");
           event.target.blur();
         }
@@ -1198,7 +1924,9 @@ export default function Home() {
       // Ctrl/Cmd + F: Enfocar búsqueda
       if ((event.ctrlKey || event.metaKey) && event.key === "f") {
         event.preventDefault();
-        const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
+        const searchInput = document.querySelector(
+          'input[placeholder*="Buscar"]',
+        ) as HTMLInputElement;
         if (searchInput) {
           searchInput.focus();
         }
@@ -1233,10 +1961,13 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <TopBar
           title={
-            <span>
-              Tablero diario de{" "}
-              <span className="text-mercamio-500">productividad</span> por linea
-            </span>
+            <>
+              Tablero de{" "}
+              <span className="bg-linear-to-r from-mercamio-500 to-emerald-500 bg-clip-text text-transparent">
+                Productividad
+              </span>{" "}
+              por Línea
+            </>
           }
           selectedSede={selectedSede}
           sedes={availableSedes}
@@ -1260,6 +1991,7 @@ export default function Home() {
           hasRangeData={hasRangeData}
           onDownloadPdf={handleDownloadPdf}
           onDownloadCsv={handleDownloadCsv}
+          onDownloadXlsx={handleDownloadXlsx}
           isDownloadDisabled={filteredLines.length === 0}
         />
 
@@ -1316,6 +2048,13 @@ export default function Home() {
                   onSortByChange={setSortBy}
                   sortOrder={sortOrder}
                   onSortOrderToggle={handleSortOrderToggle}
+                />
+                <ChartVisualization lines={lines} sede={selectedSede} />
+                <LineTrends
+                  dailyDataSet={dailyDataSet}
+                  selectedSede={selectedSede}
+                  availableDates={availableDates}
+                  lines={lines}
                 />
                 <ViewToggle
                   showComparison={showComparison}
@@ -1376,6 +2115,11 @@ export default function Home() {
                   salesLabel="Ventas del mes"
                   sede={selectedSede}
                   hasData={hasMonthlyData}
+                />
+                <PeriodComparison
+                  dailyDataSet={dailyDataSet}
+                  selectedSede={selectedSede}
+                  availableDates={availableDates}
                 />
               </div>
             )}
