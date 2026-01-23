@@ -1960,15 +1960,7 @@ export default function Home() {
     <div className="min-h-screen bg-background px-4 pb-16 pt-10 text-foreground sm:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <TopBar
-          title={
-            <>
-              Tablero de{" "}
-              <span className="bg-linear-to-r from-mercamio-500 to-emerald-500 bg-clip-text text-transparent">
-                Productividad
-              </span>{" "}
-              por Línea
-            </>
-          }
+          title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
           sedes={availableSedes}
           startDate={dateRange.start}
