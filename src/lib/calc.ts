@@ -6,6 +6,7 @@ const linesWithoutLaborData = new Set([
   "carnes",
   "industria",
   "pollo y pescado",
+  "asadero",
 ]);
 
 export const hasLaborDataForLine = (lineId: string) =>
