@@ -689,6 +689,7 @@ export default function Home() {
   }, []);
 
   const handleDownloadPdf = useCallback(() => {
+    type PdfLine = { text: string; font: string; size: number };
     const columns = [
       { label: "#", width: 3 },
       { label: "Línea", width: 26 },
@@ -712,7 +713,7 @@ export default function Home() {
     const dividerRow = "-".repeat(headerRow.length);
     const rows = buildPdfRows(pdfLines).map((row) => formatRow(row));
 
-    const contentLines = [
+    const contentLines: PdfLine[] = [
       { text: "Reporte de líneas", font: "F2", size: 16 },
       { text: selectedSedeName, font: "F1", size: 12 },
       { text: "", font: "F1", size: 11 },
@@ -738,7 +739,7 @@ export default function Home() {
     const linesPerPage = Math.floor(
       (pageHeight - marginTop - marginBottom) / lineHeight,
     );
-    const pages: (typeof contentLines)[][] = [];
+    const pages: PdfLine[][] = [];
 
     for (let i = 0; i < contentLines.length; i += linesPerPage) {
       pages.push(contentLines.slice(i, i + linesPerPage));
