@@ -211,6 +211,9 @@ export async function GET(request: Request) {
       },
     );
   } catch (error) {
-    return buildFallbackResponse("No hay datos de productividad disponibles.");
+    console.error("Error en endpoint de productividad:", error);
+    return buildFallbackResponse(
+      `Error de conexión: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
