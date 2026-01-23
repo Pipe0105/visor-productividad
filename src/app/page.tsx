@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
-import { LayoutGrid, Table2, Sparkles } from "lucide-react";
+import { Download, LayoutGrid, Table2, Sparkles } from "lucide-react";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
 import {
   calcDailySummary,
+  calcLineCost,
   calcLineMargin,
+  formatCOP,
+  formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import { DEFAULT_LINES, DEFAULT_SEDES, Sede } from "@/lib/constants";
@@ -39,6 +42,33 @@ const formatMonthLabel = (yearMonth: string): string =>
     month: "long",
     year: "numeric",
   }).format(new Date(`${yearMonth}-01T00:00:00`));
+
+const formatPdfDate = () =>
+  new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date());
+
+const buildPdfRows = (lines: LineMetrics[]) => {
+  return lines.map((line, index) => {
+    const hasLaborData = hasLaborDataForLine(line.id);
+    const hours = hasLaborData ? line.hours : 0;
+    const cost = hasLaborData ? calcLineCost(line) : 0;
+    const margin = hasLaborData ? calcLineMargin(line) : 0;
+    const marginRatio = line.sales ? margin / line.sales : 0;
+
+    return [
+      `${index + 1}`,
+      line.name,
+      line.id,
+      formatCOP(line.sales),
+      `${hours}h`,
+      formatCOP(cost),
+      formatCOP(margin),
+      formatPercent(marginRatio),
+    ];
+  });
+};
 
 // ============================================================================
 // TIPOS
@@ -411,6 +441,8 @@ const SelectionSummary = ({
   totalCount,
   availableDatesCount,
   hasRangeData,
+  onDownloadPdf,
+  isDownloadDisabled,
 }: {
   selectedSedeName: string;
   dateRangeLabel: string;
@@ -419,6 +451,8 @@ const SelectionSummary = ({
   totalCount: number;
   availableDatesCount: number;
   hasRangeData: boolean;
+  onDownloadPdf: () => void;
+  isDownloadDisabled: boolean;
 }) => (
   <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -433,7 +467,7 @@ const SelectionSummary = ({
           {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
             hasRangeData
@@ -446,6 +480,15 @@ const SelectionSummary = ({
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
           {availableDatesCount} fechas disponibles
         </span>
+        <button
+          type="button"
+          onClick={onDownloadPdf}
+          disabled={isDownloadDisabled}
+          className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-400"
+        >
+          <Download className="h-4 w-4" />
+          Descargar PDF
+        </button>
       </div>
     </div>
   </section>
@@ -533,6 +576,11 @@ export default function Home() {
   const filteredLines = useMemo(
     () => filterLinesByStatus(lines, lineFilter, selectedSede),
     [lineFilter, lines, selectedSede],
+  );
+  const pdfLines = useMemo(
+    () =>
+      [...filteredLines].sort((a, b) => calcLineMargin(b) - calcLineMargin(a)),
+    [filteredLines],
   );
 
   const summary = useMemo(() => calcDailySummary(lines), [lines]);
@@ -635,6 +683,153 @@ export default function Home() {
     setShowComparison(value);
   }, []);
 
+  const handleDownloadPdf = useCallback(() => {
+    const columns = [
+      { label: "#", width: 4 },
+      { label: "Línea", width: 24 },
+      { label: "Código", width: 12 },
+      { label: "Ventas", width: 12 },
+      { label: "Horas", width: 6 },
+      { label: "Costo", width: 12 },
+      { label: "Margen", width: 12 },
+      { label: "Margen %", width: 9 },
+    ];
+
+    const truncateText = (text: string, width: number) => {
+      if (text.length <= width) return text.padEnd(width);
+      if (width <= 3) return text.slice(0, width);
+      return `${text.slice(0, width - 3)}...`;
+    };
+
+    const formatRow = (cells: string[]) =>
+      cells
+        .map((cell, index) => truncateText(cell, columns[index].width))
+        .join(" ");
+
+    const headerRow = formatRow(columns.map((column) => column.label));
+    const dividerRow = "-".repeat(headerRow.length);
+    const rows = buildPdfRows(pdfLines).map((row) => formatRow(row));
+
+    const contentLines = [
+      `Reporte de líneas - ${selectedSedeName}`,
+      `Rango: ${dateRangeLabel || "Sin rango definido"}`,
+      `Filtro: ${lineFilterLabel}`,
+      `Generado: ${formatPdfDate()}`,
+      "",
+      headerRow,
+      dividerRow,
+      ...rows,
+    ];
+
+    const pageWidth = 842;
+    const pageHeight = 595;
+    const marginLeft = 40;
+    const marginTop = 40;
+    const marginBottom = 40;
+    const lineHeight = 14;
+    const linesPerPage = Math.floor(
+      (pageHeight - marginTop - marginBottom) / lineHeight,
+    );
+    const pages: string[][] = [];
+
+    for (let i = 0; i < contentLines.length; i += linesPerPage) {
+      pages.push(contentLines.slice(i, i + linesPerPage));
+    }
+
+    const escapePdfText = (text: string) =>
+      text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+
+    const encoder = new TextEncoder();
+    const objectOffsets: number[] = [];
+    const parts: string[] = [];
+    const header = "%PDF-1.4\n";
+    let currentOffset = encoder.encode(header).length;
+
+    const addObject = (id: number, body: string) => {
+      const objectBody = `${id} 0 obj\n${body}\nendobj\n`;
+      objectOffsets[id] = currentOffset;
+      parts.push(objectBody);
+      currentOffset += encoder.encode(objectBody).length;
+    };
+
+    const catalogId = 1;
+    const pagesId = 2;
+    let nextId = 3;
+    const pageIds: number[] = [];
+    const contentIds: number[] = [];
+
+    pages.forEach(() => {
+      pageIds.push(nextId++);
+      contentIds.push(nextId++);
+    });
+
+    const fontId = nextId++;
+
+    const kids = pageIds.map((id) => `${id} 0 R`).join(" ");
+    addObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+    addObject(
+      pagesId,
+      `<< /Type /Pages /Kids [${kids}] /Count ${pageIds.length} >>`,
+    );
+
+    pageIds.forEach((pageId, index) => {
+      const contentId = contentIds[index];
+      addObject(
+        pageId,
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`,
+      );
+    });
+
+    contentIds.forEach((contentId, index) => {
+      const lines = pages[index];
+      const startY = pageHeight - marginTop;
+      let stream = `BT\n/F1 10 Tf\n${marginLeft} ${startY} Td\n${lineHeight} TL\n`;
+      lines.forEach((line) => {
+        stream += `(${escapePdfText(line)}) Tj\nT*\n`;
+      });
+      stream += "ET";
+      addObject(
+        contentId,
+        `<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}\nendstream`,
+      );
+    });
+
+    addObject(fontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>");
+
+    const maxId = fontId;
+    const xrefOffset = currentOffset;
+    const xrefLines = [`xref`, `0 ${maxId + 1}`, "0000000000 65535 f "];
+
+    for (let id = 1; id <= maxId; id += 1) {
+      const offset = objectOffsets[id] ?? 0;
+      xrefLines.push(`${String(offset).padStart(10, "0")} 00000 n `);
+    }
+
+    const xref = `${xrefLines.join("\n")}\n`;
+    const trailer = `trailer\n<< /Size ${maxId + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    const pdfContent = `${header}${parts.join("")}${xref}${trailer}`;
+
+    const blob = new Blob([pdfContent], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
+      dateRange.end || "sin-fecha"
+    }.pdf`;
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [
+    dateRange.end,
+    dateRange.start,
+    dateRangeLabel,
+    lineFilterLabel,
+    pdfLines,
+    selectedSede,
+    selectedSedeName,
+  ]);
+
   // Animaciones
   useAnimations(isLoading, filteredLines.length, showComparison);
 
@@ -669,6 +864,8 @@ export default function Home() {
           totalCount={lines.length}
           availableDatesCount={availableDates.length}
           hasRangeData={hasRangeData}
+          onDownloadPdf={handleDownloadPdf}
+          isDownloadDisabled={filteredLines.length === 0}
         />
 
         {error && (
