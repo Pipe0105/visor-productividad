@@ -1,5 +1,5 @@
 import { DailyProductivity } from "@/types";
-import { testDbConnection } from "@/lib/db";
+import { getDbPool, testDbConnection } from "@/lib/db";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -103,6 +103,48 @@ const buildSedes = (dailyData: DailyProductivity[]) =>
     name: sede,
   }));
 
+const LINE_TABLES: Array<{
+  id: DailyProductivity["lines"][number]["id"];
+  name: string;
+  table: string;
+}> = [
+  { id: "cajas", name: "Cajas", table: "ventas_cajas" },
+  { id: "fruver", name: "Fruver", table: "ventas_fruver" },
+  { id: "industria", name: "Industria", table: "ventas_industria" },
+  { id: "carnes", name: "Carnes", table: "ventas_carnes" },
+  {
+    id: "pollo y pescado",
+    name: "Pollo y pescado",
+    table: "ventas_pollo_pesc",
+  },
+  { id: "asadero", name: "Asadero", table: "ventas_asadero" },
+];
+
+const fetchLineSalesTotals = async () => {
+  const pool = await getDbPool();
+  const client = await pool.connect();
+  try {
+    const results = await Promise.all(
+      LINE_TABLES.map(async (line) => {
+        const result = await client.query(
+          `SELECT COALESCE(SUM(total_bruto), 0) AS total FROM ${line.table}`,
+        );
+        const total = Number(result.rows?.[0]?.total ?? 0);
+        return {
+          id: line.id,
+          name: line.name,
+          sales: Number.isFinite(total) ? total : 0,
+          hours: 0,
+          hourlyRate: 0,
+        };
+      }),
+    );
+    return results;
+  } finally {
+    client.release();
+  }
+};
+
 export async function GET(request: Request) {
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
@@ -124,6 +166,29 @@ export async function GET(request: Request) {
   }
   try {
     await testDbConnection();
+    const lines = await fetchLineSalesTotals();
+    if (lines.length > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      const dailyData: DailyProductivity[] = [
+        {
+          date: today,
+          sede: "Total",
+          lines,
+        },
+      ];
+      return Response.json(
+        {
+          dailyData,
+          sedes: buildSedes(dailyData),
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+            "X-Data-Source": "database",
+          },
+        },
+      );
+    }
     return Response.json(
       {
         dailyData: [],
