@@ -177,10 +177,11 @@ export async function GET(request: Request) {
     const lines = await fetchLineSalesTotals();
     if (lines.length > 0) {
       const today = new Date().toISOString().slice(0, 10);
+      const sede = "Floresta";
       const dailyData: DailyProductivity[] = [
         {
           date: today,
-          sede: "Total",
+          sede,
           lines,
         },
       ];
@@ -213,7 +214,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error en endpoint de productividad:", error);
     return buildFallbackResponse(
-      `Error de conexión: ${error instanceof Error ? error.message : String(error)}`
+      `Error de conexión: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

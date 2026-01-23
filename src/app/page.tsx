@@ -100,7 +100,10 @@ const useProductivityData = () => {
         if (!isMounted) return;
 
         const resolvedDailyData = payload.dailyData ?? [];
-        const resolvedSedes = DEFAULT_SEDES;
+        const resolvedSedes =
+          payload.sedes && payload.sedes.length > 0
+            ? payload.sedes
+            : DEFAULT_SEDES;
 
         if (!response.ok) {
           throw new Error(payload.error ?? "No se pudo cargar la información");
