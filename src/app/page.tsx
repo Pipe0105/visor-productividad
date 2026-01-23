@@ -690,11 +690,11 @@ export default function Home() {
 
   const handleDownloadPdf = useCallback(() => {
     const columns = [
-      { label: "#", width: 4 },
-      { label: "Línea", width: 24 },
-      { label: "Código", width: 12 },
-      { label: "Ventas", width: 12 },
-      { label: "Horas", width: 6 },
+      { label: "#", width: 3 },
+      { label: "Línea", width: 26 },
+      { label: "Código", width: 14 },
+      { label: "Ventas", width: 14 },
+      { label: "Horas", width: 7 },
       { label: "Costo", width: 12 },
       { label: "Margen", width: 12 },
       { label: "Margen %", width: 9 },
@@ -706,33 +706,39 @@ export default function Home() {
           const width = columns[index].width;
           return cell.length >= width ? cell : cell.padEnd(width);
         })
-        .join(" ");
+        .join("  ");
 
     const headerRow = formatRow(columns.map((column) => column.label));
     const dividerRow = "-".repeat(headerRow.length);
     const rows = buildPdfRows(pdfLines).map((row) => formatRow(row));
 
     const contentLines = [
-      `Reporte de líneas - ${selectedSedeName}`,
-      `Rango: ${dateRangeLabel || "Sin rango definido"}`,
-      `Filtro: ${lineFilterLabel}`,
-      `Generado: ${formatPdfDate()}`,
-      "",
-      headerRow,
-      dividerRow,
-      ...rows,
+      { text: "Reporte de líneas", font: "F2", size: 16 },
+      { text: selectedSedeName, font: "F1", size: 12 },
+      { text: "", font: "F1", size: 11 },
+      {
+        text: `Rango: ${dateRangeLabel || "Sin rango definido"}`,
+        font: "F1",
+        size: 11,
+      },
+      { text: `Filtro: ${lineFilterLabel}`, font: "F1", size: 11 },
+      { text: `Generado: ${formatPdfDate()}`, font: "F1", size: 11 },
+      { text: "", font: "F1", size: 11 },
+      { text: headerRow, font: "F3", size: 11 },
+      { text: dividerRow, font: "F3", size: 11 },
+      ...rows.map((row) => ({ text: row, font: "F3", size: 11 })),
     ];
 
     const pageWidth = 842;
     const pageHeight = 595;
-    const marginLeft = 40;
-    const marginTop = 40;
-    const marginBottom = 40;
-    const lineHeight = 14;
+    const marginLeft = 50;
+    const marginTop = 50;
+    const marginBottom = 50;
+    const lineHeight = 16;
     const linesPerPage = Math.floor(
       (pageHeight - marginTop - marginBottom) / lineHeight,
     );
-    const pages: string[][] = [];
+    const pages: (typeof contentLines)[][] = [];
 
     for (let i = 0; i < contentLines.length; i += linesPerPage) {
       pages.push(contentLines.slice(i, i + linesPerPage));
@@ -765,7 +771,9 @@ export default function Home() {
       contentIds.push(nextId++);
     });
 
-    const fontId = nextId++;
+    const fontRegularId = nextId++;
+    const fontBoldId = nextId++;
+    const fontMonoId = nextId++;
 
     const kids = pageIds.map((id) => `${id} 0 R`).join(" ");
     addObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
@@ -778,16 +786,18 @@ export default function Home() {
       const contentId = contentIds[index];
       addObject(
         pageId,
-        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`,
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R /F3 ${fontMonoId} 0 R >> >> >>`,
       );
     });
 
     contentIds.forEach((contentId, index) => {
       const lines = pages[index];
       const startY = pageHeight - marginTop;
-      let stream = `BT\n/F1 10 Tf\n${marginLeft} ${startY} Td\n${lineHeight} TL\n`;
+      let stream = `BT\n${marginLeft} ${startY} Td\n${lineHeight} TL\n`;
       lines.forEach((line) => {
-        stream += `(${escapePdfText(line)}) Tj\nT*\n`;
+        stream += `/${line.font} ${line.size} Tf\n(${escapePdfText(
+          line.text,
+        )}) Tj\nT*\n`;
       });
       stream += "ET";
       addObject(
@@ -796,9 +806,20 @@ export default function Home() {
       );
     });
 
-    addObject(fontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>");
+    addObject(
+      fontRegularId,
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    );
+    addObject(
+      fontBoldId,
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    );
+    addObject(
+      fontMonoId,
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+    );
 
-    const maxId = fontId;
+    const maxId = fontMonoId;
     const xrefOffset = currentOffset;
     const xrefLines = [`xref`, `0 ${maxId + 1}`, "0000000000 65535 f "];
 
