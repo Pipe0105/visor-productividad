@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Search,
   ArrowUpDown,
+  BarChart3,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { LineCard } from "@/components/LineCard";
@@ -171,7 +172,7 @@ const useProductivityData = () => {
 const useAnimations = (
   isLoading: boolean,
   filteredLinesCount: number,
-  showComparison: boolean,
+  viewMode: "cards" | "comparison" | "chart",
 ) => {
   useEffect(() => {
     if (
@@ -218,7 +219,7 @@ const useAnimations = (
         });
       }
 
-      if (showComparison) {
+      if (viewMode === "comparison") {
         if (hasTargets("[data-animate='comparison-card']")) {
           animate("[data-animate='comparison-card']", {
             translateY: [-8, 0],
@@ -238,11 +239,22 @@ const useAnimations = (
           });
         }
       }
+
+      if (viewMode === "chart") {
+        if (hasTargets("[data-animate='chart-card']")) {
+          animate("[data-animate='chart-card']", {
+            translateY: [-8, 0],
+            opacity: [0, 1],
+            duration: 550,
+            easing: "easeOutCubic",
+          });
+        }
+      }
     };
 
     const animationFrame = window.requestAnimationFrame(runAnimations);
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [isLoading, filteredLinesCount, showComparison]);
+  }, [isLoading, filteredLinesCount, viewMode]);
 };
 
 // ============================================================================
@@ -460,54 +472,78 @@ const SearchAndSort = ({
 );
 
 const ViewToggle = ({
-  showComparison,
+  viewMode,
   onChange,
 }: {
-  showComparison: boolean;
-  onChange: (value: boolean) => void;
-}) => (
-  <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-    <div>
-      <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
-        Vista de líneas
-      </p>
-      <p className="text-sm font-semibold text-slate-900">
-        {showComparison ? "Comparativo de rentabilidad" : "Tarjetas detalladas"}
-      </p>
-      <p className="mt-1 text-xs text-slate-600">
-        Alterna la visualización para detectar oportunidades rápidamente.
-      </p>
+  viewMode: "cards" | "comparison" | "chart";
+  onChange: (value: "cards" | "comparison" | "chart") => void;
+}) => {
+  const getModeLabel = () => {
+    switch (viewMode) {
+      case "cards":
+        return "Tarjetas detalladas";
+      case "comparison":
+        return "Comparativo de rentabilidad";
+      case "chart":
+        return "Top 6 líneas (gráfico)";
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+      <div>
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          Vista de líneas
+        </p>
+        <p className="text-sm font-semibold text-slate-900">{getModeLabel()}</p>
+        <p className="mt-1 text-xs text-slate-600">
+          Alterna la visualización para detectar oportunidades rápidamente.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+        <button
+          type="button"
+          onClick={() => onChange("cards")}
+          aria-pressed={viewMode === "cards"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "cards"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-800"
+          }`}
+        >
+          <LayoutGrid className="h-4 w-4" />
+          Tarjetas
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("comparison")}
+          aria-pressed={viewMode === "comparison"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "comparison"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-800"
+          }`}
+        >
+          <Table2 className="h-4 w-4" />
+          Comparativo
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("chart")}
+          aria-pressed={viewMode === "chart"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "chart"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-800"
+          }`}
+        >
+          <BarChart3 className="h-4 w-4" />
+          Gráfico
+        </button>
+      </div>
     </div>
-    <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
-      <button
-        type="button"
-        onClick={() => onChange(false)}
-        aria-pressed={!showComparison}
-        className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
-          !showComparison
-            ? "bg-white text-mercamio-700 shadow-sm"
-            : "text-slate-600 hover:text-slate-800"
-        }`}
-      >
-        <LayoutGrid className="h-4 w-4" />
-        Tarjetas
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(true)}
-        aria-pressed={showComparison}
-        className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
-          showComparison
-            ? "bg-white text-mercamio-700 shadow-sm"
-            : "text-slate-600 hover:text-slate-800"
-        }`}
-      >
-        <Table2 className="h-4 w-4" />
-        Comparativo
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 const ChartVisualization = ({
   lines,
@@ -1205,7 +1241,9 @@ export default function Home() {
     end: "2025-11-30",
   });
   const [lineFilter, setLineFilter] = useState("all");
-  const [showComparison, setShowComparison] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "comparison" | "chart">(
+    "cards",
+  );
   const [activeTab, setActiveTab] = useState<"lines" | "summaries">("lines");
 
   // Cargar preferencias desde localStorage después de montar
@@ -1227,8 +1265,10 @@ export default function Home() {
     const savedLineFilter = localStorage.getItem("lineFilter");
     if (savedLineFilter) setLineFilter(savedLineFilter);
 
-    const savedShowComparison = localStorage.getItem("showComparison");
-    if (savedShowComparison) setShowComparison(savedShowComparison === "true");
+    const savedViewMode = localStorage.getItem("viewMode");
+    if (savedViewMode) {
+      setViewMode(savedViewMode as "cards" | "comparison" | "chart");
+    }
 
     const savedActiveTab = localStorage.getItem("activeTab");
     if (savedActiveTab) setActiveTab(savedActiveTab as "lines" | "summaries");
@@ -1252,8 +1292,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!mounted) return;
-    localStorage.setItem("showComparison", String(showComparison));
-  }, [showComparison, mounted]);
+    localStorage.setItem("viewMode", viewMode);
+  }, [viewMode, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -1471,9 +1511,12 @@ export default function Home() {
     }));
   }, []);
 
-  const handleViewChange = useCallback((value: boolean) => {
-    setShowComparison(value);
-  }, []);
+  const handleViewChange = useCallback(
+    (value: "cards" | "comparison" | "chart") => {
+      setViewMode(value);
+    },
+    [],
+  );
 
   const handleSortOrderToggle = useCallback(() => {
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -1942,9 +1985,13 @@ export default function Home() {
         setActiveTab("summaries");
       }
 
-      // T: Toggle vista (tarjetas/comparativo)
+      // T: Toggle vista (tarjetas/comparativo/gráfico)
       if (event.key === "t" && activeTab === "lines") {
-        setShowComparison((prev) => !prev);
+        setViewMode((prev) => {
+          if (prev === "cards") return "comparison";
+          if (prev === "comparison") return "chart";
+          return "cards";
+        });
       }
     };
 
@@ -1953,7 +2000,7 @@ export default function Home() {
   }, [activeTab]);
 
   // Animaciones
-  useAnimations(isLoading, filteredLines.length, showComparison);
+  useAnimations(isLoading, filteredLines.length, viewMode);
 
   // Render
   return (
@@ -2041,19 +2088,15 @@ export default function Home() {
                   sortOrder={sortOrder}
                   onSortOrderToggle={handleSortOrderToggle}
                 />
-                <ChartVisualization lines={lines} sede={selectedSede} />
                 <LineTrends
                   dailyDataSet={dailyDataSet}
                   selectedSede={selectedSede}
                   availableDates={availableDates}
                   lines={lines}
                 />
-                <ViewToggle
-                  showComparison={showComparison}
-                  onChange={handleViewChange}
-                />
+                <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
 
-                {showComparison ? (
+                {viewMode === "comparison" ? (
                   filteredLines.length > 0 ? (
                     <LineComparisonTable
                       lines={filteredLines}
@@ -2066,6 +2109,13 @@ export default function Home() {
                       description="Ajusta el filtro para ver el comparativo de líneas."
                     />
                   )
+                ) : viewMode === "chart" ? (
+                  <div data-animate="chart-card">
+                    <ChartVisualization
+                      lines={filteredLines}
+                      sede={selectedSede}
+                    />
+                  </div>
                 ) : (
                   <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     {filteredLines.map((line) => (
@@ -2079,7 +2129,7 @@ export default function Home() {
                   </section>
                 )}
 
-                {!showComparison && filteredLines.length === 0 && (
+                {viewMode === "cards" && filteredLines.length === 0 && (
                   <EmptyState
                     title="No hay líneas para este segmento."
                     description="Prueba otro filtro o revisa un rango distinto."
