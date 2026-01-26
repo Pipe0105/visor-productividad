@@ -1199,10 +1199,10 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
 
   // Estado con persistencia - siempre inicia con valores por defecto
-  const [selectedSede, setSelectedSede] = useState("floresta");
+  const [selectedSede, setSelectedSede] = useState("Floresta");
   const [dateRange, setDateRange] = useState<DateRange>({
-    start: "2024-06-18",
-    end: "2024-06-20",
+    start: "2025-11-01",
+    end: "2025-11-30",
   });
   const [lineFilter, setLineFilter] = useState("all");
   const [showComparison, setShowComparison] = useState(false);

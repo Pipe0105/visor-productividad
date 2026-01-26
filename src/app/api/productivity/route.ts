@@ -120,34 +120,110 @@ const LINE_TABLES: Array<{
   { id: "asadero", name: "Asadero", table: "ventas_asadero" },
 ];
 
-const fetchLineSalesTotals = async () => {
+// Mapeo de centro_operacion a nombre de sede
+const SEDE_NAMES: Record<string, string> = {
+  "001": "Floresta",
+  "002": "Sede 2",
+  "003": "Sede 3",
+  "004": "Sede 4",
+  "005": "Sede 5",
+  "006": "Sede 6",
+};
+
+// Convierte fecha de formato YYYYMMDD a YYYY-MM-DD
+const formatDate = (dateStr: string): string => {
+  if (dateStr.length !== 8) return dateStr;
+  const year = dateStr.substring(0, 4);
+  const month = dateStr.substring(4, 6);
+  const day = dateStr.substring(6, 8);
+  return `${year}-${month}-${day}`;
+};
+
+const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
-    const results = await Promise.all(
-      LINE_TABLES.map(async (line) => {
-        let total = 0;
-        try {
-          const result = await client.query(
-            `SELECT COALESCE(SUM(total_bruto), 0) AS total FROM ${line.table}`,
-          );
-          total = Number(result.rows?.[0]?.total ?? 0);
-        } catch (error) {
-          console.warn(
-            `No se pudo consultar la tabla ${line.table}. Se usa total 0.`,
-            error,
-          );
+    const dailyDataMap = new Map<string, DailyProductivity>();
+
+    for (const line of LINE_TABLES) {
+      try {
+        // Consulta que agrupa por fecha y centro_operacion
+        const query = `
+          SELECT
+            fecha_dcto,
+            centro_operacion,
+            COALESCE(SUM(total_bruto), 0) AS total_sales
+          FROM ${line.table}
+          WHERE fecha_dcto IS NOT NULL
+            AND centro_operacion IS NOT NULL
+          GROUP BY fecha_dcto, centro_operacion
+          ORDER BY fecha_dcto, centro_operacion
+        `;
+
+        const result = await client.query(query);
+
+        if (!result.rows) continue;
+
+        for (const row of result.rows) {
+          const fecha = formatDate(row.fecha_dcto);
+          const centroOp = row.centro_operacion;
+          const sedeName = SEDE_NAMES[centroOp] || `Sede ${centroOp}`;
+          const key = `${fecha}_${sedeName}`;
+
+          // Obtener o crear el registro de DailyProductivity
+          let dailyData = dailyDataMap.get(key);
+          if (!dailyData) {
+            dailyData = {
+              date: fecha,
+              sede: sedeName,
+              lines: [],
+            };
+            dailyDataMap.set(key, dailyData);
+          }
+
+          // Buscar la línea existente o crearla
+          let lineMetric = dailyData.lines.find((l) => l.id === line.id);
+          if (!lineMetric) {
+            lineMetric = {
+              id: line.id,
+              name: line.name,
+              sales: 0,
+              hours: 0,
+              hourlyRate: 0,
+            };
+            dailyData.lines.push(lineMetric);
+          }
+
+          // Sumar las ventas
+          lineMetric.sales += Number(row.total_sales) || 0;
         }
-        return {
-          id: line.id,
-          name: line.name,
-          sales: Number.isFinite(total) ? total : 0,
-          hours: 0,
-          hourlyRate: 0,
-        };
-      }),
-    );
-    return results;
+      } catch (error) {
+        console.warn(
+          `No se pudo consultar la tabla ${line.table}. Se omite.`,
+          error,
+        );
+      }
+    }
+
+    // Convertir el mapa a array y asegurarse de que cada fecha tenga todas las líneas
+    const result: DailyProductivity[] = [];
+    for (const dailyData of dailyDataMap.values()) {
+      // Asegurar que todas las líneas estén presentes (incluso con ventas 0)
+      for (const line of LINE_TABLES) {
+        if (!dailyData.lines.find((l) => l.id === line.id)) {
+          dailyData.lines.push({
+            id: line.id,
+            name: line.name,
+            sales: 0,
+            hours: 0,
+            hourlyRate: 0,
+          });
+        }
+      }
+      result.push(dailyData);
+    }
+
+    return result.sort((a, b) => a.date.localeCompare(b.date));
   } finally {
     client.release();
   }
@@ -174,17 +250,8 @@ export async function GET(request: Request) {
   }
   try {
     await testDbConnection();
-    const lines = await fetchLineSalesTotals();
-    if (lines.length > 0) {
-      const today = new Date().toISOString().slice(0, 10);
-      const sede = "Floresta";
-      const dailyData: DailyProductivity[] = [
-        {
-          date: today,
-          sede,
-          lines,
-        },
-      ];
+    const dailyData = await fetchAllProductivityData();
+    if (dailyData.length > 0) {
       return Response.json(
         {
           dailyData,
