@@ -130,13 +130,13 @@ const SEDE_NAMES: Record<string, string> = {
   "004|mercamio": "Ciudad Jardín",
   "005|mercamio": "Centro Sur",
   "006|mercamio": "Palmira",
-  // Mercatodo
-  "001|mercatodo": "Floresta",
-  "002|mercatodo": "Floralia",
-  "003|mercatodo": "Guaduales",
-  // Merkmios
-  "001|merkmios": "Bogotá",
-  "002|merkmios": "Chía",
+  // Mercatodo (en BD aparece como "mtodo")
+  "001|mtodo": "Floresta",
+  "002|mtodo": "Floralia",
+  "003|mtodo": "Guaduales",
+  // Merkmios (en BD aparece como "bogota")
+  "001|bogota": "Bogotá",
+  "002|bogota": "Chía",
 };
 
 // Función para obtener el nombre de sede a partir de centro_operacion y empresa
