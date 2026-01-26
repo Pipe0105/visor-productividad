@@ -120,14 +120,29 @@ const LINE_TABLES: Array<{
   { id: "asadero", name: "Asadero", table: "ventas_asadero" },
 ];
 
-// Mapeo de centro_operacion a nombre de sede
+// Mapeo de centro_operacion + empresa_bd a nombre de sede
+// Clave: "numero|empresa" -> Nombre de sede
 const SEDE_NAMES: Record<string, string> = {
-  "001": "Floresta",
-  "002": "Sede 2",
-  "003": "Sede 3",
-  "004": "Sede 4",
-  "005": "Sede 5",
-  "006": "Sede 6",
+  // Mercamio
+  "001|mercamio": "Calle 5ta",
+  "002|mercamio": "La 39",
+  "003|mercamio": "Plaza Norte",
+  "004|mercamio": "Ciudad Jardín",
+  "005|mercamio": "Centro Sur",
+  "006|mercamio": "Palmira",
+  // Mercatodo
+  "001|mercatodo": "Floresta",
+  "002|mercatodo": "Floralia",
+  "003|mercatodo": "Guaduales",
+  // Merkmios
+  "001|merkmios": "Bogotá",
+  "002|merkmios": "Chía",
+};
+
+// Función para obtener el nombre de sede a partir de centro_operacion y empresa
+const getSedeKey = (centroOp: string, empresa: string): string => {
+  const normalizedEmpresa = empresa?.toLowerCase().trim() || "";
+  return `${centroOp}|${normalizedEmpresa}`;
 };
 
 // Convierte fecha de formato YYYYMMDD a YYYY-MM-DD
@@ -147,16 +162,17 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
 
     for (const line of LINE_TABLES) {
       try {
-        // Consulta que agrupa por fecha y centro_operacion
+        // Consulta que agrupa por fecha, centro_operacion y empresa_bd
         const query = `
           SELECT
             fecha_dcto,
             centro_operacion,
+            empresa_bd,
             COALESCE(SUM(total_bruto), 0) AS total_sales
           FROM ${line.table}
           WHERE fecha_dcto IS NOT NULL
             AND centro_operacion IS NOT NULL
-          GROUP BY fecha_dcto, centro_operacion
+          GROUP BY fecha_dcto, centro_operacion, empresa_bd
           ORDER BY fecha_dcto, centro_operacion
         `;
 
@@ -165,9 +181,17 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
         if (!result.rows) continue;
 
         for (const row of result.rows) {
-          const fecha = formatDate(row.fecha_dcto);
-          const centroOp = row.centro_operacion;
-          const sedeName = SEDE_NAMES[centroOp] || `Sede ${centroOp}`;
+          const typedRow = row as {
+            fecha_dcto: string;
+            centro_operacion: string;
+            empresa_bd: string | null;
+            total_sales: string | number;
+          };
+          const fecha = formatDate(typedRow.fecha_dcto);
+          const centroOp = typedRow.centro_operacion;
+          const empresa = typedRow.empresa_bd || "";
+          const sedeKey = getSedeKey(centroOp, empresa);
+          const sedeName = SEDE_NAMES[sedeKey] || `Sede ${centroOp} ${empresa}`.trim();
           const key = `${fecha}_${sedeName}`;
 
           // Obtener o crear el registro de DailyProductivity
@@ -195,7 +219,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
           }
 
           // Sumar las ventas
-          lineMetric.sales += Number(row.total_sales) || 0;
+          lineMetric.sales += Number(typedRow.total_sales) || 0;
         }
       } catch (error) {
         console.warn(

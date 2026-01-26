@@ -3,18 +3,20 @@ import { LineMetrics } from "@/types";
 export type Sede = { id: string; name: string };
 
 export const BRANCH_LOCATIONS = [
-  "Ciudad Jardín",
+  // Mercamio
   "Calle 5ta",
   "La 39",
-  "Centro Sur",
-  "Floresta",
   "Plaza Norte",
+  "Ciudad Jardín",
+  "Centro Sur",
+  "Palmira",
+  // Mercatodo
+  "Floresta",
   "Floralia",
   "Guaduales",
-  "Palmira",
+  // Merkmios
   "Bogotá",
-  "Chia",
-  "Planta",
+  "Chía",
 ];
 
 export const DEFAULT_SEDES: Sede[] = BRANCH_LOCATIONS.map((sede) => ({
