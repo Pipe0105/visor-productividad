@@ -6,12 +6,10 @@ import {
   formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
-import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
 interface LineCardProps {
   line: LineMetrics;
-  sede: string;
   hasData?: boolean;
 }
 
@@ -36,7 +34,7 @@ const MetricRow = ({
   </div>
 );
 
-export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
+export const LineCard = ({ line, hasData = true }: LineCardProps) => {
   const margin = calcLineMargin(line);
   const cost = calcLineCost(line);
   const marginPercent = line.sales ? margin / line.sales : 0;
@@ -46,13 +44,6 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
   const zeroCurrency = formatCOP(0);
   const zeroHours = "0h";
   const zeroPercent = formatPercent(0);
-  const status = hasData
-    ? getLineStatus(sede, line.id, margin)
-    : {
-        label: "Sin datos",
-        className: "bg-slate-100 text-slate-600",
-        textClass: "text-slate-400",
-      };
 
   return (
     <article
@@ -60,18 +51,11 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
       className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-linear-to-br from-white via-slate-50 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all duration-200 hover:border-mercamio-300/40 hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)]"
     >
       {/* Header */}
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
-            Línea
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900">{line.name}</h2>
-        </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${status.className}`}
-        >
-          {status.label}
-        </span>
+      <header>
+        <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
+          Línea
+        </p>
+        <h2 className="text-xl font-semibold text-slate-900">{line.name}</h2>
       </header>
 
       {/* Metrics */}
@@ -94,12 +78,12 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
         <MetricRow
           label="Margen"
           value={hasData ? formatCOP(margin) : zeroCurrency}
-          valueClassName={hasData ? status.textClass : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
         />
         <MetricRow
           label="% Margen"
           value={hasData ? formatPercent(marginPercent) : zeroPercent}
-          valueClassName={hasData ? status.textClass : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
         />
       </div>
     </article>

@@ -10,12 +10,10 @@ import {
   formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
-import { getLineStatus } from "@/lib/status";
 import { LineMetrics } from "@/types";
 
 interface LineComparisonTableProps {
   lines: LineMetrics[];
-  sede: string;
   hasData?: boolean;
 }
 
@@ -28,7 +26,6 @@ type LineWithMetrics = LineMetrics & {
   margin: number;
   marginRatio: number;
   marginPerHour: number;
-  status: ReturnType<typeof getLineStatus>;
 };
 
 // ============================================================================
@@ -46,7 +43,6 @@ const TableHeader = () => (
       <th className="px-4 py-2 text-left font-semibold">Margen</th>
       <th className="px-4 py-2 text-left font-semibold">Margen %</th>
       <th className="px-4 py-2 text-left font-semibold">Margen/h</th>
-      <th className="px-4 py-2 text-left font-semibold">Estado</th>
     </tr>
   </thead>
 );
@@ -110,35 +106,14 @@ const TableRow = ({
       <td className="px-4 py-3 text-slate-700">
         {hasData ? formatCOP(line.cost) : zeroCurrency}
       </td>
-      <td
-        className={`px-4 py-3 font-semibold ${
-          hasData ? line.status.textClass : "text-slate-400"
-        }`}
-      >
+      <td className="px-4 py-3 font-semibold text-slate-900">
         {hasData ? formatCOP(line.margin) : zeroCurrency}
       </td>
-      <td
-        className={`px-4 py-3 font-semibold ${
-          hasData ? line.status.textClass : "text-slate-400"
-        }`}
-      >
+      <td className="px-4 py-3 font-semibold text-slate-900">
         {hasData ? formatPercent(line.marginRatio) : zeroPercent}
       </td>
-      <td
-        className={`px-4 py-3 font-semibold ${
-          hasData ? line.status.textClass : "text-slate-400"
-        }`}
-      >
+      <td className="rounded-r-2xl px-4 py-3 font-semibold text-slate-900">
         {hasData ? formatCOP(line.marginPerHour) : zeroCurrency}
-      </td>
-      <td className="rounded-r-2xl px-4 py-3">
-        <span
-          className={`inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-            hasData ? line.status.className : "bg-slate-100 text-slate-600"
-          }`}
-        >
-          {hasData ? line.status.label : "Sin datos"}
-        </span>
       </td>
     </tr>
   );
@@ -197,15 +172,11 @@ const EmptyState = () => (
 // UTILIDADES
 // ============================================================================
 
-const enrichLineWithMetrics = (
-  line: LineMetrics,
-  sede: string,
-): LineWithMetrics => {
+const enrichLineWithMetrics = (line: LineMetrics): LineWithMetrics => {
   const cost = calcLineCost(line);
   const margin = calcLineMargin(line);
   const marginRatio = line.sales ? margin / line.sales : 0;
   const marginPerHour = line.hours ? margin / line.hours : 0;
-  const status = getLineStatus(sede, line.id, margin);
 
   return {
     ...line,
@@ -213,7 +184,6 @@ const enrichLineWithMetrics = (
     margin,
     marginRatio,
     marginPerHour,
-    status,
   };
 };
 
@@ -227,7 +197,6 @@ const sortLinesByMargin = (lines: LineWithMetrics[]): LineWithMetrics[] => {
 
 export const LineComparisonTable = ({
   lines,
-  sede,
   hasData = true,
 }: LineComparisonTableProps) => {
   // Estado para drag and drop
@@ -236,7 +205,7 @@ export const LineComparisonTable = ({
   const [customOrder, setCustomOrder] = useState<string[] | null>(null);
 
   // Enriquecer líneas con métricas calculadas
-  const enrichedLines = lines.map((line) => enrichLineWithMetrics(line, sede));
+  const enrichedLines = lines.map((line) => enrichLineWithMetrics(line));
 
   // Ordenar por margen (orden por defecto)
   const defaultSortedLines = sortLinesByMargin(enrichedLines);

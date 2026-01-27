@@ -27,7 +27,6 @@ import {
 } from "@/lib/calc";
 import { DEFAULT_LINES, DEFAULT_SEDES, Sede } from "@/lib/constants";
 import { DailyProductivity, LineMetrics } from "@/types";
-import { getLineStatus } from "@/lib/status";
 
 // ============================================================================
 // UTILIDADES DE FECHA
@@ -320,18 +319,8 @@ const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
 const filterLinesByStatus = (
   lines: LineMetrics[],
   filterType: string,
-  sede: string,
 ): LineMetrics[] => {
-  if (filterType === "all") return lines;
-
-  return lines.filter((line) => {
-    const status = getLineStatus(sede, line.id, calcLineMargin(line));
-
-    if (filterType === "critical") return status.label === "Problema";
-    if (filterType === "improving") return status.label === "Atención";
-
-    return true;
-  });
+  return lines;
 };
 
 const calculateMonthlyAverage = (
@@ -560,13 +549,7 @@ const ViewToggle = ({
   );
 };
 
-const ChartVisualization = ({
-  lines,
-  sede,
-}: {
-  lines: LineMetrics[];
-  sede: string;
-}) => {
+const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
   const [chartType, setChartType] = useState<"sales" | "margin">("sales");
 
   const sortedLines = useMemo(() => {
@@ -632,7 +615,6 @@ const ChartVisualization = ({
           const value =
             chartType === "sales" ? line.sales : calcLineMargin(line);
           const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-          const status = getLineStatus(sede, line.id, calcLineMargin(line));
 
           return (
             <div key={line.id} className="space-y-1">
@@ -650,16 +632,8 @@ const ChartVisualization = ({
               </div>
               <div className="relative h-8 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${percentage}%`,
-                    backgroundColor:
-                      status.label === "Problema"
-                        ? "#ef4444"
-                        : status.label === "Atención"
-                          ? "#f59e0b"
-                          : "#10b981",
-                  }}
+                  className="absolute inset-y-0 left-0 rounded-full bg-mercamio-500 transition-all duration-500"
+                  style={{ width: `${percentage}%` }}
                 />
                 <div className="absolute inset-0 flex items-center px-3">
                   <span className="text-xs font-semibold text-slate-700 mix-blend-difference">
@@ -1388,7 +1362,7 @@ export default function Home() {
   const hasRangeData = rangeDailyData.length > 0;
 
   const filteredLines = useMemo(() => {
-    let result = filterLinesByStatus(lines, lineFilter, selectedSede);
+    let result = filterLinesByStatus(lines, lineFilter);
 
     // Aplicar búsqueda
     if (searchQuery.trim()) {
@@ -2108,7 +2082,6 @@ export default function Home() {
                   filteredLines.length > 0 ? (
                     <LineComparisonTable
                       lines={filteredLines}
-                      sede={selectedSede}
                       hasData={hasRangeData}
                     />
                   ) : (
@@ -2119,10 +2092,7 @@ export default function Home() {
                   )
                 ) : viewMode === "chart" ? (
                   <div data-animate="chart-card">
-                    <ChartVisualization
-                      lines={filteredLines}
-                      sede={selectedSede}
-                    />
+                    <ChartVisualization lines={filteredLines} />
                   </div>
                 ) : viewMode === "trends" ? (
                   <LineTrends
@@ -2137,7 +2107,6 @@ export default function Home() {
                       <LineCard
                         key={line.id}
                         line={line}
-                        sede={selectedSede}
                         hasData={hasRangeData}
                       />
                     ))}
@@ -2162,7 +2131,6 @@ export default function Home() {
                   summary={summary}
                   title="Resumen del día"
                   salesLabel="Venta total"
-                  sede={selectedSede}
                   comparisons={dailyComparisons}
                   hasData={hasRangeData}
                 />
@@ -2170,7 +2138,6 @@ export default function Home() {
                   summary={monthlySummary}
                   title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
                   salesLabel="Ventas del mes"
-                  sede={selectedSede}
                   hasData={hasMonthlyData}
                 />
                 <PeriodComparison
