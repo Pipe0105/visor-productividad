@@ -417,18 +417,18 @@ const SearchAndSort = ({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-3 flex-1">
         <div className="relative flex-1 min-w-50">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-700" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Buscar por nombre o código..."
-            className="w-full rounded-full border border-slate-200/70 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-500 transition-all focus:border-mercamio-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            className="w-full rounded-full border border-slate-200/70 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-600 transition-all focus:border-mercamio-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           />
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
           Ordenar:
         </span>
         <select
@@ -483,11 +483,11 @@ const ViewToggle = ({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Vista de líneas
         </p>
         <p className="text-sm font-semibold text-slate-900">{getModeLabel()}</p>
-        <p className="mt-1 text-xs text-slate-600">
+        <p className="mt-1 text-xs text-slate-700">
           Alterna la visualización para detectar oportunidades rápidamente.
         </p>
       </div>
@@ -499,7 +499,7 @@ const ViewToggle = ({
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "cards"
               ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-600 hover:text-slate-800"
+              : "text-slate-700 hover:text-slate-800"
           }`}
         >
           <LayoutGrid className="h-4 w-4" />
@@ -512,7 +512,7 @@ const ViewToggle = ({
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "comparison"
               ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-600 hover:text-slate-800"
+              : "text-slate-700 hover:text-slate-800"
           }`}
         >
           <Table2 className="h-4 w-4" />
@@ -525,7 +525,7 @@ const ViewToggle = ({
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "chart"
               ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-600 hover:text-slate-800"
+              : "text-slate-700 hover:text-slate-800"
           }`}
         >
           <BarChart3 className="h-4 w-4" />
@@ -538,7 +538,7 @@ const ViewToggle = ({
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "trends"
               ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-600 hover:text-slate-800"
+              : "text-slate-700 hover:text-slate-800"
           }`}
         >
           <ArrowUpDown className="h-4 w-4" />
@@ -577,7 +577,7 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
             Análisis visual
           </p>
           <h3 className="mt-1 text-lg font-semibold text-slate-900">
@@ -591,7 +591,7 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
             className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
               chartType === "sales"
                 ? "bg-white text-mercamio-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-800"
+                : "text-slate-700 hover:text-slate-800"
             }`}
           >
             Ventas
@@ -602,7 +602,7 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
             className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
               chartType === "margin"
                 ? "bg-white text-mercamio-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-800"
+                : "text-slate-700 hover:text-slate-800"
             }`}
           >
             Margen
@@ -623,11 +623,11 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
             <div key={line.id} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-500">#{index + 1}</span>
+                  <span className="font-mono text-slate-700">#{index + 1}</span>
                   <span className="font-semibold text-slate-900">
                     {line.name}
                   </span>
-                  <span className="font-mono text-slate-500">{line.id}</span>
+                  <span className="font-mono text-slate-700">{line.id}</span>
                 </div>
                 <span className="font-semibold text-slate-900">
                   {formatCOP(value)}
@@ -653,7 +653,7 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
       </div>
 
       {sortedLines.length === 0 && (
-        <p className="text-center text-sm text-slate-500 py-8">
+        <p className="text-center text-sm text-slate-700 py-8">
           No hay datos suficientes para mostrar el gráfico
         </p>
       )}
@@ -742,7 +742,7 @@ const LineTrends = ({
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Análisis de tendencias
         </p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">
@@ -752,7 +752,7 @@ const LineTrends = ({
 
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Línea</span>
+          <span className="text-xs font-semibold text-slate-700">Línea</span>
           <select
             value={selectedLine}
             onChange={(e) => setSelectedLine(e.target.value)}
@@ -768,7 +768,7 @@ const LineTrends = ({
         </label>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Métrica</span>
+          <span className="text-xs font-semibold text-slate-700">Métrica</span>
           <select
             value={metricType}
             onChange={(e) =>
@@ -787,7 +787,7 @@ const LineTrends = ({
         <>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-600">Promedio del período</p>
+              <p className="text-sm text-slate-700">Promedio del período</p>
               <p className="text-2xl font-semibold text-slate-900">
                 {metricType === "hours"
                   ? `${avgValue.toFixed(1)}h`
@@ -818,7 +818,7 @@ const LineTrends = ({
               return (
                 <div key={point.date} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-600">
+                    <span className="font-mono text-slate-700">
                       {formatDateLabel(point.date)}
                     </span>
                     <span className="font-semibold text-slate-900">
@@ -844,13 +844,13 @@ const LineTrends = ({
       )}
 
       {!selectedLine && (
-        <p className="text-center text-sm text-slate-500 py-8">
+        <p className="text-center text-sm text-slate-700 py-8">
           Selecciona una línea para ver su tendencia temporal
         </p>
       )}
 
       {selectedLine && trendData.length === 0 && (
-        <p className="text-center text-sm text-slate-500 py-8">
+        <p className="text-center text-sm text-slate-700 py-8">
           No hay datos disponibles para esta línea
         </p>
       )}
@@ -921,18 +921,18 @@ const PeriodComparison = ({
 
     return (
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-600">
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-700">
           {label}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-slate-500">Período 1</p>
+            <p className="text-sm text-slate-700">Período 1</p>
             <p className="text-lg font-semibold text-slate-900">
               {displayValue(value1)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-slate-500">Período 2</p>
+            <p className="text-sm text-slate-700">Período 2</p>
             <p className="text-lg font-semibold text-slate-900">
               {displayValue(value2)}
             </p>
@@ -949,7 +949,7 @@ const PeriodComparison = ({
             <span>{isPositive ? "↑" : "↓"}</span>
             <span>{Math.abs(diff).toFixed(1)}%</span>
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-700">
             {isPositive ? "incremento" : "disminución"}
           </span>
         </div>
@@ -962,7 +962,7 @@ const PeriodComparison = ({
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Comparación de períodos
         </p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">
@@ -975,7 +975,7 @@ const PeriodComparison = ({
           <p className="text-sm font-semibold text-slate-900">Período 1</p>
           <div className="space-y-2">
             <label className="block">
-              <span className="text-xs text-slate-600">Desde</span>
+              <span className="text-xs text-slate-700">Desde</span>
               <select
                 value={period1.start}
                 onChange={(e) =>
@@ -991,7 +991,7 @@ const PeriodComparison = ({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs text-slate-600">Hasta</span>
+              <span className="text-xs text-slate-700">Hasta</span>
               <select
                 value={period1.end}
                 onChange={(e) =>
@@ -1013,7 +1013,7 @@ const PeriodComparison = ({
           <p className="text-sm font-semibold text-slate-900">Período 2</p>
           <div className="space-y-2">
             <label className="block">
-              <span className="text-xs text-slate-600">Desde</span>
+              <span className="text-xs text-slate-700">Desde</span>
               <select
                 value={period2.start}
                 onChange={(e) =>
@@ -1029,7 +1029,7 @@ const PeriodComparison = ({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs text-slate-600">Hasta</span>
+              <span className="text-xs text-slate-700">Hasta</span>
               <select
                 value={period2.end}
                 onChange={(e) =>
@@ -1126,13 +1126,13 @@ const SelectionSummary = ({
     <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-600">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
             Resumen de filtros
           </p>
           <h2 className="mt-2 text-lg font-semibold text-slate-900">
             {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-700">
             {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
           </p>
         </div>
@@ -1146,7 +1146,7 @@ const SelectionSummary = ({
           >
             {hasRangeData ? "Datos disponibles" : "Sin datos en el rango"}
           </span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
             {availableDatesCount} fechas disponibles
           </span>
           <div className="relative" data-dropdown="export">
@@ -1154,7 +1154,7 @@ const SelectionSummary = ({
               type="button"
               onClick={() => setShowDownloadMenu(!showDownloadMenu)}
               disabled={isDownloadDisabled}
-              className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-400"
+              className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-500"
             >
               <Download className="h-4 w-4" />
               Exportar
@@ -1175,7 +1175,7 @@ const SelectionSummary = ({
                   <Download className="h-4 w-4" />
                   <div>
                     <div className="font-semibold">Descargar CSV</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-700">
                       Excel, Google Sheets
                     </div>
                   </div>
@@ -1191,7 +1191,7 @@ const SelectionSummary = ({
                   <Download className="h-4 w-4" />
                   <div>
                     <div className="font-semibold">Descargar XLSX</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-700">
                       Excel con formato
                     </div>
                   </div>
@@ -1207,7 +1207,7 @@ const SelectionSummary = ({
                   <Download className="h-4 w-4" />
                   <div>
                     <div className="font-semibold">Descargar PDF</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-700">
                       Reporte imprimible
                     </div>
                   </div>
@@ -2043,7 +2043,7 @@ export default function Home() {
               className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
                 activeTab === "lines"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
+                  : "text-slate-700 hover:text-slate-800"
               }`}
             >
               Líneas de producción
@@ -2054,7 +2054,7 @@ export default function Home() {
               className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
                 activeTab === "summaries"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
+                  : "text-slate-700 hover:text-slate-800"
               }`}
             >
               Resúmenes
@@ -2159,3 +2159,4 @@ export default function Home() {
     </div>
   );
 }
+

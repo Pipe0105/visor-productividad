@@ -75,16 +75,16 @@ const ComparisonCard = ({
   if (!hasData) {
     return (
       <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
-        <p className="uppercase tracking-[0.2em] text-slate-600">{label}</p>
-        <p className="mt-2 text-sm font-semibold text-slate-700">Sin datos</p>
+        <p className="uppercase tracking-[0.2em] text-slate-700">{label}</p>
+        <p className="mt-2 text-sm font-semibold text-slate-600">Sin datos</p>
       </div>
     );
   }
   if (baselineMargin === null || baselineMargin === undefined) {
     return (
       <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
-        <p className="uppercase tracking-[0.2em] text-slate-600">{label}</p>
-        <p className="mt-2 text-sm font-semibold text-slate-700">Sin datos</p>
+        <p className="uppercase tracking-[0.2em] text-slate-700">{label}</p>
+        <p className="mt-2 text-sm font-semibold text-slate-600">Sin datos</p>
       </div>
     );
   }
@@ -154,7 +154,7 @@ export const SummaryCard = ({
 }: SummaryCardProps) => {
   const { marginRatio, salesPerHour, marginPerHour, marginPercentClass } =
     calculateMetrics(summary);
-  const emptyValueClass = hasData ? "text-slate-900" : "text-slate-400";
+  const emptyValueClass = hasData ? "text-slate-900" : "text-slate-600";
 
   return (
     <section
@@ -227,3 +227,4 @@ export const SummaryCard = ({
     </section>
   );
 };
+

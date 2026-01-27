@@ -37,7 +37,7 @@ const SelectField = ({
   <label className="group relative flex flex-col gap-1.5 cursor-pointer">
     <div className="flex items-center gap-1.5 px-1">
       <Icon className="h-3.5 w-3.5 text-mercamio-600" />
-      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
+      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-700">
         {label}
       </span>
     </div>
@@ -48,7 +48,7 @@ const SelectField = ({
       className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 hover:shadow-md focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm"
     >
       {options.length === 0 ? (
-        <option value="" className="bg-white text-slate-500">
+        <option value="" className="bg-white text-slate-700">
           {emptyMessage}
         </option>
       ) : (
@@ -155,3 +155,4 @@ export const TopBar = ({
     </header>
   );
 };
+

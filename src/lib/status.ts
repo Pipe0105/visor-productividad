@@ -56,7 +56,7 @@ const lineLabels = {
 
 const statusClasses = {
   excellent: "bg-emerald-100 text-emerald-700",
-  normal: "bg-slate-200 text-slate-600",
+  normal: "bg-slate-200 text-slate-700",
   attention: "bg-amber-100 text-amber-700",
   problem: "bg-rose-100 text-rose-700",
 };
@@ -92,7 +92,7 @@ const resolveStatus = (
     return {
       label: labels.normal,
       className: statusClasses.normal,
-      textClass: "text-slate-600",
+      textClass: "text-slate-700",
     };
   }
   if (margin >= thresholds.attention) {
@@ -108,3 +108,4 @@ const resolveStatus = (
     textClass: "text-rose-600",
   };
 };
+

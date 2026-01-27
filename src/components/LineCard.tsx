@@ -63,29 +63,30 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
         <MetricRow
           label="Ventas"
           value={hasData ? formatCOP(line.sales) : emptyLabel}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
         <MetricRow
           label="Horas trabajadas"
           value={hasData ? `${formatHours(displayHours)}h` : zeroHours}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
         <MetricRow
           label="Costo de horas"
           value={hasData ? formatCOP(cost) : zeroCurrency}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
         <MetricRow
           label="Margen"
           value={hasData ? formatCOP(margin) : zeroCurrency}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
         <MetricRow
           label="% Margen"
           value={hasData ? formatPercent(marginPercent) : zeroPercent}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
       </div>
     </article>
   );
 };
+

@@ -34,7 +34,7 @@ type LineWithMetrics = LineMetrics & {
 
 const TableHeader = () => (
   <thead>
-    <tr className="text-xs uppercase tracking-[0.2em] text-slate-500">
+    <tr className="text-xs uppercase tracking-[0.2em] text-slate-700">
       <th className="w-8 px-2 py-2"></th>
       <th className="px-4 py-2 text-left font-semibold">Línea</th>
       <th className="px-4 py-2 text-left font-semibold">Ventas</th>
@@ -90,12 +90,12 @@ const TableRow = ({
             : "bg-slate-50 hover:bg-slate-100"
       }`}
     >
-      <td className="rounded-l-2xl px-2 py-3 text-slate-400">
+      <td className="rounded-l-2xl px-2 py-3 text-slate-700">
         <GripVertical className="h-4 w-4" />
       </td>
       <td className="px-4 py-3">
         <p className="font-semibold text-slate-900">{line.name}</p>
-        <p className="text-xs text-slate-500">{line.id}</p>
+        <p className="text-xs text-slate-700">{line.id}</p>
       </td>
       <td className="px-4 py-3 font-semibold text-slate-900">
         {hasData ? formatCOP(line.sales) : "—"}
@@ -136,7 +136,7 @@ const TableSummary = ({
       <h3 className="text-2xl font-semibold text-slate-900">
         Rentabilidad en comparación
       </h3>
-      <p className="mt-2 text-sm text-slate-600">
+      <p className="mt-2 text-sm text-slate-700">
         {isCustomOrder
           ? "Orden personalizado. Arrastra las filas para comparar."
           : "Ordenado por margen. Arrastra las filas para comparar."}
@@ -147,7 +147,7 @@ const TableSummary = ({
         <button
           type="button"
           onClick={onResetOrder}
-          className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-100"
+          className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100"
         >
           Restaurar orden
         </button>
@@ -161,7 +161,7 @@ const TableSummary = ({
 
 const EmptyState = () => (
   <div className="py-12 text-center">
-    <p className="text-sm uppercase tracking-[0.2em] text-slate-500">
+    <p className="text-sm uppercase tracking-[0.2em] text-slate-700">
       Sin datos
     </p>
     <p className="mt-2 text-slate-700">No hay líneas para comparar</p>
@@ -300,3 +300,4 @@ export const LineComparisonTable = ({
     </section>
   );
 };
+
