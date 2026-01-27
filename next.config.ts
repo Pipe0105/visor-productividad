@@ -10,12 +10,13 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  isDev ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
+  isDev ? "connect-src 'self' ws: wss: http: https:" : "connect-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  "upgrade-insecure-requests",
+  // Solo aplicar upgrade-insecure-requests en producción
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const securityHeaders = [
@@ -37,11 +38,11 @@ const securityHeaders = [
   },
   {
     key: "Cross-Origin-Opener-Policy",
-    value: "same-origin",
+    value: isDev ? "unsafe-none" : "same-origin",
   },
   {
     key: "Cross-Origin-Resource-Policy",
-    value: "same-origin",
+    value: isDev ? "cross-origin" : "same-origin",
   },
   {
     key: "Referrer-Policy",
