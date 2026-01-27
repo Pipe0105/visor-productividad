@@ -2,6 +2,7 @@ import {
   calcLineCost,
   calcLineMargin,
   formatCOP,
+  formatHours,
   formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
@@ -76,7 +77,7 @@ const TableRow = ({
         {hasData ? formatCOP(line.sales) : "—"}
       </td>
       <td className="px-4 py-3 text-slate-700">
-        {hasData ? `${displayHours}h` : zeroHours}
+        {hasData ? `${formatHours(displayHours)}h` : zeroHours}
       </td>
       <td className="px-4 py-3 text-slate-700">
         {hasData ? formatCOP(line.cost) : zeroCurrency}

@@ -15,6 +15,10 @@ export const formatCOP = (value: number) => {
   }).format(value);
 };
 
+export const formatHours = (value: number) => {
+  return value.toFixed(2);
+};
+
 export const formatPercent = (value: number) => {
   return new Intl.NumberFormat("es-CO", {
     style: "percent",

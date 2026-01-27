@@ -2,6 +2,7 @@ import {
   calcLineCost,
   calcLineMargin,
   formatCOP,
+  formatHours,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
@@ -79,7 +80,7 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
         />
         <MetricRow
           label="Horas trabajadas"
-          value={hasData ? `${displayHours}h` : zeroHours}
+          value={hasData ? `${formatHours(displayHours)}h` : zeroHours}
           valueClassName={hasData ? "text-slate-900" : "text-slate-400"}
         />
         <MetricRow

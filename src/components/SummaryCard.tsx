@@ -7,7 +7,7 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { DailySummary } from "@/types";
-import { formatCOP, formatPercent } from "@/lib/calc";
+import { formatCOP, formatHours, formatPercent } from "@/lib/calc";
 import { getSummaryStatus } from "@/lib/status";
 
 interface SummaryCardProps {
@@ -191,7 +191,7 @@ export const SummaryCard = ({
       <div className="mt-6 grid gap-4 text-sm text-slate-800 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           label="Horas registradas"
-          value={hasData ? summary.hours : 0}
+          value={hasData ? `${formatHours(summary.hours)}h` : "0h"}
           icon={Timer}
           iconColor="text-sky-500"
         />
