@@ -1,12 +1,8 @@
 import { DailySummary, LineMetrics } from "../types";
-const linesWithoutLaborData = new Set([
-  "cajas",
-  "fruver",
-  "carnes",
-  "industria",
-  "pollo y pescado",
-  "asadero",
-]);
+
+// Líneas que NO tienen datos de horas en asistencia_horas
+// Todas las líneas principales ahora tienen datos de horas
+const linesWithoutLaborData = new Set<string>([]);
 
 export const hasLaborDataForLine = (lineId: string) =>
   !linesWithoutLaborData.has(lineId);

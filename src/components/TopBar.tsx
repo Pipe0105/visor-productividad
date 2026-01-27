@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, MapPin, SlidersHorizontal, TrendingUp, BarChart3 } from "lucide-react";
+import { CalendarDays, MapPin, SlidersHorizontal, TrendingUp } from "lucide-react";
 
 interface TopBarProps {
   title: ReactNode;
@@ -70,14 +70,6 @@ const SelectField = ({
 
 const BrandHeader = ({ title }: { title: ReactNode }) => (
   <div className="flex items-start gap-4">
-    {/* Barra decorativa con gradiente */}
-    <div className="relative flex shrink-0 flex-col gap-2">
-      <div className="h-16 w-1.5 rounded-full bg-linear-to-b from-mercamio-400 via-mercamio-500 to-mercamio-600 shadow-[0_0_20px_rgba(60,173,152,0.4)]" />
-      <div className="flex items-center justify-center rounded-full bg-linear-to-br from-mercamio-50 to-mercamio-100 p-2 shadow-sm">
-        <BarChart3 className="h-4 w-4 text-mercamio-600" />
-      </div>
-    </div>
-
     <div className="flex-1 space-y-3">
       {/* Badge de marca */}
       <div className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-mercamio-50 to-emerald-50 px-4 py-1.5 shadow-sm ring-1 ring-mercamio-200/50">

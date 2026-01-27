@@ -154,6 +154,50 @@ const formatDate = (dateStr: string): string => {
   return `${year}-${month}-${day}`;
 };
 
+// Mapeo de departamento en asistencia_horas a ID de línea
+// Los nombres se normalizan a minúsculas antes de buscar
+const DEPARTAMENTO_TO_LINE: Record<string, string> = {
+  // Cajas
+  cajas: "cajas",
+  "supervision y cajas": "cajas",
+  // Fruver
+  fruver: "fruver",
+  // Industria
+  industria: "industria",
+  // Carnes
+  carnes: "carnes",
+  // Pollo y pescado
+  "pollo y pescado": "pollo y pescado",
+  // Asadero
+  asadero: "asadero",
+};
+
+// Normaliza el nombre del departamento para mapear a línea
+const normalizeDepto = (depto: string): string => {
+  return depto?.toLowerCase().trim() || "";
+};
+
+// Mapeo de nombres de sede en asistencia_horas a nombres del sistema
+const SEDE_ASISTENCIA_TO_SYSTEM: Record<string, string> = {
+  "merkmios bogota": "Bogotá",
+  "mio plaza norte": "Plaza Norte",
+  "floresta": "Floresta",
+  "la 5a": "Calle 5ta",
+  "palmira mercamio": "Palmira",
+  "guaduales": "Guaduales",
+  "merkmios chia": "Chía",
+  "centro sur": "Centro Sur",
+  "floralia": "Floralia",
+  "la 39": "La 39",
+  "ciudad jardin": "Ciudad Jardín",
+};
+
+// Normaliza el nombre de sede de asistencia_horas al nombre del sistema
+const normalizeSedeAsistencia = (sede: string): string => {
+  const normalized = sede?.toLowerCase().trim() || "";
+  return SEDE_ASISTENCIA_TO_SYSTEM[normalized] || sede?.trim() || "";
+};
+
 const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
   const pool = await getDbPool();
   const client = await pool.connect();
@@ -229,6 +273,131 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
       }
     }
 
+    // Consultar horas de asistencia_horas
+    try {
+      const hoursQuery = `
+        SELECT
+          fecha,
+          sede,
+          departamento,
+          COALESCE(SUM(total_laborado_horas), 0) AS total_hours
+        FROM asistencia_horas
+        WHERE fecha IS NOT NULL
+          AND sede IS NOT NULL
+          AND departamento IS NOT NULL
+        GROUP BY fecha, sede, departamento
+        ORDER BY fecha, sede
+      `;
+
+      const hoursResult = await client.query(hoursQuery);
+
+      // DEBUG: Resumen inicial
+      console.log("=== DEBUG HORAS ===");
+      console.log("Claves ventas:", dailyDataMap.size);
+      console.log("Primeras 5 claves ventas:", Array.from(dailyDataMap.keys()).slice(0, 5));
+      console.log("Filas horas:", hoursResult.rows?.length ?? 0);
+
+      let horasAsignadas = 0;
+      let filasSkipped = 0;
+      let primerFila = true;
+
+      if (hoursResult.rows) {
+        for (const row of hoursResult.rows) {
+          const typedRow = row as {
+            fecha: string;
+            sede: string;
+            departamento: string;
+            total_hours: string | number;
+          };
+
+          // Formatear fecha (viene como Date de PostgreSQL o string YYYY-MM-DD)
+          let fecha: string;
+          if (typeof typedRow.fecha === "string") {
+            // Si ya viene como string, usar directamente (puede ser "YYYY-MM-DD")
+            fecha = typedRow.fecha.slice(0, 10);
+          } else {
+            // Si es objeto Date, extraer fecha en zona local para evitar desfase UTC
+            const fechaObj = new Date(typedRow.fecha);
+            const year = fechaObj.getFullYear();
+            const month = String(fechaObj.getMonth() + 1).padStart(2, "0");
+            const day = String(fechaObj.getDate()).padStart(2, "0");
+            fecha = `${year}-${month}-${day}`;
+          }
+          const sedeName = normalizeSedeAsistencia(typedRow.sede);
+          const depto = normalizeDepto(typedRow.departamento);
+          const lineId = DEPARTAMENTO_TO_LINE[depto];
+
+          // DEBUG: Mostrar solo las primeras 3 filas
+          if (primerFila) {
+            const hoursKey = `${fecha}_${sedeName}`;
+            const existsInVentas = dailyDataMap.has(hoursKey);
+            console.log("Primera fila horas:", {
+              fechaRaw: typedRow.fecha,
+              fechaFormateada: fecha,
+              sedeRaw: typedRow.sede,
+              sedeNorm: sedeName,
+              hoursKey,
+              existsInVentas,
+              deptoRaw: typedRow.departamento,
+              lineId,
+            });
+            primerFila = false;
+          }
+
+          if (!lineId || !sedeName) {
+            filasSkipped++;
+            continue;
+          }
+
+          const key = `${fecha}_${sedeName}`;
+          let dailyData = dailyDataMap.get(key);
+
+          // Si no existe el registro, crearlo (puede haber horas sin ventas)
+          if (!dailyData) {
+            dailyData = {
+              date: fecha,
+              sede: sedeName,
+              lines: [],
+            };
+            dailyDataMap.set(key, dailyData);
+          }
+
+          // Buscar o crear la línea
+          let lineMetric = dailyData.lines.find((l) => l.id === lineId);
+          if (!lineMetric) {
+            const lineInfo = LINE_TABLES.find((l) => l.id === lineId);
+            lineMetric = {
+              id: lineId,
+              name: lineInfo?.name || lineId,
+              sales: 0,
+              hours: 0,
+              hourlyRate: 0,
+            };
+            dailyData.lines.push(lineMetric);
+          }
+
+          const horasValue = Number(typedRow.total_hours) || 0;
+          lineMetric.hours += horasValue;
+          horasAsignadas += horasValue;
+        }
+      }
+
+      // Obtener sedes únicas de horas
+      const sedesHoras = new Set<string>();
+      if (hoursResult.rows) {
+        for (const row of hoursResult.rows) {
+          const typedRow = row as { sede: string };
+          const sedeNorm = normalizeSedeAsistencia(typedRow.sede);
+          if (sedeNorm) sedesHoras.add(sedeNorm);
+        }
+      }
+      console.log("Sedes únicas en horas:", Array.from(sedesHoras));
+      console.log("Sedes únicas en ventas:", Array.from(new Set(Array.from(dailyDataMap.values()).map(d => d.sede))));
+      console.log("Resumen:", { horasAsignadas, filasSkipped });
+    } catch (error) {
+      console.warn("No se pudo consultar la tabla asistencia_horas:", error);
+    }
+
     // Convertir el mapa a array y asegurarse de que cada fecha tenga todas las líneas
     const result: DailyProductivity[] = [];
     for (const dailyData of dailyDataMap.values()) {
@@ -247,7 +416,25 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
       result.push(dailyData);
     }
 
-    return result.sort((a, b) => a.date.localeCompare(b.date));
+    const sortedResult = result.sort((a, b) => a.date.localeCompare(b.date));
+
+    // DEBUG: Verificar que los datos finales tienen horas
+    const sampleWithHours = sortedResult.find((d) =>
+      d.lines.some((l) => l.hours > 0)
+    );
+    if (sampleWithHours) {
+      const lineWithHours = sampleWithHours.lines.find((l) => l.hours > 0);
+      console.log("Ejemplo con horas:", {
+        fecha: sampleWithHours.date,
+        sede: sampleWithHours.sede,
+        linea: lineWithHours?.id,
+        horas: lineWithHours?.hours,
+      });
+    } else {
+      console.log("ADVERTENCIA: Ningún registro tiene horas > 0");
+    }
+
+    return sortedResult;
   } finally {
     client.release();
   }
