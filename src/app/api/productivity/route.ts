@@ -257,7 +257,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
               name: line.name,
               sales: 0,
               hours: 0,
-              hourlyRate: 0,
+              hourlyRate: 50000, // Placeholder: $50,000 COP/hora
             };
             dailyData.lines.push(lineMetric);
           }
@@ -371,7 +371,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
               name: lineInfo?.name || lineId,
               sales: 0,
               hours: 0,
-              hourlyRate: 0,
+              hourlyRate: 50000, // Placeholder: $50,000 COP/hora
             };
             dailyData.lines.push(lineMetric);
           }
@@ -409,7 +409,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
             name: line.name,
             sales: 0,
             hours: 0,
-            hourlyRate: 0,
+            hourlyRate: 50000, // Placeholder: $50,000 COP/hora
           });
         }
       }

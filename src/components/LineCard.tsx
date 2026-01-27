@@ -3,6 +3,7 @@ import {
   calcLineMargin,
   formatCOP,
   formatHours,
+  formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import { getLineStatus } from "@/lib/status";
@@ -38,11 +39,13 @@ const MetricRow = ({
 export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
   const margin = calcLineMargin(line);
   const cost = calcLineCost(line);
+  const marginPercent = line.sales ? margin / line.sales : 0;
   const hasLaborData = hasLaborDataForLine(line.id);
   const displayHours = hasLaborData ? line.hours : 0;
   const emptyLabel = "—";
   const zeroCurrency = formatCOP(0);
   const zeroHours = "0h";
+  const zeroPercent = formatPercent(0);
   const status = hasData
     ? getLineStatus(sede, line.id, margin)
     : {
@@ -91,6 +94,11 @@ export const LineCard = ({ line, sede, hasData = true }: LineCardProps) => {
         <MetricRow
           label="Margen"
           value={hasData ? formatCOP(margin) : zeroCurrency}
+          valueClassName={hasData ? status.textClass : "text-slate-400"}
+        />
+        <MetricRow
+          label="% Margen"
+          value={hasData ? formatPercent(marginPercent) : zeroPercent}
           valueClassName={hasData ? status.textClass : "text-slate-400"}
         />
       </div>
