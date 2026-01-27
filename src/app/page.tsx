@@ -2029,11 +2029,9 @@ export default function Home() {
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
-          lineFilter={lineFilter}
           onSedeChange={setSelectedSede}
           onStartDateChange={handleStartDateChange}
           onEndDateChange={handleEndDateChange}
-          onLineFilterChange={setLineFilter}
         />
 
         <SelectionSummary

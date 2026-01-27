@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, MapPin, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 
 interface TopBarProps {
   title: ReactNode;
@@ -8,11 +8,9 @@ interface TopBarProps {
   startDate: string;
   endDate: string;
   dates: string[];
-  lineFilter: string;
   onSedeChange: (value: string) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
-  onLineFilterChange: (value: string) => void;
 }
 
 // ============================================================================
@@ -71,26 +69,10 @@ const SelectField = ({
 const BrandHeader = ({ title }: { title: ReactNode }) => (
   <div className="flex items-start gap-4">
     <div className="flex-1 space-y-3">
-      {/* Badge de marca */}
-      <div className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-mercamio-50 to-emerald-50 px-4 py-1.5 shadow-sm ring-1 ring-mercamio-200/50">
-        <div className="h-1.5 w-1.5 rounded-full bg-mercamio-500 shadow-[0_0_6px_rgba(60,173,152,0.6)]" />
-        <p className="text-xs font-bold uppercase tracking-[0.25em] text-mercamio-700">
-          Mercamio Analytics
-        </p>
-        <TrendingUp className="h-3.5 w-3.5 text-mercamio-600" />
-      </div>
-
       {/* Título principal con gradiente */}
       <h1 className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-3xl font-bold leading-tight text-transparent sm:text-4xl">
         {title}
       </h1>
-
-      {/* Descripción mejorada */}
-      <p className="max-w-md text-sm leading-relaxed text-slate-600">
-        <span className="font-medium text-slate-700">Análisis en tiempo real:</span>{" "}
-        Visualiza ventas, horas trabajadas y márgenes por línea de producción
-        con métricas precisas.
-      </p>
     </div>
   </div>
 );
@@ -106,11 +88,9 @@ export const TopBar = ({
   startDate,
   endDate,
   dates,
-  lineFilter,
   onSedeChange,
   onStartDateChange,
   onEndDateChange,
-  onLineFilterChange,
 }: TopBarProps) => {
   // Transformar datos para el componente SelectField
   const sedeOptions = sedes.map((sede) => ({
@@ -122,12 +102,6 @@ export const TopBar = ({
     value: date,
     label: date,
   }));
-
-  const filterOptions = [
-    { value: "all", label: "Todas las líneas" },
-    { value: "critical", label: "Líneas críticas (alerta)" },
-    { value: "improving", label: "Líneas en mejora (atención)" },
-  ];
 
   return (
     <header
@@ -176,17 +150,6 @@ export const TopBar = ({
               emptyMessage="Sin fechas disponibles"
             />
           </div>
-        </div>
-
-        {/* Selector de Filtro */}
-        <div className="flex-1 min-w-50">
-          <SelectField
-            icon={SlidersHorizontal}
-            label="Estado de línea"
-            value={lineFilter}
-            options={filterOptions}
-            onChange={onLineFilterChange}
-          />
         </div>
       </div>
     </header>
