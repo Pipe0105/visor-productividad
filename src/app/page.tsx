@@ -614,7 +614,10 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
         {sortedLines.map((line, index) => {
           const value =
             chartType === "sales" ? line.sales : calcLineMargin(line);
-          const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+          const rawPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+          const percentage = Number.isFinite(rawPercentage)
+            ? Math.min(Math.max(rawPercentage, 0), 100)
+            : 0;
 
           return (
             <div key={line.id} className="space-y-1">
@@ -632,8 +635,11 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
               </div>
               <div className="relative h-8 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-mercamio-500 transition-all duration-500"
-                  style={{ width: `${percentage}%` }}
+                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percentage}%`,
+                    backgroundColor: "#2a8f7c",
+                  }}
                 />
                 <div className="absolute inset-0 flex items-center px-3">
                   <span className="text-xs font-semibold text-slate-700 mix-blend-difference">
