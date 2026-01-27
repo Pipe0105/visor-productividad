@@ -172,7 +172,7 @@ const useProductivityData = () => {
 const useAnimations = (
   isLoading: boolean,
   filteredLinesCount: number,
-  viewMode: "cards" | "comparison" | "chart",
+  viewMode: "cards" | "comparison" | "chart" | "trends",
 ) => {
   useEffect(() => {
     if (
@@ -475,8 +475,8 @@ const ViewToggle = ({
   viewMode,
   onChange,
 }: {
-  viewMode: "cards" | "comparison" | "chart";
-  onChange: (value: "cards" | "comparison" | "chart") => void;
+  viewMode: "cards" | "comparison" | "chart" | "trends";
+  onChange: (value: "cards" | "comparison" | "chart" | "trends") => void;
 }) => {
   const getModeLabel = () => {
     switch (viewMode) {
@@ -486,6 +486,8 @@ const ViewToggle = ({
         return "Comparativo de rentabilidad";
       case "chart":
         return "Top 6 líneas (gráfico)";
+      case "trends":
+        return "Análisis de tendencias";
     }
   };
 
@@ -539,6 +541,19 @@ const ViewToggle = ({
         >
           <BarChart3 className="h-4 w-4" />
           Gráfico
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("trends")}
+          aria-pressed={viewMode === "trends"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "trends"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-600 hover:text-slate-800"
+          }`}
+        >
+          <ArrowUpDown className="h-4 w-4" />
+          Tendencias
         </button>
       </div>
     </div>
@@ -1241,9 +1256,9 @@ export default function Home() {
     end: "2025-11-30",
   });
   const [lineFilter, setLineFilter] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "comparison" | "chart">(
-    "cards",
-  );
+  const [viewMode, setViewMode] = useState<
+    "cards" | "comparison" | "chart" | "trends"
+  >("cards");
   const [activeTab, setActiveTab] = useState<"lines" | "summaries">("lines");
 
   // Cargar preferencias desde localStorage después de montar
@@ -1267,7 +1282,7 @@ export default function Home() {
 
     const savedViewMode = localStorage.getItem("viewMode");
     if (savedViewMode) {
-      setViewMode(savedViewMode as "cards" | "comparison" | "chart");
+      setViewMode(savedViewMode as "cards" | "comparison" | "chart" | "trends");
     }
 
     const savedActiveTab = localStorage.getItem("activeTab");
@@ -1512,7 +1527,7 @@ export default function Home() {
   }, []);
 
   const handleViewChange = useCallback(
-    (value: "cards" | "comparison" | "chart") => {
+    (value: "cards" | "comparison" | "chart" | "trends") => {
       setViewMode(value);
     },
     [],
@@ -1985,11 +2000,12 @@ export default function Home() {
         setActiveTab("summaries");
       }
 
-      // T: Toggle vista (tarjetas/comparativo/gráfico)
+      // T: Toggle vista (tarjetas/comparativo/gráfico/tendencias)
       if (event.key === "t" && activeTab === "lines") {
         setViewMode((prev) => {
           if (prev === "cards") return "comparison";
           if (prev === "comparison") return "chart";
+          if (prev === "chart") return "trends";
           return "cards";
         });
       }
@@ -2088,12 +2104,6 @@ export default function Home() {
                   sortOrder={sortOrder}
                   onSortOrderToggle={handleSortOrderToggle}
                 />
-                <LineTrends
-                  dailyDataSet={dailyDataSet}
-                  selectedSede={selectedSede}
-                  availableDates={availableDates}
-                  lines={lines}
-                />
                 <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
 
                 {viewMode === "comparison" ? (
@@ -2116,6 +2126,13 @@ export default function Home() {
                       sede={selectedSede}
                     />
                   </div>
+                ) : viewMode === "trends" ? (
+                  <LineTrends
+                    dailyDataSet={dailyDataSet}
+                    selectedSede={selectedSede}
+                    availableDates={availableDates}
+                    lines={lines}
+                  />
                 ) : (
                   <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     {filteredLines.map((line) => (
