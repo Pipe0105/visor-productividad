@@ -2118,7 +2118,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setActiveTab("lines")}
-              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
+              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-widest transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
                 activeTab === "lines"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
                   : "text-slate-700 hover:text-slate-800"
@@ -2130,7 +2130,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setActiveTab("summaries")}
-              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
+              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-widest transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
                 activeTab === "summaries"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
                   : "text-slate-700 hover:text-slate-800"

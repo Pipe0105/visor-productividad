@@ -39,7 +39,7 @@ const SelectField = ({
   <label className="group relative flex flex-col gap-1 cursor-pointer sm:gap-1.5">
     <div className="flex items-center gap-1 px-1 sm:gap-1.5">
       <Icon className="h-3 w-3 text-mercamio-600 sm:h-3.5 sm:w-3.5" />
-      <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
+      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
         {label}
       </span>
     </div>

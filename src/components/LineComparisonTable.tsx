@@ -34,7 +34,7 @@ type LineWithMetrics = LineMetrics & {
 
 const TableHeader = () => (
   <thead>
-    <tr className="text-[10px] uppercase tracking-[0.1em] text-slate-700 sm:text-xs sm:tracking-[0.2em]">
+    <tr className="text-[10px] uppercase tracking-widest text-slate-700 sm:text-xs sm:tracking-[0.2em]">
       <th className="w-6 px-1 py-1.5 sm:w-8 sm:px-2 sm:py-2"></th>
       <th className="sticky left-0 bg-white px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Línea</th>
       <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Ventas</th>
@@ -156,12 +156,12 @@ const TableSummary = ({
         <button
           type="button"
           onClick={onResetOrder}
-          className="rounded-full border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]"
+          className="rounded-full border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]"
         >
           Restaurar
         </button>
       )}
-      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-700 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]">
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-700 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]">
         {count} {count === 1 ? "línea" : "líneas"}
       </span>
     </div>
@@ -284,8 +284,8 @@ export const LineComparisonTable = ({
       {sortedLines.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="-mx-1 mt-3 overflow-x-auto sm:-mx-0 sm:mt-6">
-          <table className="w-full min-w-[400px] border-separate border-spacing-y-1 text-left text-xs sm:min-w-[700px] sm:border-spacing-y-2 sm:text-sm">
+        <div className="-mx-1 mt-3 overflow-x-auto sm:mx-0 sm:mt-6">
+          <table className="w-full min-w-100 border-separate border-spacing-y-1 text-left text-xs sm:min-w-175 sm:border-spacing-y-2 sm:text-sm">
             <TableHeader />
             <tbody>
               {sortedLines.map((line, index) => (
