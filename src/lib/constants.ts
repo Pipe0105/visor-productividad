@@ -6,14 +6,14 @@ export const MERCAMIO_SEDES = [
   "Calle 5ta",
   "La 39",
   "Plaza Norte",
-  "Ciudad JardÃ­n",
+  "Ciudad Jardín",
   "Centro Sur",
   "Palmira",
 ];
 
 export const MERCATODO_SEDES = ["Floresta", "Floralia", "Guaduales"];
 
-export const MERKMIOS_SEDES = ["BogotÃ¡", "ChÃ­a"];
+export const MERKMIOS_SEDES = ["Bogotá", "Chía"];
 
 export const BRANCH_LOCATIONS = [
   ...MERCAMIO_SEDES,
