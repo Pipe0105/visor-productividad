@@ -41,7 +41,7 @@ import { DailyProductivity, LineMetrics } from "@/types";
 
 const parseDateKey = (dateKey: string): Date => {
   const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
+  return new Date(year, month - 1, day);
 };
 
 const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
@@ -268,7 +268,8 @@ const resolveSelectedSedeIds = (
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .trim();
+      .trim()
+      .replace(/[^a-z0-9]/g, "");
   const availableByKey = new Map(
     availableSedes.map((sede) => [normalizeKey(sede.id), sede.id]),
   );
