@@ -162,14 +162,19 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   "supervision y cajas": "cajas",
   // Fruver
   fruver: "fruver",
+  "surtidor fruver": "fruver",
   // Industria
   industria: "industria",
+  surtidores: "industria",
   // Carnes
   carnes: "carnes",
+  "carnes rojas": "carnes",
   // Pollo y pescado
   "pollo y pescado": "pollo y pescado",
+  "surtidor (a) pollo y pescado": "pollo y pescado",
   // Asadero
   asadero: "asadero",
+  "pollo asado": "asadero",
 };
 
 // Normaliza el nombre del departamento para mapear a línea

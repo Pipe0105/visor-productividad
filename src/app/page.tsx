@@ -27,7 +27,12 @@ import {
   formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
-import { DEFAULT_LINES, DEFAULT_SEDES, Sede } from "@/lib/constants";
+import {
+  DEFAULT_LINES,
+  DEFAULT_SEDES,
+  SEDE_GROUPS,
+  Sede,
+} from "@/lib/constants";
 import { DailyProductivity, LineMetrics } from "@/types";
 
 // ============================================================================
@@ -245,6 +250,25 @@ const extractSedesFromData = (data: DailyProductivity[]): Sede[] => {
   return Array.from(
     new Map(data.map((item) => [item.sede, item.sede])).entries(),
   ).map(([id, name]) => ({ id, name }));
+};
+
+const buildSedeOptions = (availableSedes: Sede[]): Sede[] => [
+  ...SEDE_GROUPS.map((group) => ({ id: group.id, name: group.name })),
+  ...availableSedes,
+];
+
+const resolveSelectedSedeIds = (
+  selectedSede: string,
+  availableSedes: Sede[],
+): string[] => {
+  const availableIds = new Set(availableSedes.map((sede) => sede.id));
+  const group = SEDE_GROUPS.find((candidate) => candidate.id === selectedSede);
+
+  if (group) {
+    return group.sedes.filter((sedeId) => availableIds.has(sedeId));
+  }
+
+  return availableIds.has(selectedSede) ? [selectedSede] : [];
 };
 const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
   const lineMap = new Map<
@@ -644,12 +668,12 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
 
 const LineTrends = ({
   dailyDataSet,
-  selectedSede,
+  selectedSedeIds,
   availableDates,
   lines,
 }: {
   dailyDataSet: DailyProductivity[];
-  selectedSede: string;
+  selectedSedeIds: string[];
   availableDates: string[];
   lines: LineMetrics[];
 }) => {
@@ -657,38 +681,64 @@ const LineTrends = ({
   const [metricType, setMetricType] = useState<"sales" | "margin" | "hours">(
     "sales",
   );
+  const selectedSedeIdSet = useMemo(
+    () => new Set(selectedSedeIds),
+    [selectedSedeIds],
+  );
 
   // Calculate trend data for selected line
   const trendData = useMemo(() => {
     if (!selectedLine) return [];
 
     const dataByDate = availableDates.map((date) => {
-      const dayData = dailyDataSet.find(
-        (item) => item.sede === selectedSede && item.date === date,
+      const dayData = dailyDataSet.filter(
+        (item) => selectedSedeIdSet.has(item.sede) && item.date === date,
       );
-      const lineData = dayData?.lines.find((l) => l.id === selectedLine);
 
-      if (!lineData) {
+      if (dayData.length === 0) {
         return { date, value: 0 };
       }
 
+      const totals = dayData.reduce(
+        (acc, item) => {
+          const lineData = item.lines.find((line) => line.id === selectedLine);
+          if (!lineData) {
+            return acc;
+          }
+
+          const hasLaborData = hasLaborDataForLine(lineData.id);
+          const hours = hasLaborData ? lineData.hours : 0;
+          const cost = hours * lineData.hourlyRate;
+
+          return {
+            sales: acc.sales + lineData.sales,
+            hours: acc.hours + hours,
+            margin: acc.margin + (lineData.sales - cost),
+          };
+        },
+        { sales: 0, hours: 0, margin: 0 },
+      );
+
       let value = 0;
       if (metricType === "sales") {
-        value = lineData.sales;
+        value = totals.sales;
       } else if (metricType === "margin") {
-        const hasLaborData = hasLaborDataForLine(lineData.id);
-        const hours = hasLaborData ? lineData.hours : 0;
-        const cost = hours * lineData.hourlyRate;
-        value = lineData.sales - cost;
+        value = totals.margin;
       } else {
-        value = hasLaborDataForLine(lineData.id) ? lineData.hours : 0;
+        value = totals.hours;
       }
 
       return { date, value };
     });
 
     return dataByDate;
-  }, [selectedLine, metricType, dailyDataSet, selectedSede, availableDates]);
+  }, [
+    selectedLine,
+    metricType,
+    dailyDataSet,
+    selectedSedeIdSet,
+    availableDates,
+  ]);
 
   const maxValue = useMemo(() => {
     if (trendData.length === 0) return 1;
@@ -841,13 +891,17 @@ const LineTrends = ({
 
 const PeriodComparison = ({
   dailyDataSet,
-  selectedSede,
+  selectedSedeIds,
   availableDates,
 }: {
   dailyDataSet: DailyProductivity[];
-  selectedSede: string;
+  selectedSedeIds: string[];
   availableDates: string[];
 }) => {
+  const selectedSedeIdSet = useMemo(
+    () => new Set(selectedSedeIds),
+    [selectedSedeIds],
+  );
   const [period1, setPeriod1] = useState<DateRange>({
     start: availableDates[0] || "",
     end: availableDates[0] || "",
@@ -860,24 +914,24 @@ const PeriodComparison = ({
   const period1Data = useMemo(() => {
     const filtered = dailyDataSet.filter(
       (item) =>
-        item.sede === selectedSede &&
+        selectedSedeIdSet.has(item.sede) &&
         item.date >= period1.start &&
         item.date <= period1.end,
     );
     const lines = aggregateLines(filtered);
     return calcDailySummary(lines);
-  }, [dailyDataSet, selectedSede, period1]);
+  }, [dailyDataSet, selectedSedeIdSet, period1]);
 
   const period2Data = useMemo(() => {
     const filtered = dailyDataSet.filter(
       (item) =>
-        item.sede === selectedSede &&
+        selectedSedeIdSet.has(item.sede) &&
         item.date >= period2.start &&
         item.date <= period2.end,
     );
     const lines = aggregateLines(filtered);
     return calcDailySummary(lines);
-  }, [dailyDataSet, selectedSede, period2]);
+  }, [dailyDataSet, selectedSedeIdSet, period2]);
 
   const calculateDiff = (val1: number, val2: number) => {
     if (val2 === 0) return 0;
@@ -1310,25 +1364,46 @@ export default function Home() {
   const { dailyDataSet, availableSedes, isLoading, error } =
     useProductivityData();
 
+  const sedeOptions = useMemo(
+    () => buildSedeOptions(availableSedes),
+    [availableSedes],
+  );
+  const selectedSedeIds = useMemo(
+    () => resolveSelectedSedeIds(selectedSede, availableSedes),
+    [selectedSede, availableSedes],
+  );
+  const selectedSedeIdSet = useMemo(
+    () => new Set(selectedSedeIds),
+    [selectedSedeIds],
+  );
+  const availableSedesKey = useMemo(
+    () => availableSedes.map((sede) => sede.id).join("|"),
+    [availableSedes],
+  );
+  const sedeOptionsKey = useMemo(
+    () => sedeOptions.map((sede) => sede.id).join("|"),
+    [sedeOptions],
+  );
+
   // Fechas disponibles
   const availableDates = useMemo(() => {
     return Array.from(
       new Set(
         dailyDataSet
-          .filter((item) => item.sede === selectedSede)
+          .filter((item) => selectedSedeIdSet.has(item.sede))
           .map((item) => item.date),
       ),
     ).sort((a, b) => a.localeCompare(b));
-  }, [dailyDataSet, selectedSede]);
+  }, [dailyDataSet, selectedSedeIdSet]);
 
   // Sincronizar sede seleccionada
   useEffect(() => {
     if (availableSedes.length === 0) return;
 
-    if (!availableSedes.some((sede) => sede.id === selectedSede)) {
-      setSelectedSede(availableSedes[0].id);
+    if (!sedeOptions.some((sede) => sede.id === selectedSede)) {
+      setSelectedSede(sedeOptions[0].id);
     }
-  }, [availableSedes, selectedSede]);
+  }, [availableSedesKey, sedeOptionsKey, selectedSede]);
 
   // Sincronizar fechas
   useEffect(() => {
@@ -1346,6 +1421,7 @@ export default function Home() {
 
   // Datos derivados
   const selectedSedeName =
+    SEDE_GROUPS.find((group) => group.id === selectedSede)?.name ??
     availableSedes.find((sede) => sede.id === selectedSede)?.name ??
     selectedSede;
 
@@ -1362,11 +1438,11 @@ export default function Home() {
   const rangeDailyData = useMemo(() => {
     return dailyDataSet.filter(
       (item) =>
-        item.sede === selectedSede &&
+        selectedSedeIdSet.has(item.sede) &&
         item.date >= dateRange.start &&
         item.date <= dateRange.end,
     );
-  }, [dailyDataSet, dateRange, selectedSede]);
+  }, [dailyDataSet, dateRange, selectedSedeIdSet]);
 
   const lines = useMemo(() => aggregateLines(rangeDailyData), [rangeDailyData]);
   const hasRangeData = rangeDailyData.length > 0;
@@ -1407,7 +1483,7 @@ export default function Home() {
     });
 
     return result;
-  }, [lineFilter, lines, selectedSede, searchQuery, sortBy, sortOrder]);
+  }, [lineFilter, lines, searchQuery, sortBy, sortOrder]);
   const pdfLines = useMemo(
     () =>
       [...filteredLines].sort((a, b) => calcLineMargin(b) - calcLineMargin(a)),
@@ -1431,31 +1507,39 @@ export default function Home() {
     const monthLines = dailyDataSet
       .filter(
         (item) =>
-          item.sede === selectedSede && item.date.startsWith(selectedMonth),
+          selectedSedeIdSet.has(item.sede) &&
+          item.date.startsWith(selectedMonth),
       )
       .flatMap((item) => item.lines);
 
     return calcDailySummary(monthLines);
-  }, [dailyDataSet, selectedMonth, selectedSede]);
+  }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
   const hasMonthlyData = useMemo(() => {
     return dailyDataSet.some(
       (item) =>
-        item.sede === selectedSede && item.date.startsWith(selectedMonth),
+        selectedSedeIdSet.has(item.sede) &&
+        item.date.startsWith(selectedMonth),
     );
-  }, [dailyDataSet, selectedMonth, selectedSede]);
+  }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
 
   // Comparaciones
   const summariesByDate = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof calcDailySummary>>();
+    const map = new Map<string, LineMetrics[]>();
 
     dailyDataSet
-      .filter((item) => item.sede === selectedSede)
+      .filter((item) => selectedSedeIdSet.has(item.sede))
       .forEach((item) => {
-        map.set(item.date, calcDailySummary(item.lines));
+        const existing = map.get(item.date) ?? [];
+        map.set(item.date, [...existing, ...item.lines]);
       });
 
-    return map;
-  }, [dailyDataSet, selectedSede]);
+    return new Map(
+      Array.from(map.entries(), ([date, lines]) => [
+        date,
+        calcDailySummary(lines),
+      ]),
+    );
+  }, [dailyDataSet, selectedSedeIdSet]);
 
   const dailyComparisons = useMemo(() => {
     const selectedDateValue = parseDateKey(dateRange.end);
@@ -1466,12 +1550,9 @@ export default function Home() {
     const previousWeek = new Date(selectedDateValue);
     previousWeek.setUTCDate(previousWeek.getUTCDate() - 7);
 
-    const monthlyDailySummaries = dailyDataSet
-      .filter(
-        (item) =>
-          item.sede === selectedSede && item.date.startsWith(selectedMonth),
-      )
-      .map((item) => calcDailySummary(item.lines));
+    const monthlyDailySummaries = Array.from(summariesByDate.entries())
+      .filter(([date]) => date.startsWith(selectedMonth))
+      .map(([, summary]) => summary);
 
     return [
       {
@@ -1487,13 +1568,7 @@ export default function Home() {
         baseline: calculateMonthlyAverage(monthlyDailySummaries),
       },
     ];
-  }, [
-    dailyDataSet,
-    dateRange.end,
-    selectedMonth,
-    selectedSede,
-    summariesByDate,
-  ]);
+  }, [dateRange.end, selectedMonth, summariesByDate]);
 
   // Handlers
   const handleStartDateChange = useCallback((value: string) => {
@@ -2081,7 +2156,7 @@ export default function Home() {
         <TopBar
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
-          sedes={availableSedes}
+          sedes={sedeOptions}
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
@@ -2182,7 +2257,7 @@ export default function Home() {
                 ) : viewMode === "trends" ? (
                   <LineTrends
                     dailyDataSet={dailyDataSet}
-                    selectedSede={selectedSede}
+                    selectedSedeIds={selectedSedeIds}
                     availableDates={availableDates}
                     lines={lines}
                   />
@@ -2227,7 +2302,7 @@ export default function Home() {
                 />
                 <PeriodComparison
                   dailyDataSet={dailyDataSet}
-                  selectedSede={selectedSede}
+                  selectedSedeIds={selectedSedeIds}
                   availableDates={availableDates}
                 />
               </div>

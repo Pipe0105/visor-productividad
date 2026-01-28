@@ -2,22 +2,32 @@ import { LineMetrics } from "@/types";
 
 export type Sede = { id: string; name: string };
 
-export const BRANCH_LOCATIONS = [
-  // Mercamio
+export const MERCAMIO_SEDES = [
   "Calle 5ta",
   "La 39",
   "Plaza Norte",
-  "Ciudad Jardín",
+  "Ciudad JardÃ­n",
   "Centro Sur",
   "Palmira",
-  // Mercatodo
-  "Floresta",
-  "Floralia",
-  "Guaduales",
-  // Merkmios
-  "Bogotá",
-  "Chía",
 ];
+
+export const MERCATODO_SEDES = ["Floresta", "Floralia", "Guaduales"];
+
+export const MERKMIOS_SEDES = ["BogotÃ¡", "ChÃ­a"];
+
+export const BRANCH_LOCATIONS = [
+  ...MERCAMIO_SEDES,
+  ...MERCATODO_SEDES,
+  ...MERKMIOS_SEDES,
+];
+
+export const SEDE_GROUPS: Array<{ id: string; name: string; sedes: string[] }> =
+  [
+    { id: "all", name: "Todas las sedes", sedes: BRANCH_LOCATIONS },
+    { id: "mercamio", name: "Mercamio", sedes: MERCAMIO_SEDES },
+    { id: "mercatodo", name: "Mercatodo", sedes: MERCATODO_SEDES },
+    { id: "merkmios", name: "Merkmios", sedes: MERKMIOS_SEDES },
+  ];
 
 export const DEFAULT_SEDES: Sede[] = BRANCH_LOCATIONS.map((sede) => ({
   id: sede,
