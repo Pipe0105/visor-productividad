@@ -263,18 +263,29 @@ const resolveSelectedSedeIds = (
   selectedCompany: string,
   availableSedes: Sede[],
 ): string[] => {
-  const availableIds = new Set(availableSedes.map((sede) => sede.id));
+  const normalizeKey = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  const availableByKey = new Map(
+    availableSedes.map((sede) => [normalizeKey(sede.id), sede.id]),
+  );
 
   if (selectedCompany) {
     const group = SEDE_GROUPS.find(
       (candidate) => candidate.id === selectedCompany,
     );
     if (!group) return [];
-    return group.sedes.filter((sedeId) => availableIds.has(sedeId));
+    return group.sedes
+      .map((sedeId) => availableByKey.get(normalizeKey(sedeId)))
+      .filter((sedeId): sedeId is string => Boolean(sedeId));
   }
 
   if (selectedSede) {
-    return availableIds.has(selectedSede) ? [selectedSede] : [];
+    const resolved = availableByKey.get(normalizeKey(selectedSede));
+    return resolved ? [resolved] : [];
   }
 
   return availableSedes.map((sede) => sede.id);
