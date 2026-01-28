@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
-import { CalendarDays, MapPin, Moon, Sun } from "lucide-react";
+import { Building2, CalendarDays, MapPin, Moon, Sun } from "lucide-react";
 
 interface TopBarProps {
   title: ReactNode;
   selectedSede: string;
   sedes: { id: string; name: string }[];
+  selectedCompany: string;
+  companies: { id: string; name: string }[];
   startDate: string;
   endDate: string;
   dates: string[];
   theme: "light" | "dark";
   onSedeChange: (value: string) => void;
+  onCompanyChange: (value: string) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onToggleTheme: () => void;
@@ -87,20 +90,33 @@ export const TopBar = ({
   title,
   selectedSede,
   sedes,
+  selectedCompany,
+  companies,
   startDate,
   endDate,
   dates,
   theme,
   onSedeChange,
+  onCompanyChange,
   onStartDateChange,
   onEndDateChange,
   onToggleTheme,
 }: TopBarProps) => {
   // Transformar datos para el componente SelectField
-  const sedeOptions = sedes.map((sede) => ({
-    value: sede.id,
-    label: sede.name,
-  }));
+  const sedeOptions = [
+    { value: "", label: "Todas las sedes" },
+    ...sedes.map((sede) => ({
+      value: sede.id,
+      label: sede.name,
+    })),
+  ];
+  const companyOptions = [
+    { value: "", label: "Todas las empresas" },
+    ...companies.map((company) => ({
+      value: company.id,
+      label: company.name,
+    })),
+  ];
 
   const dateOptions = dates.map((date) => ({
     value: date,
@@ -133,6 +149,19 @@ export const TopBar = ({
 
       {/* Controles de filtrado */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:flex md:flex-wrap md:gap-6">
+        {/* Selector de Empresa */}
+        <div className="sm:col-span-2 md:flex-1 md:min-w-50">
+          <SelectField
+            icon={Building2}
+            label="Empresa"
+            value={selectedCompany}
+            options={companyOptions}
+            onChange={onCompanyChange}
+            disabled={companies.length === 0}
+            emptyMessage="Sin empresas disponibles"
+          />
+        </div>
+
         {/* Selector de Sede */}
         <div className="sm:col-span-2 md:flex-1 md:min-w-50">
           <SelectField

@@ -252,23 +252,32 @@ const extractSedesFromData = (data: DailyProductivity[]): Sede[] => {
   ).map(([id, name]) => ({ id, name }));
 };
 
-const buildSedeOptions = (availableSedes: Sede[]): Sede[] => [
-  ...SEDE_GROUPS.map((group) => ({ id: group.id, name: group.name })),
-  ...availableSedes,
-];
+const buildCompanyOptions = (): Sede[] =>
+  SEDE_GROUPS.filter((group) => group.id !== "all").map((group) => ({
+    id: group.id,
+    name: group.name,
+  }));
 
 const resolveSelectedSedeIds = (
   selectedSede: string,
+  selectedCompany: string,
   availableSedes: Sede[],
 ): string[] => {
   const availableIds = new Set(availableSedes.map((sede) => sede.id));
-  const group = SEDE_GROUPS.find((candidate) => candidate.id === selectedSede);
 
-  if (group) {
+  if (selectedCompany) {
+    const group = SEDE_GROUPS.find(
+      (candidate) => candidate.id === selectedCompany,
+    );
+    if (!group) return [];
     return group.sedes.filter((sedeId) => availableIds.has(sedeId));
   }
 
-  return availableIds.has(selectedSede) ? [selectedSede] : [];
+  if (selectedSede) {
+    return availableIds.has(selectedSede) ? [selectedSede] : [];
+  }
+
+  return availableSedes.map((sede) => sede.id);
 };
 const aggregateLines = (dailyData: DailyProductivity[]): LineMetrics[] => {
   const lineMap = new Map<
@@ -1266,7 +1275,8 @@ export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   // Estado con persistencia - siempre inicia con valores por defecto
-  const [selectedSede, setSelectedSede] = useState("Floresta");
+  const [selectedSede, setSelectedSede] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({
     start: "2025-11-01",
     end: "2025-11-30",
@@ -1281,8 +1291,15 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
 
+    const savedCompany = localStorage.getItem("selectedCompany");
     const savedSede = localStorage.getItem("selectedSede");
-    if (savedSede) setSelectedSede(savedSede);
+    if (savedCompany) {
+      setSelectedCompany(savedCompany);
+      setSelectedSede("");
+    } else if (savedSede) {
+      setSelectedSede(savedSede);
+      setSelectedCompany("");
+    }
 
     const savedDateRange = localStorage.getItem("dateRange");
     if (savedDateRange) {
@@ -1322,6 +1339,10 @@ export default function Home() {
     if (!mounted) return;
     localStorage.setItem("selectedSede", selectedSede);
   }, [selectedSede, mounted]);
+  useEffect(() => {
+    if (!mounted) return;
+    localStorage.setItem("selectedCompany", selectedCompany);
+  }, [selectedCompany, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -1364,13 +1385,10 @@ export default function Home() {
   const { dailyDataSet, availableSedes, isLoading, error } =
     useProductivityData();
 
-  const sedeOptions = useMemo(
-    () => buildSedeOptions(availableSedes),
-    [availableSedes],
-  );
+  const companyOptions = useMemo(() => buildCompanyOptions(), []);
   const selectedSedeIds = useMemo(
-    () => resolveSelectedSedeIds(selectedSede, availableSedes),
-    [selectedSede, availableSedes],
+    () => resolveSelectedSedeIds(selectedSede, selectedCompany, availableSedes),
+    [selectedSede, selectedCompany, availableSedes],
   );
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
@@ -1379,10 +1397,6 @@ export default function Home() {
   const availableSedesKey = useMemo(
     () => availableSedes.map((sede) => sede.id).join("|"),
     [availableSedes],
-  );
-  const sedeOptionsKey = useMemo(
-    () => sedeOptions.map((sede) => sede.id).join("|"),
-    [sedeOptions],
   );
 
   // Fechas disponibles
@@ -1400,10 +1414,12 @@ export default function Home() {
   useEffect(() => {
     if (availableSedes.length === 0) return;
 
-    if (!sedeOptions.some((sede) => sede.id === selectedSede)) {
-      setSelectedSede(sedeOptions[0].id);
+    if (selectedCompany) return;
+
+    if (selectedSede && !availableSedes.some((sede) => sede.id === selectedSede)) {
+      setSelectedSede(availableSedes[0].id);
     }
-  }, [availableSedesKey, sedeOptionsKey, selectedSede]);
+  }, [availableSedesKey, selectedSede, selectedCompany, availableSedes]);
 
   // Sincronizar fechas
   useEffect(() => {
@@ -1421,9 +1437,9 @@ export default function Home() {
 
   // Datos derivados
   const selectedSedeName =
-    SEDE_GROUPS.find((group) => group.id === selectedSede)?.name ??
+    SEDE_GROUPS.find((group) => group.id === selectedCompany)?.name ??
     availableSedes.find((sede) => sede.id === selectedSede)?.name ??
-    selectedSede;
+    "Todas las sedes";
 
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return "";
@@ -1578,6 +1594,20 @@ export default function Home() {
     }));
   }, []);
 
+  const handleSedeChange = useCallback((value: string) => {
+    setSelectedSede(value);
+    if (value) {
+      setSelectedCompany("");
+    }
+  }, []);
+
+  const handleCompanyChange = useCallback((value: string) => {
+    setSelectedCompany(value);
+    if (value) {
+      setSelectedSede("");
+    }
+  }, []);
+
   const handleEndDateChange = useCallback((value: string) => {
     setDateRange((prev) => ({
       start: value < prev.start ? value : prev.start,
@@ -1595,6 +1625,9 @@ export default function Home() {
   const handleSortOrderToggle = useCallback(() => {
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
+
+  const selectedScopeId = selectedCompany || selectedSede || "todas";
+  const selectedScopeLabel = selectedSedeName;
 
   const handleDownloadCsv = useCallback(() => {
     const escapeCsv = (value: string | number) => {
@@ -1639,7 +1672,7 @@ export default function Home() {
       "┌─────────────────────────────────────────────────────────────────────────────┐",
       "│  INFORMACIÓN DEL REPORTE                                                    │",
       "├─────────────────────────────────────────────────────────────────────────────┤",
-      `│  Sede:      ${escapeCsv(selectedSedeName).padEnd(62)}│`,
+      `│  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}│`,
       `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
       `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
       `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
@@ -1686,7 +1719,7 @@ export default function Home() {
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const safeSede = selectedScopeId.replace(/\s+/g, "-");
     const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
       dateRange.end || "sin-fecha"
     }.csv`;
@@ -1700,8 +1733,8 @@ export default function Home() {
     dateRangeLabel,
     lineFilterLabel,
     pdfLines,
-    selectedSede,
-    selectedSedeName,
+    selectedScopeId,
+    selectedScopeLabel,
   ]);
 
   const handleDownloadXlsx = useCallback(async () => {
@@ -1742,7 +1775,7 @@ export default function Home() {
     // === INFORMACIÓN DEL REPORTE ===
     const infoStartRow = 3;
     const infoData = [
-      ["Sede:", selectedSedeName],
+      ["Sede:", selectedScopeLabel],
       ["Rango:", dateRangeLabel || "Sin rango definido"],
       ["Filtro:", lineFilterLabel],
       ["Generado:", formatPdfDate()],
@@ -1889,7 +1922,7 @@ export default function Home() {
     footerCell.alignment = { horizontal: "center" };
 
     // Generar y descargar archivo
-    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const safeSede = selectedScopeId.replace(/\s+/g, "-");
     const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
       dateRange.end || "sin-fecha"
     }.xlsx`;
@@ -1910,8 +1943,8 @@ export default function Home() {
     dateRangeLabel,
     lineFilterLabel,
     pdfLines,
-    selectedSede,
-    selectedSedeName,
+    selectedScopeId,
+    selectedScopeLabel,
   ]);
 
   const handleDownloadPdf = useCallback(() => {
@@ -1949,7 +1982,7 @@ export default function Home() {
     doc.setFontSize(10);
     const infoY = 40;
     const infoData = [
-      ["Sede:", selectedSedeName],
+      ["Sede:", selectedScopeLabel],
       ["Rango:", dateRangeLabel || "Sin rango definido"],
       ["Filtro:", lineFilterLabel],
       ["Generado:", formatPdfDate()],
@@ -2069,7 +2102,7 @@ export default function Home() {
     });
 
     // Descargar
-    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const safeSede = selectedScopeId.replace(/\s+/g, "-");
     const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
       dateRange.end || "sin-fecha"
     }.pdf`;
@@ -2080,8 +2113,8 @@ export default function Home() {
     dateRangeLabel,
     lineFilterLabel,
     pdfLines,
-    selectedSede,
-    selectedSedeName,
+    selectedScopeId,
+    selectedScopeLabel,
   ]);
 
   // Atajos de teclado
@@ -2156,12 +2189,15 @@ export default function Home() {
         <TopBar
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
-          sedes={sedeOptions}
+          sedes={availableSedes}
+          selectedCompany={selectedCompany}
+          companies={companyOptions}
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
           theme={theme}
-          onSedeChange={setSelectedSede}
+          onSedeChange={handleSedeChange}
+          onCompanyChange={handleCompanyChange}
           onStartDateChange={handleStartDateChange}
           onEndDateChange={handleEndDateChange}
           onToggleTheme={handleToggleTheme}
