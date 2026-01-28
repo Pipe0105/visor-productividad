@@ -12,7 +12,9 @@ import {
   ArrowUpDown,
   BarChart3,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import * as ExcelJS from "exceljs";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -62,27 +64,6 @@ const formatPdfNumber = (value: number) =>
   new Intl.NumberFormat("es-CO", {
     maximumFractionDigits: 0,
   }).format(value);
-
-const buildPdfRows = (lines: LineMetrics[]) => {
-  return lines.map((line, index) => {
-    const hasLaborData = hasLaborDataForLine(line.id);
-    const hours = hasLaborData ? line.hours : 0;
-    const cost = hasLaborData ? calcLineCost(line) : 0;
-    const margin = hasLaborData ? calcLineMargin(line) : 0;
-    const marginRatio = line.sales ? margin / line.sales : 0;
-
-    return [
-      `${index + 1}`,
-      line.name,
-      line.id,
-      formatPdfNumber(line.sales),
-      `${hours}h`,
-      formatPdfNumber(cost),
-      formatPdfNumber(margin),
-      formatPercent(marginRatio),
-    ];
-  });
-};
 
 // ============================================================================
 // TIPOS
@@ -1555,36 +1536,6 @@ export default function Home() {
       }).format(value);
     };
 
-    const headers = [
-      "#",
-      "Línea",
-      "Código",
-      "Ventas",
-      "Horas",
-      "Costo",
-      "Margen",
-      "Margen %",
-    ];
-
-    const rows = pdfLines.map((line, index) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      const hours = hasLaborData ? line.hours : 0;
-      const cost = hasLaborData ? calcLineCost(line) : 0;
-      const margin = hasLaborData ? calcLineMargin(line) : 0;
-      const marginRatio = line.sales ? margin / line.sales : 0;
-
-      return [
-        index + 1,
-        escapeCsv(line.name),
-        escapeCsv(line.id),
-        formatNumber(Math.round(line.sales)),
-        hours,
-        formatNumber(Math.round(cost)),
-        formatNumber(Math.round(margin)),
-        `${(marginRatio * 100).toFixed(2)}%`,
-      ];
-    });
-
     // Calcular totales
     const totalSales = pdfLines.reduce((acc, line) => acc + line.sales, 0);
     const totalHours = pdfLines.reduce((acc, line) => {
@@ -1601,27 +1552,57 @@ export default function Home() {
     }, 0);
     const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
 
+    // Separador visual
+    const separator = "═".repeat(80);
+    const thinSeparator = "─".repeat(80);
+
     const csvLines = [
+      separator,
       "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
+      separator,
+      "",
+      "┌─────────────────────────────────────────────────────────────────────────────┐",
+      "│  INFORMACIÓN DEL REPORTE                                                    │",
+      "├─────────────────────────────────────────────────────────────────────────────┤",
+      `│  Sede:      ${escapeCsv(selectedSedeName).padEnd(62)}│`,
+      `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
+      `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
+      `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
+      "└─────────────────────────────────────────────────────────────────────────────┘",
       "",
       "",
-      "Información del Reporte",
-      `Sede:,${escapeCsv(selectedSedeName)}`,
-      `Rango:,${escapeCsv(dateRangeLabel || "Sin rango definido")}`,
-      `Filtro:,${escapeCsv(lineFilterLabel)}`,
-      `Generado:,${escapeCsv(formatPdfDate())}`,
-      "",
-      "",
-      "",
+      thinSeparator,
       "DETALLE POR LÍNEA",
+      thinSeparator,
       "",
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
+      "#,Línea,Código,Ventas ($),Horas,Costo ($),Margen ($),Margen %",
+      ...pdfLines.map((line, index) => {
+        const hasLaborData = hasLaborDataForLine(line.id);
+        const hours = hasLaborData ? line.hours : 0;
+        const cost = hasLaborData ? calcLineCost(line) : 0;
+        const margin = hasLaborData ? calcLineMargin(line) : 0;
+        const marginRatio = line.sales ? margin / line.sales : 0;
+        return [
+          index + 1,
+          escapeCsv(line.name),
+          escapeCsv(line.id),
+          formatNumber(Math.round(line.sales)),
+          hours.toFixed(2),
+          formatNumber(Math.round(cost)),
+          formatNumber(Math.round(margin)),
+          `${(marginRatio * 100).toFixed(2)}%`,
+        ].join(",");
+      }),
       "",
-      "",
+      thinSeparator,
       "TOTALES",
+      thinSeparator,
+      `,TOTAL,,${formatNumber(Math.round(totalSales))},${totalHours.toFixed(2)},${formatNumber(Math.round(totalCost))},${formatNumber(Math.round(totalMargin))},${(totalMarginRatio * 100).toFixed(2)}%`,
       "",
-      `Total,,,${formatNumber(Math.round(totalSales))},${totalHours},${formatNumber(Math.round(totalCost))},${formatNumber(Math.round(totalMargin))},${(totalMarginRatio * 100).toFixed(2)}%`,
+      "",
+      separator,
+      "Generado automáticamente por Visor de Productividad",
+      separator,
     ];
 
     const csvContent = csvLines.join("\n");
@@ -1631,7 +1612,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const safeSede = selectedSede.replace(/\s+/g, "-");
-    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
+    const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
       dateRange.end || "sin-fecha"
     }.csv`;
     link.href = url;
@@ -1648,57 +1629,267 @@ export default function Home() {
     selectedSedeName,
   ]);
 
-  const handleDownloadXlsx = useCallback(() => {
-    // Crear libro de trabajo
-    const workbook = XLSX.utils.book_new();
+  const handleDownloadXlsx = useCallback(async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Visor de Productividad";
+    workbook.created = new Date();
 
-    // Preparar datos
-    const formatNumber = (value: number) => Math.round(value);
+    const worksheet = workbook.addWorksheet("Productividad", {
+      views: [{ showGridLines: false }],
+    });
 
-    // Fila de título y metadatos
-    const metaData = [
-      ["REPORTE DE PRODUCTIVIDAD POR LÍNEA"],
-      [],
-      ["Información del Reporte"],
+    // Colores corporativos
+    const primaryColor = "1F4E79";
+    const accentColor = "2E75B6";
+    const lightBg = "D6DCE4";
+    const totalBg = "BDD7EE";
+
+    // Configurar anchos de columna
+    worksheet.columns = [
+      { key: "num", width: 6 },
+      { key: "linea", width: 22 },
+      { key: "codigo", width: 18 },
+      { key: "ventas", width: 18 },
+      { key: "horas", width: 12 },
+      { key: "costo", width: 18 },
+      { key: "margen", width: 18 },
+      { key: "margenPct", width: 14 },
+    ];
+
+    // === TÍTULO ===
+    worksheet.mergeCells("A1:H1");
+    const titleCell = worksheet.getCell("A1");
+    titleCell.value = "REPORTE DE PRODUCTIVIDAD POR LÍNEA";
+    titleCell.font = { name: "Calibri", size: 18, bold: true, color: { argb: primaryColor } };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(1).height = 30;
+
+    // === INFORMACIÓN DEL REPORTE ===
+    const infoStartRow = 3;
+    const infoData = [
       ["Sede:", selectedSedeName],
       ["Rango:", dateRangeLabel || "Sin rango definido"],
       ["Filtro:", lineFilterLabel],
       ["Generado:", formatPdfDate()],
-      [],
-      [],
     ];
 
-    // Headers
-    const headers = [
-      "#",
-      "Línea",
-      "Código",
-      "Ventas",
-      "Horas",
-      "Costo",
-      "Margen",
-      "Margen %",
-    ];
+    worksheet.mergeCells(`A${infoStartRow}:H${infoStartRow}`);
+    const infoHeaderCell = worksheet.getCell(`A${infoStartRow}`);
+    infoHeaderCell.value = "Información del Reporte";
+    infoHeaderCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: primaryColor } };
+    infoHeaderCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: lightBg } };
+    worksheet.getRow(infoStartRow).height = 22;
 
-    // Filas de datos
-    const dataRows = pdfLines.map((line, index) => {
+    infoData.forEach((item, index) => {
+      const rowNum = infoStartRow + 1 + index;
+      worksheet.getCell(`A${rowNum}`).value = item[0];
+      worksheet.getCell(`A${rowNum}`).font = { name: "Calibri", size: 11, bold: true };
+      worksheet.getCell(`B${rowNum}`).value = item[1];
+      worksheet.getCell(`B${rowNum}`).font = { name: "Calibri", size: 11 };
+    });
+
+    // === ENCABEZADOS DE TABLA ===
+    const headerRow = infoStartRow + infoData.length + 2;
+    const headers = ["#", "Línea", "Código", "Ventas ($)", "Horas", "Costo ($)", "Margen ($)", "Margen %"];
+
+    const headerRowObj = worksheet.getRow(headerRow);
+    headers.forEach((header, index) => {
+      const cell = headerRowObj.getCell(index + 1);
+      cell.value = header;
+      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: primaryColor } };
+      cell.alignment = { horizontal: index <= 2 ? "left" : "right", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin", color: { argb: primaryColor } },
+        bottom: { style: "thin", color: { argb: primaryColor } },
+        left: { style: "thin", color: { argb: primaryColor } },
+        right: { style: "thin", color: { argb: primaryColor } },
+      };
+    });
+    headerRowObj.height = 24;
+
+    // === FILAS DE DATOS ===
+    const dataStartRow = headerRow + 1;
+    let totalSales = 0;
+    let totalHours = 0;
+    let totalCost = 0;
+    let totalMargin = 0;
+
+    pdfLines.forEach((line, index) => {
       const hasLaborData = hasLaborDataForLine(line.id);
       const hours = hasLaborData ? line.hours : 0;
       const cost = hasLaborData ? calcLineCost(line) : 0;
       const margin = hasLaborData ? calcLineMargin(line) : 0;
       const marginRatio = line.sales ? margin / line.sales : 0;
 
-      return [
+      totalSales += line.sales;
+      totalHours += hours;
+      totalCost += cost;
+      totalMargin += margin;
+
+      const rowNum = dataStartRow + index;
+      const row = worksheet.getRow(rowNum);
+      const isEven = index % 2 === 0;
+      const rowBg = isEven ? "F2F2F2" : "FFFFFF";
+
+      const rowData = [
         index + 1,
         line.name,
         line.id,
-        formatNumber(line.sales),
+        Math.round(line.sales),
         hours,
-        formatNumber(cost),
-        formatNumber(margin),
-        marginRatio, // Excel formateará como porcentaje
+        Math.round(cost),
+        Math.round(margin),
+        marginRatio,
       ];
+
+      rowData.forEach((value, colIndex) => {
+        const cell = row.getCell(colIndex + 1);
+        cell.value = value;
+        cell.font = { name: "Calibri", size: 11 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
+        cell.alignment = { horizontal: colIndex <= 2 ? "left" : "right", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "D9D9D9" } },
+          bottom: { style: "thin", color: { argb: "D9D9D9" } },
+          left: { style: "thin", color: { argb: "D9D9D9" } },
+          right: { style: "thin", color: { argb: "D9D9D9" } },
+        };
+
+        // Formato numérico
+        if (colIndex >= 3 && colIndex <= 6) {
+          cell.numFmt = "#,##0";
+        }
+        if (colIndex === 7) {
+          cell.numFmt = "0.00%";
+        }
+      });
+      row.height = 20;
     });
+
+    // === FILA DE TOTALES ===
+    const totalRowNum = dataStartRow + pdfLines.length + 1;
+    const totalRow = worksheet.getRow(totalRowNum);
+    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
+
+    const totalsData = [
+      "",
+      "TOTAL",
+      "",
+      Math.round(totalSales),
+      totalHours,
+      Math.round(totalCost),
+      Math.round(totalMargin),
+      totalMarginRatio,
+    ];
+
+    totalsData.forEach((value, colIndex) => {
+      const cell = totalRow.getCell(colIndex + 1);
+      cell.value = value;
+      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: primaryColor } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: totalBg } };
+      cell.alignment = { horizontal: colIndex <= 2 ? "left" : "right", vertical: "middle" };
+      cell.border = {
+        top: { style: "medium", color: { argb: accentColor } },
+        bottom: { style: "medium", color: { argb: accentColor } },
+        left: { style: "thin", color: { argb: accentColor } },
+        right: { style: "thin", color: { argb: accentColor } },
+      };
+
+      if (colIndex >= 3 && colIndex <= 6) {
+        cell.numFmt = "#,##0";
+      }
+      if (colIndex === 7) {
+        cell.numFmt = "0.00%";
+      }
+    });
+    totalRow.height = 24;
+
+    // === PIE DE PÁGINA ===
+    const footerRow = totalRowNum + 2;
+    worksheet.mergeCells(`A${footerRow}:H${footerRow}`);
+    const footerCell = worksheet.getCell(`A${footerRow}`);
+    footerCell.value = "Generado automáticamente por Visor de Productividad";
+    footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "808080" } };
+    footerCell.alignment = { horizontal: "center" };
+
+    // Generar y descargar archivo
+    const safeSede = selectedSede.replace(/\s+/g, "-");
+    const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
+      dateRange.end || "sin-fecha"
+    }.xlsx`;
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [
+    dateRange.end,
+    dateRange.start,
+    dateRangeLabel,
+    lineFilterLabel,
+    pdfLines,
+    selectedSede,
+    selectedSedeName,
+  ]);
+
+  const handleDownloadPdf = useCallback(() => {
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const primaryColor: [number, number, number] = [31, 78, 121];
+    const accentColor: [number, number, number] = [46, 117, 182];
+
+    const formatNumber = (value: number) =>
+      new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(value);
+
+    // === TÍTULO ===
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 20, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("REPORTE DE PRODUCTIVIDAD POR LÍNEA", pageWidth / 2, 13, { align: "center" });
+
+    // === INFORMACIÓN DEL REPORTE ===
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(214, 220, 228);
+    doc.rect(15, 25, pageWidth - 30, 8, "F");
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...primaryColor);
+    doc.text("Información del Reporte", 20, 30.5);
+
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(10);
+    const infoY = 40;
+    const infoData = [
+      ["Sede:", selectedSedeName],
+      ["Rango:", dateRangeLabel || "Sin rango definido"],
+      ["Filtro:", lineFilterLabel],
+      ["Generado:", formatPdfDate()],
+    ];
+
+    infoData.forEach((item, index) => {
+      const y = infoY + index * 6;
+      doc.setFont("helvetica", "bold");
+      doc.text(item[0], 20, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(item[1], 45, y);
+    });
+
+    // === TABLA DE DATOS ===
+    const tableStartY = infoY + infoData.length * 6 + 8;
 
     // Calcular totales
     const totalSales = pdfLines.reduce((acc, line) => acc + line.sales, 0);
@@ -1716,236 +1907,98 @@ export default function Home() {
     }, 0);
     const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
 
+    // Preparar filas de datos
+    const tableBody = pdfLines.map((line, index) => {
+      const hasLaborData = hasLaborDataForLine(line.id);
+      const hours = hasLaborData ? line.hours : 0;
+      const cost = hasLaborData ? calcLineCost(line) : 0;
+      const margin = hasLaborData ? calcLineMargin(line) : 0;
+      const marginRatio = line.sales ? margin / line.sales : 0;
+
+      return [
+        (index + 1).toString(),
+        line.name,
+        line.id,
+        `$ ${formatNumber(Math.round(line.sales))}`,
+        hours.toFixed(2),
+        `$ ${formatNumber(Math.round(cost))}`,
+        `$ ${formatNumber(Math.round(margin))}`,
+        `${(marginRatio * 100).toFixed(2)}%`,
+      ];
+    });
+
     // Fila de totales
     const totalsRow = [
       "",
       "TOTAL",
       "",
-      formatNumber(totalSales),
-      totalHours,
-      formatNumber(totalCost),
-      formatNumber(totalMargin),
-      totalMarginRatio,
+      `$ ${formatNumber(Math.round(totalSales))}`,
+      totalHours.toFixed(2),
+      `$ ${formatNumber(Math.round(totalCost))}`,
+      `$ ${formatNumber(Math.round(totalMargin))}`,
+      `${(totalMarginRatio * 100).toFixed(2)}%`,
     ];
 
-    // Combinar todos los datos
-    const sheetData = [...metaData, [headers], ...dataRows, [], [totalsRow]];
-
-    // Crear hoja
-    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-    // Configurar anchos de columna
-    worksheet["!cols"] = [
-      { wch: 5 }, // #
-      { wch: 30 }, // Línea
-      { wch: 15 }, // Código
-      { wch: 15 }, // Ventas
-      { wch: 10 }, // Horas
-      { wch: 15 }, // Costo
-      { wch: 15 }, // Margen
-      { wch: 12 }, // Margen %
-    ];
-
-    // Aplicar formato de porcentaje a la columna de Margen %
-    const headerRowIndex = metaData.length;
-    dataRows.forEach((_, index) => {
-      const rowIndex = headerRowIndex + index + 1;
-      const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: 7 });
-      if (worksheet[cellAddress]) {
-        worksheet[cellAddress].z = "0.00%";
-      }
-    });
-
-    // Formato para la fila de totales
-    const totalRowIndex = headerRowIndex + dataRows.length + 2;
-    const totalPercentCell = XLSX.utils.encode_cell({ r: totalRowIndex, c: 7 });
-    if (worksheet[totalPercentCell]) {
-      worksheet[totalPercentCell].z = "0.00%";
-    }
-
-    // Agregar hoja al libro
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Productividad");
-
-    // Generar nombre de archivo
-    const safeSede = selectedSede.replace(/\s+/g, "-");
-    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
-      dateRange.end || "sin-fecha"
-    }.xlsx`;
-
-    // Descargar archivo
-    XLSX.writeFile(workbook, fileName);
-  }, [
-    dateRange.end,
-    dateRange.start,
-    dateRangeLabel,
-    lineFilterLabel,
-    pdfLines,
-    selectedSede,
-    selectedSedeName,
-  ]);
-
-  const handleDownloadPdf = useCallback(() => {
-    type PdfLine = { text: string; font: string; size: number };
-    const columns = [
-      { label: "#", width: 3, align: "right" as const },
-      { label: "Linea", width: 26, align: "left" as const },
-      { label: "Codigo", width: 14, align: "left" as const },
-      { label: "Ventas", width: 14, align: "right" as const },
-      { label: "Horas", width: 7, align: "right" as const },
-      { label: "Costo", width: 12, align: "right" as const },
-      { label: "Margen", width: 12, align: "right" as const },
-      { label: "Margen %", width: 9, align: "right" as const },
-    ];
-    const fitCell = (cell: string, width: number, align: "left" | "right") => {
-      const safeCell = cell.length > width ? cell.slice(0, width) : cell;
-      return align === "right"
-        ? safeCell.padStart(width)
-        : safeCell.padEnd(width);
-    };
-
-    const formatRow = (cells: string[]) =>
-      cells
-        .map((cell, index) => {
-          const { width, align } = columns[index];
-          return fitCell(cell, width, align);
-        })
-        .join("  ");
-
-    const headerRow = formatRow(columns.map((column) => column.label));
-    const dividerRow = "-".repeat(headerRow.length);
-    const rows = buildPdfRows(pdfLines).map((row) => formatRow(row));
-
-    const contentLines: PdfLine[] = [
-      { text: "Reporte de lineas", font: "F2", size: 16 },
-      { text: selectedSedeName, font: "F1", size: 12 },
-      { text: "", font: "F1", size: 11 },
-      {
-        text: `Rango: ${dateRangeLabel || "Sin rango definido"}`,
-        font: "F1",
-        size: 11,
+    autoTable(doc, {
+      startY: tableStartY,
+      head: [["#", "Línea", "Código", "Ventas", "Horas", "Costo", "Margen", "Margen %"]],
+      body: tableBody,
+      foot: [totalsRow],
+      theme: "grid",
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        halign: "center",
+        fontSize: 10,
       },
-      { text: `Filtro: ${lineFilterLabel}`, font: "F1", size: 11 },
-      { text: `Generado: ${formatPdfDate()}`, font: "F1", size: 11 },
-      { text: "", font: "F1", size: 11 },
-      { text: headerRow, font: "F3", size: 11 },
-      { text: dividerRow, font: "F3", size: 11 },
-      ...rows.map((row) => ({ text: row, font: "F3", size: 11 })),
-    ];
-
-    const pageWidth = 842;
-    const pageHeight = 595;
-    const marginLeft = 50;
-    const marginTop = 50;
-    const marginBottom = 50;
-    const lineHeight = 16;
-    const linesPerPage = Math.floor(
-      (pageHeight - marginTop - marginBottom) / lineHeight,
-    );
-    const pages: PdfLine[][] = [];
-
-    for (let i = 0; i < contentLines.length; i += linesPerPage) {
-      pages.push(contentLines.slice(i, i + linesPerPage));
-    }
-
-    const escapePdfText = (text: string) =>
-      text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-
-    const encoder = new TextEncoder();
-    const objectOffsets: number[] = [];
-    const parts: string[] = [];
-    const header = "%PDF-1.4\n";
-    let currentOffset = encoder.encode(header).length;
-
-    const addObject = (id: number, body: string) => {
-      const objectBody = `${id} 0 obj\n${body}\nendobj\n`;
-      objectOffsets[id] = currentOffset;
-      parts.push(objectBody);
-      currentOffset += encoder.encode(objectBody).length;
-    };
-
-    const catalogId = 1;
-    const pagesId = 2;
-    let nextId = 3;
-    const pageIds: number[] = [];
-    const contentIds: number[] = [];
-
-    pages.forEach(() => {
-      pageIds.push(nextId++);
-      contentIds.push(nextId++);
+      bodyStyles: {
+        fontSize: 9,
+        textColor: [50, 50, 50],
+      },
+      footStyles: {
+        fillColor: [189, 215, 238],
+        textColor: primaryColor,
+        fontStyle: "bold",
+        fontSize: 10,
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 12 },
+        1: { halign: "left", cellWidth: 50 },
+        2: { halign: "left", cellWidth: 35 },
+        3: { halign: "right", cellWidth: 35 },
+        4: { halign: "right", cellWidth: 22 },
+        5: { halign: "right", cellWidth: 35 },
+        6: { halign: "right", cellWidth: 35 },
+        7: { halign: "right", cellWidth: 25 },
+      },
+      margin: { left: 15, right: 15 },
+      styles: {
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1,
+      },
     });
 
-    const fontRegularId = nextId++;
-    const fontBoldId = nextId++;
-    const fontMonoId = nextId++;
-
-    const kids = pageIds.map((id) => `${id} 0 R`).join(" ");
-    addObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
-    addObject(
-      pagesId,
-      `<< /Type /Pages /Kids [${kids}] /Count ${pageIds.length} >>`,
-    );
-
-    pageIds.forEach((pageId, index) => {
-      const contentId = contentIds[index];
-      addObject(
-        pageId,
-        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R /F3 ${fontMonoId} 0 R >> >> >>`,
-      );
+    // === PIE DE PÁGINA ===
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setFillColor(...accentColor);
+    doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "italic");
+    doc.text("Generado automáticamente por Visor de Productividad", pageWidth / 2, pageHeight - 4, {
+      align: "center",
     });
 
-    contentIds.forEach((contentId, index) => {
-      const lines = pages[index];
-      const startY = pageHeight - marginTop;
-      let stream = `BT\n${marginLeft} ${startY} Td\n${lineHeight} TL\n`;
-      lines.forEach((line) => {
-        stream += `/${line.font} ${line.size} Tf\n(${escapePdfText(
-          line.text,
-        )}) Tj\nT*\n`;
-      });
-      stream += "ET";
-      addObject(
-        contentId,
-        `<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}\nendstream`,
-      );
-    });
-
-    addObject(
-      fontRegularId,
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    );
-    addObject(
-      fontBoldId,
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
-    );
-    addObject(
-      fontMonoId,
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
-    );
-
-    const maxId = fontMonoId;
-    const xrefOffset = currentOffset;
-    const xrefLines = [`xref`, `0 ${maxId + 1}`, "0000000000 65535 f "];
-
-    for (let id = 1; id <= maxId; id += 1) {
-      const offset = objectOffsets[id] ?? 0;
-      xrefLines.push(`${String(offset).padStart(10, "0")} 00000 n `);
-    }
-
-    const xref = `${xrefLines.join("\n")}\n`;
-    const trailer = `trailer\n<< /Size ${maxId + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-    const pdfContent = `${header}${parts.join("")}${xref}${trailer}`;
-
-    const blob = new Blob([pdfContent], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    // Descargar
     const safeSede = selectedSede.replace(/\s+/g, "-");
-    const fileName = `lineas-${safeSede}-${dateRange.start || "sin-fecha"}-${
+    const fileName = `reporte-productividad-${safeSede}-${dateRange.start || "sin-fecha"}-${
       dateRange.end || "sin-fecha"
     }.pdf`;
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
+    doc.save(fileName);
   }, [
     dateRange.end,
     dateRange.start,
