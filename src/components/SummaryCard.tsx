@@ -133,11 +133,19 @@ const calculateMetrics = (summary: DailySummary) => {
         ? "text-rose-600"
         : "text-slate-700";
 
+  const marginValueClass =
+    summary.margin > 0
+      ? "text-emerald-600"
+      : summary.margin < 0
+        ? "text-rose-600"
+        : "text-slate-700";
+
   return {
     marginRatio,
     salesPerHour,
     marginPerHour,
     marginPercentClass,
+    marginValueClass,
   };
 };
 
@@ -152,7 +160,7 @@ export const SummaryCard = ({
   hasData = true,
   comparisons = [],
 }: SummaryCardProps) => {
-  const { marginRatio, salesPerHour, marginPerHour, marginPercentClass } =
+  const { marginRatio, salesPerHour, marginPerHour, marginPercentClass, marginValueClass } =
     calculateMetrics(summary);
   const emptyValueClass = hasData ? "text-slate-900" : "text-slate-600";
 
@@ -196,7 +204,7 @@ export const SummaryCard = ({
         <MetricCard
           label="Margen acumulado"
           value={hasData ? formatCOP(summary.margin) : formatCOP(0)}
-          valueClassName={emptyValueClass}
+          valueClassName={hasData ? marginValueClass : emptyValueClass}
           subtitle={
             hasData ? `${formatPercent(marginRatio)} margen` : undefined
           }

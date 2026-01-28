@@ -78,12 +78,24 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
         <MetricRow
           label="Margen"
           value={hasData ? formatCOP(margin) : zeroCurrency}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
+          valueClassName={
+            hasData
+              ? margin >= 0
+                ? "text-green-600"
+                : "text-red-600"
+              : "text-slate-600"
+          }
         />
         <MetricRow
           label="% Margen"
           value={hasData ? formatPercent(marginPercent) : zeroPercent}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
+          valueClassName={
+            hasData
+              ? marginPercent >= 0
+                ? "text-green-600"
+                : "text-red-600"
+              : "text-slate-600"
+          }
         />
       </div>
     </article>

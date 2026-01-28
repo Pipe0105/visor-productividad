@@ -106,10 +106,18 @@ const TableRow = ({
       <td className="px-4 py-3 text-slate-700">
         {hasData ? formatCOP(line.cost) : zeroCurrency}
       </td>
-      <td className="px-4 py-3 font-semibold text-slate-900">
+      <td
+        className={`px-4 py-3 font-semibold ${
+          hasData && line.margin >= 0 ? "text-green-600" : hasData && line.margin < 0 ? "text-red-600" : "text-slate-900"
+        }`}
+      >
         {hasData ? formatCOP(line.margin) : zeroCurrency}
       </td>
-      <td className="px-4 py-3 font-semibold text-slate-900">
+      <td
+        className={`px-4 py-3 font-semibold ${
+          hasData && line.marginRatio >= 0 ? "text-green-600" : hasData && line.marginRatio < 0 ? "text-red-600" : "text-slate-900"
+        }`}
+      >
         {hasData ? formatPercent(line.marginRatio) : zeroPercent}
       </td>
       <td className="rounded-r-2xl px-4 py-3 font-semibold text-slate-900">
