@@ -1228,6 +1228,7 @@ const SelectionSummary = ({
 export default function Home() {
   // Estado para controlar hidratación
   const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   // Estado con persistencia - siempre inicia con valores por defecto
   const [selectedSede, setSelectedSede] = useState("Floresta");
@@ -1267,6 +1268,18 @@ export default function Home() {
 
     const savedActiveTab = localStorage.getItem("activeTab");
     if (savedActiveTab) setActiveTab(savedActiveTab as "lines" | "summaries");
+
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    } else if (window.matchMedia) {
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      setTheme(prefersDark ? "dark" : "light");
+      document.documentElement.classList.toggle("dark", prefersDark);
+    }
   }, []);
 
   // Guardar preferencias en localStorage (solo después de montar)
@@ -1294,6 +1307,16 @@ export default function Home() {
     if (!mounted) return;
     localStorage.setItem("activeTab", activeTab);
   }, [activeTab, mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme, mounted]);
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
 
   // Estados adicionales para búsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
@@ -2009,9 +2032,11 @@ export default function Home() {
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
+          theme={theme}
           onSedeChange={setSelectedSede}
           onStartDateChange={handleStartDateChange}
           onEndDateChange={handleEndDateChange}
+          onToggleTheme={handleToggleTheme}
         />
 
         <SelectionSummary
