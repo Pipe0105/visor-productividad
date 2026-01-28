@@ -34,15 +34,15 @@ type LineWithMetrics = LineMetrics & {
 
 const TableHeader = () => (
   <thead>
-    <tr className="text-xs uppercase tracking-[0.2em] text-slate-700">
-      <th className="w-8 px-2 py-2"></th>
-      <th className="px-4 py-2 text-left font-semibold">Línea</th>
-      <th className="px-4 py-2 text-left font-semibold">Ventas</th>
-      <th className="px-4 py-2 text-left font-semibold">Horas</th>
-      <th className="px-4 py-2 text-left font-semibold">Costo</th>
-      <th className="px-4 py-2 text-left font-semibold">Margen</th>
-      <th className="px-4 py-2 text-left font-semibold">Margen %</th>
-      <th className="px-4 py-2 text-left font-semibold">Margen/h</th>
+    <tr className="text-[10px] uppercase tracking-[0.1em] text-slate-700 sm:text-xs sm:tracking-[0.2em]">
+      <th className="w-6 px-1 py-1.5 sm:w-8 sm:px-2 sm:py-2"></th>
+      <th className="sticky left-0 bg-white px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Línea</th>
+      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Ventas</th>
+      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Horas</th>
+      <th className="hidden px-2 py-1.5 text-left font-semibold sm:table-cell sm:px-4 sm:py-2">Costo</th>
+      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Margen</th>
+      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">%</th>
+      <th className="hidden px-2 py-1.5 text-left font-semibold sm:table-cell sm:px-4 sm:py-2">M/h</th>
     </tr>
   </thead>
 );
@@ -82,7 +82,7 @@ const TableRow = ({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className={`rounded-2xl transition-all cursor-grab active:cursor-grabbing ${
+      className={`rounded-xl transition-all cursor-grab active:cursor-grabbing sm:rounded-2xl ${
         isDragging
           ? "opacity-50 bg-mercamio-100"
           : isDragOver
@@ -90,37 +90,37 @@ const TableRow = ({
             : "bg-slate-50 hover:bg-slate-100"
       }`}
     >
-      <td className="rounded-l-2xl px-2 py-3 text-slate-700">
-        <GripVertical className="h-4 w-4" />
+      <td className="rounded-l-xl px-1 py-2 text-slate-700 sm:rounded-l-2xl sm:px-2 sm:py-3">
+        <GripVertical className="h-3 w-3 sm:h-4 sm:w-4" />
       </td>
-      <td className="px-4 py-3">
-        <p className="font-semibold text-slate-900">{line.name}</p>
-        <p className="text-xs text-slate-700">{line.id}</p>
+      <td className="sticky left-0 bg-inherit px-2 py-2 sm:px-4 sm:py-3">
+        <p className="text-xs font-semibold text-slate-900 sm:text-sm">{line.name}</p>
+        <p className="hidden text-xs text-slate-700 sm:block">{line.id}</p>
       </td>
-      <td className="px-4 py-3 font-semibold text-slate-900">
+      <td className="px-2 py-2 text-xs font-semibold text-slate-900 sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? formatCOP(line.sales) : "—"}
       </td>
-      <td className="px-4 py-3 text-slate-700">
+      <td className="px-2 py-2 text-xs text-slate-700 sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? `${formatHours(displayHours)}h` : zeroHours}
       </td>
-      <td className="px-4 py-3 text-slate-700">
+      <td className="hidden px-2 py-2 text-xs text-slate-700 sm:table-cell sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? formatCOP(line.cost) : zeroCurrency}
       </td>
       <td
-        className={`px-4 py-3 font-semibold ${
+        className={`px-2 py-2 text-xs font-semibold sm:px-4 sm:py-3 sm:text-sm ${
           hasData && line.margin >= 0 ? "text-green-600" : hasData && line.margin < 0 ? "text-red-600" : "text-slate-900"
         }`}
       >
         {hasData ? formatCOP(line.margin) : zeroCurrency}
       </td>
       <td
-        className={`px-4 py-3 font-semibold ${
+        className={`px-2 py-2 text-xs font-semibold sm:px-4 sm:py-3 sm:text-sm ${
           hasData && line.marginRatio >= 0 ? "text-green-600" : hasData && line.marginRatio < 0 ? "text-red-600" : "text-slate-900"
         }`}
       >
         {hasData ? formatPercent(line.marginRatio) : zeroPercent}
       </td>
-      <td className="rounded-r-2xl px-4 py-3 font-semibold text-slate-900">
+      <td className="hidden rounded-r-xl px-2 py-2 text-xs font-semibold text-slate-900 sm:table-cell sm:rounded-r-2xl sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? formatCOP(line.marginPerHour) : zeroCurrency}
       </td>
     </tr>
@@ -136,31 +136,32 @@ const TableSummary = ({
   isCustomOrder: boolean;
   onResetOrder: () => void;
 }) => (
-  <div className="flex flex-wrap items-center justify-between gap-3">
+  <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
     <div>
-      <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
+      <p className="text-xs uppercase tracking-[0.15em] text-slate-800 sm:text-sm sm:tracking-[0.2em]">
         Comparativo de líneas
       </p>
-      <h3 className="text-2xl font-semibold text-slate-900">
+      <h3 className="text-lg font-semibold text-slate-900 sm:text-2xl">
         Rentabilidad en comparación
       </h3>
-      <p className="mt-2 text-sm text-slate-700">
+      <p className="mt-1 text-xs text-slate-700 sm:mt-2 sm:text-sm">
         {isCustomOrder
-          ? "Orden personalizado. Arrastra las filas para comparar."
-          : "Ordenado por margen. Arrastra las filas para comparar."}
+          ? "Orden personalizado."
+          : "Ordenado por margen."}
+        <span className="hidden sm:inline"> Arrastra las filas para comparar.</span>
       </p>
     </div>
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       {isCustomOrder && (
         <button
           type="button"
           onClick={onResetOrder}
-          className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100"
+          className="rounded-full border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]"
         >
-          Restaurar orden
+          Restaurar
         </button>
       )}
-      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-700 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em]">
         {count} {count === 1 ? "línea" : "líneas"}
       </span>
     </div>
@@ -272,7 +273,7 @@ export const LineComparisonTable = ({
   return (
     <section
       data-animate="comparison-card"
-      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)]"
+      className="rounded-2xl border border-slate-200/70 bg-white p-3 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)] sm:rounded-3xl sm:p-6"
     >
       <TableSummary
         count={sortedLines.length}
@@ -283,8 +284,8 @@ export const LineComparisonTable = ({
       {sortedLines.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-180 border-separate border-spacing-y-2 text-left text-sm">
+        <div className="-mx-1 mt-3 overflow-x-auto sm:-mx-0 sm:mt-6">
+          <table className="w-full min-w-[400px] border-separate border-spacing-y-1 text-left text-xs sm:min-w-[700px] sm:border-spacing-y-2 sm:text-sm">
             <TableHeader />
             <tbody>
               {sortedLines.map((line, index) => (

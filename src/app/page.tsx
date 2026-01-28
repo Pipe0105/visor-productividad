@@ -2076,8 +2076,8 @@ export default function Home() {
 
   // Render
   return (
-    <div className="min-h-screen bg-background px-4 pb-16 pt-10 text-foreground sm:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
+    <div className="min-h-screen bg-background px-3 pb-8 pt-4 text-foreground sm:px-4 sm:pb-12 sm:pt-6 md:px-8 md:pb-16 md:pt-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6 md:gap-10">
         <TopBar
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
@@ -2114,22 +2114,23 @@ export default function Home() {
 
         {/* Tabs Navigation */}
         {!isLoading && lines.length > 0 && (
-          <div className="flex items-center gap-2 rounded-3xl border border-slate-200/70 bg-white p-2 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+          <div className="flex items-center gap-1 rounded-2xl border border-slate-200/70 bg-white p-1.5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] sm:gap-2 sm:rounded-3xl sm:p-2">
             <button
               type="button"
               onClick={() => setActiveTab("lines")}
-              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
+              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
                 activeTab === "lines"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
                   : "text-slate-700 hover:text-slate-800"
               }`}
             >
-              Líneas de producción
+              <span className="hidden sm:inline">Líneas de producción</span>
+              <span className="sm:hidden">Líneas</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("summaries")}
-              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
+              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
                 activeTab === "summaries"
                   ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
                   : "text-slate-700 hover:text-slate-800"
