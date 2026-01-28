@@ -181,13 +181,13 @@ const normalizeDepto = (depto: string): string => {
 const SEDE_ASISTENCIA_TO_SYSTEM: Record<string, string> = {
   "merkmios bogota": "Bogotá",
   "mio plaza norte": "Plaza Norte",
-  "floresta": "Floresta",
+  floresta: "Floresta",
   "la 5a": "Calle 5ta",
   "palmira mercamio": "Palmira",
-  "guaduales": "Guaduales",
+  guaduales: "Guaduales",
   "merkmios chia": "Chía",
   "centro sur": "Centro Sur",
-  "floralia": "Floralia",
+  floralia: "Floralia",
   "la 39": "La 39",
   "ciudad jardin": "Ciudad Jardín",
 };
@@ -202,6 +202,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
+    const isDev = process.env.NODE_ENV !== "production";
     const dailyDataMap = new Map<string, DailyProductivity>();
 
     for (const line of LINE_TABLES) {
@@ -235,7 +236,8 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
           const centroOp = typedRow.centro_operacion;
           const empresa = typedRow.empresa_bd || "";
           const sedeKey = getSedeKey(centroOp, empresa);
-          const sedeName = SEDE_NAMES[sedeKey] || `Sede ${centroOp} ${empresa}`.trim();
+          const sedeName =
+            SEDE_NAMES[sedeKey] || `Sede ${centroOp} ${empresa}`.trim();
           const key = `${fecha}_${sedeName}`;
 
           // Obtener o crear el registro de DailyProductivity
@@ -294,7 +296,10 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
       // DEBUG: Resumen inicial
       console.log("=== DEBUG HORAS ===");
       console.log("Claves ventas:", dailyDataMap.size);
-      console.log("Primeras 5 claves ventas:", Array.from(dailyDataMap.keys()).slice(0, 5));
+      console.log(
+        "Primeras 5 claves ventas:",
+        Array.from(dailyDataMap.keys()).slice(0, 5),
+      );
       console.log("Filas horas:", hoursResult.rows?.length ?? 0);
 
       let horasAsignadas = 0;
@@ -392,7 +397,12 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
         }
       }
       console.log("Sedes únicas en horas:", Array.from(sedesHoras));
-      console.log("Sedes únicas en ventas:", Array.from(new Set(Array.from(dailyDataMap.values()).map(d => d.sede))));
+      console.log(
+        "Sedes únicas en ventas:",
+        Array.from(
+          new Set(Array.from(dailyDataMap.values()).map((d) => d.sede)),
+        ),
+      );
       console.log("Resumen:", { horasAsignadas, filasSkipped });
     } catch (error) {
       console.warn("No se pudo consultar la tabla asistencia_horas:", error);
@@ -420,7 +430,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
 
     // DEBUG: Verificar que los datos finales tienen horas
     const sampleWithHours = sortedResult.find((d) =>
-      d.lines.some((l) => l.hours > 0)
+      d.lines.some((l) => l.hours > 0),
     );
     if (sampleWithHours) {
       const lineWithHours = sampleWithHours.lines.find((l) => l.hours > 0);
