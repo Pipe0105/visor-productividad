@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
@@ -15,7 +15,7 @@ import {
 import { LineChart } from "@mui/x-charts/LineChart";
 import * as ExcelJS from "exceljs";
 import type { XAxis, YAxis } from "@mui/x-charts/models";
-import type { LineSeriesType } from "@mui/x-charts/models/seriesType/line";
+import type { LineSeries } from "@mui/x-charts/LineChart";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { LineCard } from "@/components/LineCard";
@@ -116,7 +116,7 @@ const useProductivityData = () => {
             : DEFAULT_SEDES;
 
         if (!response.ok) {
-          throw new Error(payload.error ?? "No se pudo cargar la información");
+          throw new Error(payload.error ?? "No se pudo cargar la informaciÃ³n");
         }
 
         setDailyDataSet(resolvedDailyData);
@@ -446,7 +446,7 @@ const SearchAndSort = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Buscar por nombre o código..."
+            placeholder="Buscar por nombre o cÃ³digo..."
             className="w-full rounded-full border border-slate-200/70 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-600 transition-all focus:border-mercamio-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           />
         </div>
@@ -493,11 +493,11 @@ const ViewToggle = ({
       case "cards":
         return "Tarjetas detalladas";
       case "comparison":
-        return "Comparativo de líneas";
+        return "Comparativo de lÃ­neas";
       case "chart":
-        return "Top 6 líneas (gráfico)";
+        return "Top 6 lÃ­neas (grÃ¡fico)";
       case "trends":
-        return "Análisis de tendencias";
+        return "AnÃ¡lisis de tendencias";
     }
   };
 
@@ -505,11 +505,11 @@ const ViewToggle = ({
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-          Vista de líneas
+          Vista de lÃ­neas
         </p>
         <p className="text-sm font-semibold text-slate-900">{getModeLabel()}</p>
         <p className="mt-1 text-xs text-slate-700">
-          Alterna la visualización para detectar oportunidades rápidamente.
+          Alterna la visualizaciÃ³n para detectar oportunidades rÃ¡pidamente.
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
@@ -550,7 +550,7 @@ const ViewToggle = ({
           }`}
         >
           <BarChart3 className="h-4 w-4" />
-          Gráfico
+          GrÃ¡fico
         </button>
         <button
           type="button"
@@ -588,10 +588,7 @@ const ChartVisualization = ({
   const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [selectedChartSedes, setSelectedChartSedes] = useState<string[]>([]);
 
-  const sedeOptions = useMemo(
-    () => sortSedesByOrder(sedes ?? []),
-    [sedes],
-  );
+  const sedeOptions = useMemo(() => sortSedesByOrder(sedes ?? []), [sedes]);
 
   const chartDates = useMemo<string[]>(() => {
     if (!dateRange.start || !dateRange.end) {
@@ -618,9 +615,7 @@ const ChartVisualization = ({
     }
     setSelectedSeries((prev) => {
       const available = new Set(lineOptions.map((line) => line.id));
-      const next = prev.filter((id) => available.has(id));
-      if (next.length > 0) return next;
-      return lineOptions.slice(0, 3).map((line) => line.id);
+      return prev.filter((id) => available.has(id));
     });
   }, [lineOptions]);
 
@@ -631,9 +626,7 @@ const ChartVisualization = ({
     }
     setSelectedChartSedes((prev) => {
       const available = new Set(sedeOptions.map((sede) => sede.id));
-      const next = prev.filter((id) => available.has(id));
-      if (next.length > 0) return next;
-      return sedeOptions.map((sede) => sede.id);
+      return prev.filter((id) => available.has(id));
     });
   }, [sedeOptions]);
 
@@ -667,7 +660,7 @@ const ChartVisualization = ({
         id: `${sedeId}::${lineId}`,
         lineId,
         sedeId,
-        label: `${sedeNameMap.get(sedeId) ?? sedeId} � ${
+        label: `${sedeNameMap.get(sedeId) ?? sedeId} ï¿½ ${
           lineOptions.find((line) => line.id === lineId)?.name ?? lineId
         }`,
       })),
@@ -713,23 +706,28 @@ const ChartVisualization = ({
     });
 
     return map;
-  }, [
-    chartDates,
-    dailyDataSet,
-    selectedSedeIdSet,
-    seriesDefinitions,
-  ]);
+  }, [chartDates, dailyDataSet, selectedSedeIdSet, seriesDefinitions]);
 
 
+  const chartDataset = useMemo(() => {
+    return chartDates.map((date, index) => {
+      const row: Record<string, number | string | null> = { date };
+      seriesDefinitions.forEach((series) => {
+        const data = seriesMap.get(series.id);
+        row[series.id] = data ? data[index] : null;
+      });
+      return row;
+    });
+  }, [chartDates, seriesDefinitions, seriesMap]);
   const xAxis = useMemo<XAxis<"point", string>[]>(
     () => [
       {
-        data: chartDates,
+        dataKey: "date",
         scaleType: "point",
         valueFormatter: (value: string) => formatDateLabel(value),
       },
     ],
-    [chartDates],
+    [],
   );
 
   const yAxis = useMemo<YAxis<"linear", number>[]>(
@@ -737,19 +735,18 @@ const ChartVisualization = ({
     [],
   );
 
-  const chartSeries = useMemo<LineSeriesType[]>(
+  const chartSeries = useMemo<LineSeries[]>(
     () =>
       seriesDefinitions.map((series) => ({
         type: "line",
-        id: series.id,
+        dataKey: series.id,
         label: series.label,
-        data: seriesMap.get(series.id) ?? [],
         showMark: true,
         curve: "linear",
         valueFormatter: (value: number | null) =>
           `${(value ?? 0).toFixed(3)}`,
       })),
-    [seriesDefinitions, seriesMap],
+    [seriesDefinitions],
   );
   const handleToggleSeries = (lineId: string) => {
     setSelectedSeries((prev) =>
@@ -874,6 +871,7 @@ const ChartVisualization = ({
         <div className="h-[340px]">
           <LineChart
             height={340}
+            dataset={chartDataset}
             xAxis={xAxis}
             yAxis={yAxis}
             series={chartSeries}
@@ -1433,13 +1431,13 @@ const PeriodComparison = ({
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-slate-700">Período 1</p>
+            <p className="text-sm text-slate-700">PerÃ­odo 1</p>
             <p className="text-lg font-semibold text-slate-900">
               {displayValue(value1)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-slate-700">Período 2</p>
+            <p className="text-sm text-slate-700">PerÃ­odo 2</p>
             <p className="text-lg font-semibold text-slate-900">
               {displayValue(value2)}
             </p>
@@ -1453,11 +1451,11 @@ const PeriodComparison = ({
                 : "bg-red-50 text-red-700"
             }`}
           >
-            <span>{isPositive ? "↑" : "↓"}</span>
+            <span>{isPositive ? "â" : "â"}</span>
             <span>{Math.abs(diff).toFixed(1)}%</span>
           </div>
           <span className="text-xs text-slate-700">
-            {isPositive ? "incremento" : "disminución"}
+            {isPositive ? "incremento" : "disminuciÃ³n"}
           </span>
         </div>
       </div>
@@ -1470,7 +1468,7 @@ const PeriodComparison = ({
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-          Comparación de períodos
+          ComparaciÃ³n de perÃ­odos
         </p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">
           Compara dos rangos de fechas
@@ -1479,7 +1477,7 @@ const PeriodComparison = ({
 
       <div className="grid gap-6 md:grid-cols-2 mb-6">
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-slate-900">Período 1</p>
+          <p className="text-sm font-semibold text-slate-900">PerÃ­odo 1</p>
           <div className="space-y-2">
             <label className="block">
               <span className="text-xs text-slate-700">Desde</span>
@@ -1517,7 +1515,7 @@ const PeriodComparison = ({
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-slate-900">Período 2</p>
+          <p className="text-sm font-semibold text-slate-900">PerÃ­odo 2</p>
           <div className="space-y-2">
             <label className="block">
               <span className="text-xs text-slate-700">Desde</span>
@@ -1625,10 +1623,10 @@ const SelectionSummary = ({
             Resumen de filtros
           </p>
           <h2 className="mt-2 text-lg font-semibold text-slate-900">
-            {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
+            {selectedSedeName} Â- {dateRangeLabel || "Sin rango definido"}
           </h2>
           <p className="mt-1 text-sm text-slate-700">
-            {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
+            {lineFilterLabel} Â- {filteredCount} de {totalCount} lÃ­neas visibles
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -1721,7 +1719,7 @@ const SelectionSummary = ({
 // ============================================================================
 
 export default function Home() {
-  // Estado para controlar hidratación
+  // Estado para controlar hidrataciÃ³n
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -1738,7 +1736,7 @@ export default function Home() {
   >("cards");
   const [activeTab, setActiveTab] = useState<"lines" | "summaries">("lines");
 
-  // Cargar preferencias desde localStorage después de montar
+  // Cargar preferencias desde localStorage despuÃ©s de montar
   useEffect(() => {
     setMounted(true);
 
@@ -1785,7 +1783,7 @@ export default function Home() {
     }
   }, []);
 
-  // Guardar preferencias en localStorage (solo después de montar)
+  // Guardar preferencias en localStorage (solo despuÃ©s de montar)
   useEffect(() => {
     if (!mounted) return;
     localStorage.setItem("selectedSede", selectedSede);
@@ -1825,7 +1823,7 @@ export default function Home() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
-  // Estados adicionales para búsqueda y ordenamiento
+  // Estados adicionales para bÃºsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"sales" | "hours" | "name">("sales");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -1924,7 +1922,7 @@ export default function Home() {
   const filteredLines = useMemo(() => {
     let result = filterLinesByStatus(lines, lineFilter);
 
-    // Aplicar búsqueda
+    // Aplicar bÃºsqueda
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -1963,12 +1961,12 @@ export default function Home() {
   const summary = useMemo(() => calcDailySummary(lines), [lines]);
 
   const lineFilterLabels: Record<string, string> = {
-    all: "Todas las líneas",
-    critical: "Líneas críticas (alerta)",
-    improving: "Líneas en mejora (atención)",
+    all: "Todas las lÃ­neas",
+    critical: "LÃ­neas crÃ­ticas (alerta)",
+    improving: "LÃ­neas en mejora (atenciÃ³n)",
   };
 
-  const lineFilterLabel = lineFilterLabels[lineFilter] ?? "Todas las líneas";
+  const lineFilterLabel = lineFilterLabels[lineFilter] ?? "Todas las lÃ­neas";
 
   // Resumen mensual
   const selectedMonth = dateRange.end.slice(0, 7);
@@ -2057,29 +2055,29 @@ export default function Home() {
     }, 0);
 
     // Separador visual
-    const separator = "═".repeat(80);
-    const thinSeparator = "─".repeat(80);
+    const separator = "â".repeat(80);
+    const thinSeparator = "â".repeat(80);
 
     const csvLines = [
       separator,
-      "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
+      "REPORTE DE PRODUCTIVIDAD POR LÃNEA",
       separator,
       "",
-      "┌─────────────────────────────────────────────────────────────────────────────┐",
-      "│  INFORMACIÓN DEL REPORTE                                                    │",
-      "├─────────────────────────────────────────────────────────────────────────────┤",
-      `│  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}│`,
-      `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
-      `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
-      `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
-      "└─────────────────────────────────────────────────────────────────────────────┘",
+      "âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ",
+      "â  INFORMACIÃN DEL REPORTE                                                    â",
+      "âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ¤",
+      `â  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}â`,
+      `â  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}â`,
+      `â  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}â`,
+      `â  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}â`,
+      "âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ",
       "",
       "",
       thinSeparator,
-      "DETALLE POR LÍNEA",
+      "DETALLE POR LÃNEA",
       thinSeparator,
       "",
-      "#,Línea,Código,Ventas ($),Horas",
+      "#,LÃ­nea,CÃ³digo,Ventas ($),Horas",
       ...pdfLines.map((line, index) => {
         const hasLaborData = hasLaborDataForLine(line.id);
         const hours = hasLaborData ? line.hours : 0;
@@ -2099,7 +2097,7 @@ export default function Home() {
       "",
       "",
       separator,
-      "Generado automáticamente por Visor de Productividad",
+      "Generado automÃ¡ticamente por Visor de Productividad",
       separator,
     ];
 
@@ -2151,10 +2149,10 @@ export default function Home() {
       { key: "horas", width: 12 },
     ];
 
-    // === TÍTULO ===
+    // === TÃTULO ===
     worksheet.mergeCells("A1:E1");
     const titleCell = worksheet.getCell("A1");
-    titleCell.value = "REPORTE DE PRODUCTIVIDAD POR LÍNEA";
+    titleCell.value = "REPORTE DE PRODUCTIVIDAD POR LÃNEA";
     titleCell.font = {
       name: "Calibri",
       size: 18,
@@ -2164,7 +2162,7 @@ export default function Home() {
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     worksheet.getRow(1).height = 30;
 
-    // === INFORMACIÓN DEL REPORTE ===
+    // === INFORMACIÃN DEL REPORTE ===
     const infoStartRow = 3;
     const infoData = [
       ["Sede:", selectedScopeLabel],
@@ -2175,7 +2173,7 @@ export default function Home() {
 
     worksheet.mergeCells(`A${infoStartRow}:E${infoStartRow}`);
     const infoHeaderCell = worksheet.getCell(`A${infoStartRow}`);
-    infoHeaderCell.value = "Información del Reporte";
+    infoHeaderCell.value = "InformaciÃ³n del Reporte";
     infoHeaderCell.font = {
       name: "Calibri",
       size: 12,
@@ -2203,7 +2201,7 @@ export default function Home() {
 
     // === ENCABEZADOS DE TABLA ===
     const headerRow = infoStartRow + infoData.length + 2;
-    const headers = ["#", "Línea", "Código", "Ventas ($)", "Horas"];
+    const headers = ["#", "LÃ­nea", "CÃ³digo", "Ventas ($)", "Horas"];
 
     const headerRowObj = worksheet.getRow(headerRow);
     headers.forEach((header, index) => {
@@ -2278,7 +2276,7 @@ export default function Home() {
           right: { style: "thin", color: { argb: "D9D9D9" } },
         };
 
-        // Formato numérico
+        // Formato numÃ©rico
         if (colIndex >= 3) {
           cell.numFmt = "#,##0";
         }
@@ -2323,11 +2321,11 @@ export default function Home() {
     });
     totalRow.height = 24;
 
-    // === PIE DE PÁGINA ===
+    // === PIE DE PÃGINA ===
     const footerRow = totalRowNum + 2;
     worksheet.mergeCells(`A${footerRow}:E${footerRow}`);
     const footerCell = worksheet.getCell(`A${footerRow}`);
-    footerCell.value = "Generado automáticamente por Visor de Productividad";
+    footerCell.value = "Generado automÃ¡ticamente por Visor de Productividad";
     footerCell.font = {
       name: "Calibri",
       size: 9,
@@ -2378,24 +2376,24 @@ export default function Home() {
         value,
       );
 
-    // === TÍTULO ===
+    // === TÃTULO ===
     doc.setFillColor(...primaryColor);
     doc.rect(0, 0, pageWidth, 20, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("REPORTE DE PRODUCTIVIDAD POR LÍNEA", pageWidth / 2, 13, {
+    doc.text("REPORTE DE PRODUCTIVIDAD POR LÃNEA", pageWidth / 2, 13, {
       align: "center",
     });
 
-    // === INFORMACIÓN DEL REPORTE ===
+    // === INFORMACIÃN DEL REPORTE ===
     doc.setTextColor(0, 0, 0);
     doc.setFillColor(214, 220, 228);
     doc.rect(15, 25, pageWidth - 30, 8, "F");
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...primaryColor);
-    doc.text("Información del Reporte", 20, 30.5);
+    doc.text("InformaciÃ³n del Reporte", 20, 30.5);
 
     doc.setTextColor(60, 60, 60);
     doc.setFontSize(10);
@@ -2450,7 +2448,7 @@ export default function Home() {
 
     autoTable(doc, {
       startY: tableStartY,
-      head: [["#", "Línea", "Código", "Ventas", "Horas"]],
+      head: [["#", "LÃ­nea", "CÃ³digo", "Ventas", "Horas"]],
       body: tableBody,
       foot: [totalsRow],
       theme: "grid",
@@ -2488,7 +2486,7 @@ export default function Home() {
       },
     });
 
-    // === PIE DE PÁGINA ===
+    // === PIE DE PÃGINA ===
     const pageHeight = doc.internal.pageSize.getHeight();
     doc.setFillColor(...accentColor);
     doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
@@ -2496,7 +2494,7 @@ export default function Home() {
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
     doc.text(
-      "Generado automáticamente por Visor de Productividad",
+      "Generado automÃ¡ticamente por Visor de Productividad",
       pageWidth / 2,
       pageHeight - 4,
       {
@@ -2523,13 +2521,13 @@ export default function Home() {
   // Atajos de teclado
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Ignorar si está escribiendo en un input
+      // Ignorar si estÃ¡ escribiendo en un input
       if (
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement
       ) {
-        // Solo permitir Escape para limpiar búsqueda
+        // Solo permitir Escape para limpiar bÃºsqueda
         if (
           event.key === "Escape" &&
           event.target instanceof HTMLInputElement
@@ -2540,13 +2538,13 @@ export default function Home() {
         return;
       }
 
-      // Ctrl/Cmd + E: Abrir menú de exportación
+      // Ctrl/Cmd + E: Abrir menÃº de exportaciÃ³n
       if ((event.ctrlKey || event.metaKey) && event.key === "e") {
         event.preventDefault();
-        // Trigger del botón de exportar (se implementará con ref si es necesario)
+        // Trigger del botÃ³n de exportar (se implementarÃ¡ con ref si es necesario)
       }
 
-      // Ctrl/Cmd + F: Enfocar búsqueda
+      // Ctrl/Cmd + F: Enfocar bÃºsqueda
       if ((event.ctrlKey || event.metaKey) && event.key === "f") {
         event.preventDefault();
         const searchInput = document.querySelector(
@@ -2557,17 +2555,17 @@ export default function Home() {
         }
       }
 
-      // 1: Ir a pestaña Líneas
+      // 1: Ir a pestaÃ±a LÃ­neas
       if (event.key === "1" && !event.ctrlKey && !event.metaKey) {
         setActiveTab("lines");
       }
 
-      // 2: Ir a pestaña Resúmenes
+      // 2: Ir a pestaÃ±a ResÃºmenes
       if (event.key === "2" && !event.ctrlKey && !event.metaKey) {
         setActiveTab("summaries");
       }
 
-      // T: Toggle vista (tarjetas/comparativo/gráfico/tendencias)
+      // T: Toggle vista (tarjetas/comparativo/grÃ¡fico/tendencias)
       if (event.key === "t" && activeTab === "lines") {
         setViewMode((prev) => {
           if (prev === "cards") return "comparison";
@@ -2590,7 +2588,7 @@ export default function Home() {
     <div className="min-h-screen bg-background px-3 pb-8 pt-4 text-foreground sm:px-4 sm:pb-12 sm:pt-6 md:px-8 md:pb-16 md:pt-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6 md:gap-10">
         <TopBar
-          title="Tablero de Productividad por Línea"
+          title="Tablero de Productividad por LÃ­nea"
           selectedSede={selectedSede}
           sedes={orderedSedes}
           selectedCompany={selectedCompany}
@@ -2638,8 +2636,8 @@ export default function Home() {
                   : "text-slate-700 hover:text-slate-800"
               }`}
             >
-              <span className="hidden sm:inline">Líneas de producción</span>
-              <span className="sm:hidden">Líneas</span>
+              <span className="hidden sm:inline">LÃ­neas de producciÃ³n</span>
+              <span className="sm:hidden">LÃ­neas</span>
             </button>
             <button
               type="button"
@@ -2650,7 +2648,7 @@ export default function Home() {
                   : "text-slate-700 hover:text-slate-800"
               }`}
             >
-              Resúmenes
+              ResÃºmenes
             </button>
           </div>
         )}
@@ -2685,8 +2683,8 @@ export default function Home() {
                     />
                   ) : (
                     <EmptyState
-                      title="No hay líneas para comparar con este filtro."
-                      description="Ajusta el filtro para ver el comparativo de líneas."
+                      title="No hay lÃ­neas para comparar con este filtro."
+                      description="Ajusta el filtro para ver el comparativo de lÃ­neas."
                     />
                   )
                 ) : viewMode === "chart" ? (
@@ -2723,9 +2721,9 @@ export default function Home() {
 
                 {viewMode === "cards" && filteredLines.length === 0 && (
                   <EmptyState
-                    title="No hay líneas para este segmento."
+                    title="No hay lÃ­neas para este segmento."
                     description="Prueba otro filtro o revisa un rango distinto."
-                    actionLabel="Ver todas las líneas"
+                    actionLabel="Ver todas las lÃ­neas"
                     onAction={() => setLineFilter("all")}
                   />
                 )}
@@ -2737,13 +2735,13 @@ export default function Home() {
               <div className="space-y-6">
                 <SummaryCard
                   summary={summary}
-                  title="Resumen del día"
+                  title="Resumen del dÃ­a"
                   salesLabel="Venta total"
                   hasData={hasRangeData}
                 />
                 <SummaryCard
                   summary={monthlySummary}
-                  title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
+                  title={`Resumen del mes Â- ${formatMonthLabel(selectedMonth)}`}
                   salesLabel="Ventas del mes"
                   hasData={hasMonthlyData}
                 />
