@@ -651,7 +651,7 @@ const LineTrends = ({
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
 
   useEffect(() => {
-    setComparisonSedeIds(sedes.map((s) => s.id));
+    setComparisonSedeIds([]);
   }, [sedes]);
 
   const toggleComparisonSede = useCallback((sedeId: string) => {
@@ -700,8 +700,26 @@ const LineTrends = ({
       );
 
       if (dayData.length === 0) {
-        return { date, value: 0, sales: 0, hours: 0 };
+        return {
+          date,
+          value: 0,
+          sales: 0,
+          hours: 0,
+          daySales: 0,
+          dayHours: 0,
+        };
       }
+
+      let daySales = 0;
+      let dayHours = 0;
+      dayData.forEach((item) => {
+        item.lines.forEach((line) => {
+          daySales += line.sales;
+          if (hasLaborDataForLine(line.id)) {
+            dayHours += line.hours;
+          }
+        });
+      });
 
       const totals = dayData.reduce(
         (acc, item) => {
@@ -723,7 +741,14 @@ const LineTrends = ({
 
       const value = metricType === "sales" ? totals.sales : totals.hours;
 
-      return { date, value, sales: totals.sales, hours: totals.hours };
+      return {
+        date,
+        value,
+        sales: totals.sales,
+        hours: totals.hours,
+        daySales,
+        dayHours,
+      };
     });
 
     return dataByDate;
@@ -971,7 +996,9 @@ const LineTrends = ({
                   const avgRatio =
                     avgValue > 0 ? (point.value / avgValue) * 100 : 0;
                   const salesPerHour =
-                    point.hours > 0 ? point.sales / point.hours : 0;
+                    point.hours > 0
+                      ? point.sales / 1_000_000 / point.hours
+                      : 0;
                   const heatColor =
                     avgRatio >= 110
                       ? "#16a34a"
@@ -989,7 +1016,7 @@ const LineTrends = ({
                         </span>
                         <div className="flex items-center gap-3">
                           <span className="text-[11px] font-semibold text-slate-700">
-                            Vta/Hr: {salesPerHour.toFixed(2)}
+                            Vta/Hr: {salesPerHour.toFixed(3)}
                           </span>
                           <span className="font-semibold text-slate-900">
                             {metricType === "hours"
