@@ -571,10 +571,24 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
         {sortedLines.map((line, index) => {
           const value = line.sales;
           const rawPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-          const percentage = Number.isFinite(rawPercentage)
-            ? Math.min(Math.max(rawPercentage, 0), 100)
-            : 0;
-
+                  const percentage =
+                    maxValue > 0 ? (point.value / maxValue) * 100 : 0;
+                  const salesPerHour =
+                    point.hours > 0
+                      ? point.sales / 1_000_000 / point.hours
+                      : 0;
+                  const heatRatio =
+                    avgSalesPerHour > 0
+                      ? (salesPerHour / avgSalesPerHour) * 100
+                      : 0;
+                  const heatColor =
+                    heatRatio >= 110
+                      ? "#16a34a"
+                      : heatRatio >= 100
+                        ? "#facc15"
+                        : heatRatio >= 90
+                          ? "#f97316"
+                          : "#dc2626";
           return (
             <div key={line.id} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -617,18 +631,6 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
   );
 };
 
-const SEDE_COLORS = [
-  "#2a8f7c",
-  "#2563eb",
-  "#d97706",
-  "#dc2626",
-  "#7c3aed",
-  "#059669",
-  "#db2777",
-  "#0891b2",
-  "#ca8a04",
-  "#6366f1",
-];
 
 const LineTrends = ({
   dailyDataSet,
@@ -649,10 +651,19 @@ const LineTrends = ({
   const [metricType, setMetricType] = useState<"sales" | "hours">("sales");
   const [viewType, setViewType] = useState<"temporal" | "por-sede">("temporal");
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
+  const visibleSedes = useMemo(
+    () =>
+      sedes.filter((sede) => {
+        const id = sede.id.trim().toLowerCase();
+        const name = sede.name.trim().toLowerCase();
+        return id !== "adm" && name !== "adm";
+      }),
+    [sedes],
+  );
 
   useEffect(() => {
     setComparisonSedeIds([]);
-  }, [sedes]);
+  }, [visibleSedes]);
 
   const toggleComparisonSede = useCallback((sedeId: string) => {
     setComparisonSedeIds((prev) =>
@@ -664,9 +675,9 @@ const LineTrends = ({
 
   const toggleAllComparisonSedes = useCallback(() => {
     setComparisonSedeIds((prev) =>
-      prev.length === sedes.length ? [] : sedes.map((s) => s.id),
+      prev.length === visibleSedes.length ? [] : visibleSedes.map((s) => s.id),
     );
-  }, [sedes]);
+  }, [visibleSedes]);
 
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
@@ -771,6 +782,18 @@ const LineTrends = ({
     return sum / trendData.length;
   }, [trendData]);
 
+  const avgSalesPerHour = useMemo(() => {
+    if (trendData.length === 0) return 0;
+    const totals = trendData.reduce(
+      (acc, d) => ({
+        sales: acc.sales + d.sales,
+        hours: acc.hours + d.hours,
+      }),
+      { sales: 0, hours: 0 },
+    );
+    return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
+  }, [trendData]);
+
   // Per-sede comparison data (day by day)
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
@@ -805,6 +828,8 @@ const LineTrends = ({
           sedeId,
           sedeName: sedeNameMap.get(sedeId) || sedeId,
           value: metricType === "sales" ? totals.sales : totals.hours,
+          sales: totals.sales,
+          hours: totals.hours,
         };
       });
 
@@ -820,13 +845,6 @@ const LineTrends = ({
     sedeNameMap,
   ]);
 
-  const sedeColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    comparisonSedeIds.forEach((id, i) => {
-      map.set(id, SEDE_COLORS[i % SEDE_COLORS.length]);
-    });
-    return map;
-  }, [comparisonSedeIds]);
 
   const sedeMaxValue = useMemo(() => {
     if (sedeComparisonData.length === 0) return 1;
@@ -837,21 +855,6 @@ const LineTrends = ({
   }, [sedeComparisonData]);
 
   // Calculate trend direction
-  const trendDirection = useMemo(() => {
-    if (trendData.length < 2) return "stable";
-    const firstHalf = trendData.slice(0, Math.floor(trendData.length / 2));
-    const secondHalf = trendData.slice(Math.floor(trendData.length / 2));
-
-    const firstAvg =
-      firstHalf.reduce((acc, d) => acc + d.value, 0) / firstHalf.length;
-    const secondAvg =
-      secondHalf.reduce((acc, d) => acc + d.value, 0) / secondHalf.length;
-
-    const change = ((secondAvg - firstAvg) / firstAvg) * 100;
-
-    if (Math.abs(change) < 5) return "stable";
-    return change > 0 ? "up" : "down";
-  }, [trendData]);
 
   if (lines.length === 0 || availableDates.length === 0) return null;
 
@@ -934,13 +937,13 @@ const LineTrends = ({
               onClick={toggleAllComparisonSedes}
               className="text-xs font-semibold text-mercamio-700 hover:text-mercamio-800 transition-colors"
             >
-              {comparisonSedeIds.length === sedes.length
+              {comparisonSedeIds.length === visibleSedes.length
                 ? "Deseleccionar todas"
                 : "Seleccionar todas"}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {sedes.map((sede) => {
+            {visibleSedes.map((sede) => {
               const isSelected = comparisonSedeIds.includes(sede.id);
               return (
                 <button
@@ -974,37 +977,22 @@ const LineTrends = ({
                       : formatCOP(avgValue)}
                   </p>
                 </div>
-                <div
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
-                    trendDirection === "up"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : trendDirection === "down"
-                        ? "bg-red-50 text-red-700"
-                        : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {trendDirection === "up" && "↑ Tendencia al alza"}
-                  {trendDirection === "down" && "↓ Tendencia a la baja"}
-                  {trendDirection === "stable" && "→ Estable"}
-                </div>
               </div>
 
               <div className="space-y-2">
                 {trendData.map((point) => {
                   const percentage =
                     maxValue > 0 ? (point.value / maxValue) * 100 : 0;
-                  const avgRatio =
-                    avgValue > 0 ? (point.value / avgValue) * 100 : 0;
-                  const salesPerHour =
-                    point.hours > 0
-                      ? point.sales / 1_000_000 / point.hours
+                  const heatRatio =
+                    avgSalesPerHour > 0
+                      ? (salesPerHour / avgSalesPerHour) * 100
                       : 0;
                   const heatColor =
-                    avgRatio >= 110
+                    heatRatio >= 110
                       ? "#16a34a"
-                      : avgRatio >= 100
+                      : heatRatio >= 100
                         ? "#facc15"
-                        : avgRatio >= 90
+                        : heatRatio >= 90
                           ? "#f97316"
                           : "#dc2626";
 
@@ -1015,10 +1003,10 @@ const LineTrends = ({
                           {formatDateLabel(point.date)}
                         </span>
                         <div className="flex items-center gap-3">
-                          <span className="text-[11px] font-semibold text-slate-700">
+                          <span className="text-sm font-semibold text-slate-900">
                             Vta/Hr: {salesPerHour.toFixed(3)}
                           </span>
-                          <span className="font-semibold text-slate-900">
+                          <span className="text-[11px] font-semibold text-slate-700">
                             {metricType === "hours"
                               ? `${point.value.toFixed(1)}h`
                               : formatCOP(point.value)}
@@ -1072,12 +1060,7 @@ const LineTrends = ({
               <div className="mb-4 flex flex-wrap gap-3">
                 {comparisonSedeIds.map((sedeId) => (
                   <div key={sedeId} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{
-                        backgroundColor: sedeColorMap.get(sedeId) || "#94a3b8",
-                      }}
-                    />
+                    <span className="inline-block h-3 w-3 rounded-full bg-slate-400" />
                     <span className="text-xs font-semibold text-slate-700">
                       {sedeNameMap.get(sedeId) || sedeId}
                     </span>
@@ -1092,40 +1075,74 @@ const LineTrends = ({
                       {formatDateLabel(day.date)}
                     </p>
                     <div className="space-y-1">
-                      {day.sedes.map((sede) => {
-                        const percentage =
-                          sedeMaxValue > 0
-                            ? (sede.value / sedeMaxValue) * 100
-                            : 0;
-                        const color =
-                          sedeColorMap.get(sede.sedeId) || "#94a3b8";
-
-                        return (
-                          <div
-                            key={sede.sedeId}
-                            className="flex items-center gap-2"
-                          >
-                            <span
-                              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: color }}
-                            />
-                            <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${percentage}%`,
-                                  backgroundColor: color,
-                                }}
-                              />
-                            </div>
-                            <span className="w-24 text-right text-xs font-semibold text-slate-900">
-                              {metricType === "hours"
-                                ? `${sede.value.toFixed(1)}h`
-                                : formatCOP(sede.value)}
-                            </span>
-                          </div>
+                      {(() => {
+                        const totals = day.sedes.reduce(
+                          (acc, sede) => ({
+                            sales: acc.sales + sede.sales,
+                            hours: acc.hours + sede.hours,
+                          }),
+                          { sales: 0, hours: 0 },
                         );
-                      })}
+                        const dayAvgSalesPerHour =
+                          totals.hours > 0
+                            ? totals.sales / 1_000_000 / totals.hours
+                            : 0;
+
+                        return day.sedes.map((sede) => {
+                          const percentage =
+                            sedeMaxValue > 0
+                              ? (sede.value / sedeMaxValue) * 100
+                              : 0;
+                          const salesPerHour =
+                            sede.hours > 0
+                              ? sede.sales / 1_000_000 / sede.hours
+                              : 0;
+                          const heatRatio =
+                            dayAvgSalesPerHour > 0
+                              ? (salesPerHour / dayAvgSalesPerHour) * 100
+                              : 0;
+                          const heatColor =
+                            heatRatio >= 110
+                              ? "#16a34a"
+                              : heatRatio >= 100
+                                ? "#facc15"
+                                : heatRatio >= 90
+                                  ? "#f97316"
+                                  : "#dc2626";
+
+                          return (
+                            <div
+                              key={sede.sedeId}
+                              className="flex items-center gap-2"
+                            >
+                              <span
+                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: heatColor }}
+                              />
+                              <div className="relative h-8 flex-1 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${percentage}%`,
+                                    backgroundColor: heatColor,
+                                  }}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-between gap-2 px-3 text-[11px] font-semibold text-white">
+                                  <span className="truncate">
+                                    {sede.sedeName}
+                                  </span>
+                                  <span className="shrink-0">
+                                    Vta/Hr: {salesPerHour.toFixed(3)} �{" "}
+                                    {metricType === "hours"
+                                      ? `${sede.value.toFixed(1)}h`
+                                      : formatCOP(sede.value)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 ))}
