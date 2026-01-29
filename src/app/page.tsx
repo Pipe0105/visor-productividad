@@ -12,6 +12,7 @@ import {
   ArrowUpDown,
   BarChart3,
 } from "lucide-react";
+import { LineChart } from "@mui/x-charts/LineChart";
 import * as ExcelJS from "exceljs";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -567,75 +568,191 @@ const ViewToggle = ({
   );
 };
 
-const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
-  const sortedLines = useMemo(() => {
-    return [...lines].sort((a, b) => b.sales - a.sales).slice(0, 6); // Top 6
-  }, [lines]);
+const ChartVisualization = ({
+  dailyDataSet,
+  selectedSedeIds,
+  availableDates,
+  dateRange,
+  lines,
+}: {
+  dailyDataSet: DailyProductivity[];
+  selectedSedeIds: string[];
+  availableDates: string[];
+  dateRange: DateRange;
+  lines: LineMetrics[];
+}) => {
+  const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
 
-  const maxValue = useMemo(() => {
-    if (sortedLines.length === 0) return 1;
-    return Math.max(...sortedLines.map((line) => line.sales));
-  }, [sortedLines]);
+  const chartDates = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) {
+      return availableDates;
+    }
+    return availableDates.filter(
+      (date) => date >= dateRange.start && date <= dateRange.end,
+    );
+  }, [availableDates, dateRange.end, dateRange.start]);
+
+  const lineOptions = useMemo(
+    () =>
+      lines.map((line) => ({
+        id: line.id,
+        name: line.name,
+      })),
+    [lines],
+  );
+
+  useEffect(() => {
+    if (lineOptions.length === 0) {
+      setSelectedSeries([]);
+      return;
+    }
+    setSelectedSeries((prev) => {
+      const available = new Set(lineOptions.map((line) => line.id));
+      const next = prev.filter((id) => available.has(id));
+      if (next.length > 0) return next;
+      return lineOptions.slice(0, 3).map((line) => line.id);
+    });
+  }, [lineOptions]);
+
+  const selectedSedeIdSet = useMemo(
+    () => new Set(selectedSedeIds),
+    [selectedSedeIds],
+  );
+
+  const seriesMap = useMemo(() => {
+    const map = new Map<string, number[]>();
+    const dailyByDate = new Map<string, DailyProductivity[]>();
+
+    chartDates.forEach((date) => {
+      const dayData = dailyDataSet.filter(
+        (item) => selectedSedeIdSet.has(item.sede) && item.date === date,
+      );
+      dailyByDate.set(date, dayData);
+    });
+
+    selectedSeries.forEach((lineId) => {
+      const data = chartDates.map((date) => {
+        const dayData = dailyByDate.get(date) ?? [];
+        const totals = dayData.reduce(
+          (acc, item) => {
+            const lineData = item.lines.find((line) => line.id === lineId);
+            if (!lineData) return acc;
+
+            const hasLaborData = hasLaborDataForLine(lineData.id);
+            const hours = hasLaborData ? lineData.hours : 0;
+
+            return {
+              sales: acc.sales + lineData.sales,
+              hours: acc.hours + hours,
+            };
+          },
+          { sales: 0, hours: 0 },
+        );
+
+        return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
+      });
+
+      map.set(lineId, data);
+    });
+
+    return map;
+  }, [chartDates, dailyDataSet, selectedSedeIdSet, selectedSeries]);
+
+  const handleToggleSeries = (lineId: string) => {
+    setSelectedSeries((prev) =>
+      prev.includes(lineId)
+        ? prev.filter((id) => id !== lineId)
+        : [...prev, lineId],
+    );
+  };
 
   if (lines.length === 0) return null;
 
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-            Analisis visual
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-900">
-            Top 6 lineas por ventas
-          </h3>
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
+          Grafico de productividad
+        </p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+          Vta/Hr por dia
+        </h3>
+      </div>
+
+      <div className="mb-6">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-700">
+            Series a graficar
+          </span>
+          <button
+            type="button"
+            className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
+            onClick={() =>
+              setSelectedSeries(
+                selectedSeries.length === lineOptions.length
+                  ? []
+                  : lineOptions.map((line) => line.id),
+              )
+            }
+          >
+            {selectedSeries.length === lineOptions.length
+              ? "Deseleccionar todas"
+              : "Seleccionar todas"}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {lineOptions.map((line) => {
+            const isSelected = selectedSeries.includes(line.id);
+            return (
+              <button
+                key={line.id}
+                type="button"
+                onClick={() => handleToggleSeries(line.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                    : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                }`}
+              >
+                {line.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="space-y-3">
-        {sortedLines.map((line, index) => {
-          const value = line.sales;
-          const rawPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-          const percentage = Number.isFinite(rawPercentage)
-            ? Math.min(Math.max(rawPercentage, 0), 100)
-            : 0;
-
-          return (
-            <div key={line.id} className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-700">#{index + 1}</span>
-                  <span className="font-semibold text-slate-900">
-                    {line.name}
-                  </span>
-                  <span className="font-mono text-slate-700">{line.id}</span>
-                </div>
-                <span className="font-semibold text-slate-900">
-                  {formatCOP(value)}
-                </span>
-              </div>
-              <div className="relative h-8 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${percentage}%`,
-                    backgroundColor: "#2a8f7c",
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center px-3">
-                  <span className="text-xs font-semibold text-slate-700 mix-blend-difference">
-                    {percentage.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {selectedSeries.length === 0 || chartDates.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-600">
+          Selecciona al menos una serie para ver el grafico.
+        </p>
+      ) : (
+        <div className="h-85">
+          <LineChart
+            height={340}
+            xAxis={[
+              {
+                data: chartDates,
+                scaleType: "point",
+                valueFormatter: (value) => formatDateLabel(String(value)),
+              },
+            ]}
+            yAxis={[{ label: "Vta/Hr" }]}
+            series={selectedSeries.map((lineId) => ({
+              id: lineId,
+              label:
+                lineOptions.find((line) => line.id === lineId)?.name ?? lineId,
+              data: seriesMap.get(lineId) ?? [],
+              showMark: true,
+              curve: "linear",
+              valueFormatter: (value) => `${(value ?? 0).toFixed(3)}`,
+            }))}
+            grid={{ horizontal: true, vertical: false }}
+          />
+        </div>
+      )}
     </div>
   );
 };
-
 const LineTrends = ({
   dailyDataSet,
   selectedSedeIds,
@@ -954,9 +1071,7 @@ const LineTrends = ({
                   const percentage =
                     maxValue > 0 ? (point.value / maxValue) * 100 : 0;
                   const salesPerHour =
-                    point.hours > 0
-                      ? point.sales / 1_000_000 / point.hours
-                      : 0;
+                    point.hours > 0 ? point.sales / 1_000_000 / point.hours : 0;
                   const heatRatio =
                     avgSalesPerHour > 0
                       ? (salesPerHour / avgSalesPerHour) * 100
@@ -1045,8 +1160,10 @@ const LineTrends = ({
                             : 0;
                         const dayAvgSalesPerHour =
                           sedeSalesPerHour.length > 0
-                            ? sedeSalesPerHour.reduce((acc, value) => acc + value, 0) /
-                              sedeSalesPerHour.length
+                            ? sedeSalesPerHour.reduce(
+                                (acc, value) => acc + value,
+                                0,
+                              ) / sedeSalesPerHour.length
                             : 0;
 
                         return day.sedes.map((sede) => {
@@ -2443,7 +2560,13 @@ export default function Home() {
                   )
                 ) : viewMode === "chart" ? (
                   <div data-animate="chart-card">
-                    <ChartVisualization lines={filteredLines} />
+                    <ChartVisualization
+                      dailyDataSet={dailyDataSet}
+                      selectedSedeIds={selectedSedeIds}
+                      availableDates={availableDates}
+                      dateRange={dateRange}
+                      lines={lines}
+                    />
                   </div>
                 ) : viewMode === "trends" ? (
                   <LineTrends
