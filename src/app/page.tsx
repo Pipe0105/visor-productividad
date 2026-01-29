@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { animate, remove } from "animejs";
@@ -660,7 +660,7 @@ const ChartVisualization = ({
         id: `${sedeId}::${lineId}`,
         lineId,
         sedeId,
-        label: `${sedeNameMap.get(sedeId) ?? sedeId} ? ${
+        label: `${sedeNameMap.get(sedeId) ?? sedeId} ${
           lineOptions.find((line) => line.id === lineId)?.name ?? lineId
         }`,
       })),
@@ -708,7 +708,6 @@ const ChartVisualization = ({
     return map;
   }, [chartDates, dailyDataSet, selectedSedeIdSet, seriesDefinitions]);
 
-
   const chartDataset = useMemo(() => {
     return chartDates.map((date, index) => {
       const row: Record<string, number | string | null> = { date };
@@ -743,8 +742,7 @@ const ChartVisualization = ({
         label: series.label,
         showMark: true,
         curve: "linear",
-        valueFormatter: (value: number | null) =>
-          `${(value ?? 0).toFixed(3)}`,
+        valueFormatter: (value: number | null) => `${(value ?? 0).toFixed(3)}`,
       })),
     [seriesDefinitions],
   );
@@ -868,7 +866,7 @@ const ChartVisualization = ({
           Selecciona al menos una serie para ver el grafico.
         </p>
       ) : (
-        <div className="h-[340px]">
+        <div className="h-85">
           <LineChart
             height={340}
             dataset={chartDataset}
@@ -1451,7 +1449,7 @@ const PeriodComparison = ({
                 : "bg-red-50 text-red-700"
             }`}
           >
-            <span>{isPositive ? "?" : "?"}</span>
+            <span>{isPositive ? "↑" : "↓"}</span>
             <span>{Math.abs(diff).toFixed(1)}%</span>
           </div>
           <span className="text-xs text-slate-700">
@@ -1623,10 +1621,10 @@ const SelectionSummary = ({
             Resumen de filtros
           </p>
           <h2 className="mt-2 text-lg font-semibold text-slate-900">
-            {selectedSedeName} ?- {dateRangeLabel || "Sin rango definido"}
+            {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
           </h2>
           <p className="mt-1 text-sm text-slate-700">
-            {lineFilterLabel} ?- {filteredCount} de {totalCount} líneas visibles
+            {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -2055,22 +2053,22 @@ export default function Home() {
     }, 0);
 
     // Separador visual
-    const separator = "-".repeat(80);
-    const thinSeparator = "-".repeat(80);
+    const separator = "═".repeat(80);
+    const thinSeparator = "─".repeat(80);
 
     const csvLines = [
       separator,
       "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
       separator,
       "",
-      "+-----------------------------------------------------------------------------+",
-      "¦  INFORMACIÓN DEL REPORTE                                                    ¦",
-      "+-----------------------------------------------------------------------------¦",
-      `¦  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}¦`,
-      `¦  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}¦`,
-      `¦  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}¦`,
-      `¦  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}¦`,
-      "+-----------------------------------------------------------------------------+",
+      "┌─────────────────────────────────────────────────────────────────────────────┐",
+      "│  INFORMACIÓN DEL REPORTE                                                    │",
+      "├─────────────────────────────────────────────────────────────────────────────┤",
+      `│  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}│`,
+      `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
+      `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
+      `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
+      "└─────────────────────────────────────────────────────────────────────────────┘",
       "",
       "",
       thinSeparator,
@@ -2741,7 +2739,7 @@ export default function Home() {
                 />
                 <SummaryCard
                   summary={monthlySummary}
-                  title={`Resumen del mes ?- ${formatMonthLabel(selectedMonth)}`}
+                  title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
                   salesLabel="Ventas del mes"
                   hasData={hasMonthlyData}
                 />
@@ -2758,4 +2756,3 @@ export default function Home() {
     </div>
   );
 }
-
