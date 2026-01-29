@@ -19,11 +19,7 @@ import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
-import {
-  calcDailySummary,
-  formatCOP,
-  hasLaborDataForLine,
-} from "@/lib/calc";
+import { calcDailySummary, formatCOP, hasLaborDataForLine } from "@/lib/calc";
 import {
   DEFAULT_LINES,
   DEFAULT_SEDES,
@@ -434,9 +430,7 @@ const SearchAndSort = ({
         <select
           value={sortBy}
           onChange={(e) =>
-            onSortByChange(
-              e.target.value as "sales" | "hours" | "name",
-            )
+            onSortByChange(e.target.value as "sales" | "hours" | "name")
           }
           className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
         >
@@ -550,9 +544,7 @@ const ViewToggle = ({
 
 const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
   const sortedLines = useMemo(() => {
-    return [...lines]
-      .sort((a, b) => b.sales - a.sales)
-      .slice(0, 6); // Top 6
+    return [...lines].sort((a, b) => b.sales - a.sales).slice(0, 6); // Top 6
   }, [lines]);
 
   const maxValue = useMemo(() => {
@@ -626,8 +618,16 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
 };
 
 const SEDE_COLORS = [
-  "#2a8f7c", "#2563eb", "#d97706", "#dc2626", "#7c3aed",
-  "#059669", "#db2777", "#0891b2", "#ca8a04", "#6366f1",
+  "#2a8f7c",
+  "#2563eb",
+  "#d97706",
+  "#dc2626",
+  "#7c3aed",
+  "#059669",
+  "#db2777",
+  "#0891b2",
+  "#ca8a04",
+  "#6366f1",
 ];
 
 const LineTrends = ({
@@ -646,12 +646,8 @@ const LineTrends = ({
   dateRange: DateRange;
 }) => {
   const [selectedLine, setSelectedLine] = useState<string>("");
-  const [metricType, setMetricType] = useState<"sales" | "hours">(
-    "sales",
-  );
-  const [viewType, setViewType] = useState<"temporal" | "por-sede">(
-    "temporal",
-  );
+  const [metricType, setMetricType] = useState<"sales" | "hours">("sales");
+  const [viewType, setViewType] = useState<"temporal" | "por-sede">("temporal");
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -786,7 +782,15 @@ const LineTrends = ({
 
       return { date, sedes };
     });
-  }, [selectedLine, comparisonSedeIds, dailyDataSet, availableDates, dateRange, metricType, sedeNameMap]);
+  }, [
+    selectedLine,
+    comparisonSedeIds,
+    dailyDataSet,
+    availableDates,
+    dateRange,
+    metricType,
+    sedeNameMap,
+  ]);
 
   const sedeColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -882,9 +886,7 @@ const LineTrends = ({
           <span className="text-xs font-semibold text-slate-700">Métrica</span>
           <select
             value={metricType}
-            onChange={(e) =>
-              setMetricType(e.target.value as "sales" | "hours")
-            }
+            onChange={(e) => setMetricType(e.target.value as "sales" | "hours")}
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
             <option value="sales">Ventas</option>
@@ -982,7 +984,9 @@ const LineTrends = ({
                           className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
                           style={{
                             width: `${percentage}%`,
-                            backgroundColor: isAboveAverage ? "#10b981" : "#f59e0b",
+                            backgroundColor: isAboveAverage
+                              ? "#10b981"
+                              : "#f59e0b",
                           }}
                         />
                       </div>
@@ -1058,7 +1062,7 @@ const LineTrends = ({
                             className="flex items-center gap-2"
                           >
                             <span
-                              className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: color }}
                             />
                             <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
@@ -1566,9 +1570,7 @@ export default function Home() {
 
   // Estados adicionales para búsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"sales" | "hours" | "name">(
-    "sales",
-  );
+  const [sortBy, setSortBy] = useState<"sales" | "hours" | "name">("sales");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Cargar datos
@@ -1606,7 +1608,10 @@ export default function Home() {
 
     if (selectedCompany) return;
 
-    if (selectedSede && !availableSedes.some((sede) => sede.id === selectedSede)) {
+    if (
+      selectedSede &&
+      !availableSedes.some((sede) => sede.id === selectedSede)
+    ) {
       setSelectedSede(availableSedes[0].id);
     }
   }, [availableSedesKey, selectedSede, selectedCompany, availableSedes]);
@@ -1688,8 +1693,7 @@ export default function Home() {
     return result;
   }, [lineFilter, lines, searchQuery, sortBy, sortOrder]);
   const pdfLines = useMemo(
-    () =>
-      [...filteredLines].sort((a, b) => b.sales - a.sales),
+    () => [...filteredLines].sort((a, b) => b.sales - a.sales),
     [filteredLines],
   );
 
@@ -1720,8 +1724,7 @@ export default function Home() {
   const hasMonthlyData = useMemo(() => {
     return dailyDataSet.some(
       (item) =>
-        selectedSedeIdSet.has(item.sede) &&
-        item.date.startsWith(selectedMonth),
+        selectedSedeIdSet.has(item.sede) && item.date.startsWith(selectedMonth),
     );
   }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
 
@@ -1889,7 +1892,12 @@ export default function Home() {
     worksheet.mergeCells("A1:E1");
     const titleCell = worksheet.getCell("A1");
     titleCell.value = "REPORTE DE PRODUCTIVIDAD POR LÍNEA";
-    titleCell.font = { name: "Calibri", size: 18, bold: true, color: { argb: primaryColor } };
+    titleCell.font = {
+      name: "Calibri",
+      size: 18,
+      bold: true,
+      color: { argb: primaryColor },
+    };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     worksheet.getRow(1).height = 30;
 
@@ -1905,14 +1913,27 @@ export default function Home() {
     worksheet.mergeCells(`A${infoStartRow}:E${infoStartRow}`);
     const infoHeaderCell = worksheet.getCell(`A${infoStartRow}`);
     infoHeaderCell.value = "Información del Reporte";
-    infoHeaderCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: primaryColor } };
-    infoHeaderCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: lightBg } };
+    infoHeaderCell.font = {
+      name: "Calibri",
+      size: 12,
+      bold: true,
+      color: { argb: primaryColor },
+    };
+    infoHeaderCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: lightBg },
+    };
     worksheet.getRow(infoStartRow).height = 22;
 
     infoData.forEach((item, index) => {
       const rowNum = infoStartRow + 1 + index;
       worksheet.getCell(`A${rowNum}`).value = item[0];
-      worksheet.getCell(`A${rowNum}`).font = { name: "Calibri", size: 11, bold: true };
+      worksheet.getCell(`A${rowNum}`).font = {
+        name: "Calibri",
+        size: 11,
+        bold: true,
+      };
       worksheet.getCell(`B${rowNum}`).value = item[1];
       worksheet.getCell(`B${rowNum}`).font = { name: "Calibri", size: 11 };
     });
@@ -1925,9 +1946,21 @@ export default function Home() {
     headers.forEach((header, index) => {
       const cell = headerRowObj.getCell(index + 1);
       cell.value = header;
-      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFF" } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: primaryColor } };
-      cell.alignment = { horizontal: index <= 2 ? "left" : "right", vertical: "middle" };
+      cell.font = {
+        name: "Calibri",
+        size: 11,
+        bold: true,
+        color: { argb: "FFFFFF" },
+      };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: primaryColor },
+      };
+      cell.alignment = {
+        horizontal: index <= 2 ? "left" : "right",
+        vertical: "middle",
+      };
       cell.border = {
         top: { style: "thin", color: { argb: primaryColor } },
         bottom: { style: "thin", color: { argb: primaryColor } },
@@ -1966,8 +1999,15 @@ export default function Home() {
         const cell = row.getCell(colIndex + 1);
         cell.value = value;
         cell.font = { name: "Calibri", size: 11 };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-        cell.alignment = { horizontal: colIndex <= 2 ? "left" : "right", vertical: "middle" };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: rowBg },
+        };
+        cell.alignment = {
+          horizontal: colIndex <= 2 ? "left" : "right",
+          vertical: "middle",
+        };
         cell.border = {
           top: { style: "thin", color: { argb: "D9D9D9" } },
           bottom: { style: "thin", color: { argb: "D9D9D9" } },
@@ -1987,20 +2027,26 @@ export default function Home() {
     const totalRowNum = dataStartRow + pdfLines.length + 1;
     const totalRow = worksheet.getRow(totalRowNum);
 
-    const totalsData = [
-      "",
-      "TOTAL",
-      "",
-      Math.round(totalSales),
-      totalHours,
-    ];
+    const totalsData = ["", "TOTAL", "", Math.round(totalSales), totalHours];
 
     totalsData.forEach((value, colIndex) => {
       const cell = totalRow.getCell(colIndex + 1);
       cell.value = value;
-      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: primaryColor } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: totalBg } };
-      cell.alignment = { horizontal: colIndex <= 2 ? "left" : "right", vertical: "middle" };
+      cell.font = {
+        name: "Calibri",
+        size: 11,
+        bold: true,
+        color: { argb: primaryColor },
+      };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: totalBg },
+      };
+      cell.alignment = {
+        horizontal: colIndex <= 2 ? "left" : "right",
+        vertical: "middle",
+      };
       cell.border = {
         top: { style: "medium", color: { argb: accentColor } },
         bottom: { style: "medium", color: { argb: accentColor } },
@@ -2019,7 +2065,12 @@ export default function Home() {
     worksheet.mergeCells(`A${footerRow}:E${footerRow}`);
     const footerCell = worksheet.getCell(`A${footerRow}`);
     footerCell.value = "Generado automáticamente por Visor de Productividad";
-    footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "808080" } };
+    footerCell.font = {
+      name: "Calibri",
+      size: 9,
+      italic: true,
+      color: { argb: "808080" },
+    };
     footerCell.alignment = { horizontal: "center" };
 
     // Generar y descargar archivo
@@ -2060,7 +2111,9 @@ export default function Home() {
     const accentColor: [number, number, number] = [46, 117, 182];
 
     const formatNumber = (value: number) =>
-      new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(value);
+      new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(
+        value,
+      );
 
     // === TÍTULO ===
     doc.setFillColor(...primaryColor);
@@ -2068,7 +2121,9 @@ export default function Home() {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("REPORTE DE PRODUCTIVIDAD POR LÍNEA", pageWidth / 2, 13, { align: "center" });
+    doc.text("REPORTE DE PRODUCTIVIDAD POR LÍNEA", pageWidth / 2, 13, {
+      align: "center",
+    });
 
     // === INFORMACIÓN DEL REPORTE ===
     doc.setTextColor(0, 0, 0);
@@ -2177,9 +2232,14 @@ export default function Home() {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
-    doc.text("Generado automáticamente por Visor de Productividad", pageWidth / 2, pageHeight - 4, {
-      align: "center",
-    });
+    doc.text(
+      "Generado automáticamente por Visor de Productividad",
+      pageWidth / 2,
+      pageHeight - 4,
+      {
+        align: "center",
+      },
+    );
 
     // Descargar
     const safeSede = selectedScopeId.replace(/\s+/g, "-");
@@ -2430,4 +2490,3 @@ export default function Home() {
     </div>
   );
 }
-
