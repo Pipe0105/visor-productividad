@@ -681,18 +681,26 @@ const LineTrends = ({
     () => new Set(availableDates),
     [availableDates],
   );
+  const temporalDates = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) {
+      return availableDates;
+    }
+    return availableDates.filter(
+      (date) => date >= dateRange.start && date <= dateRange.end,
+    );
+  }, [availableDates, dateRange.end, dateRange.start]);
 
   // Calculate trend data for selected line
   const trendData = useMemo(() => {
     if (!selectedLine) return [];
 
-    const dataByDate = availableDates.map((date) => {
+    const dataByDate = temporalDates.map((date) => {
       const dayData = dailyDataSet.filter(
         (item) => selectedSedeIdSet.has(item.sede) && item.date === date,
       );
 
       if (dayData.length === 0) {
-        return { date, value: 0 };
+        return { date, value: 0, sales: 0, hours: 0 };
       }
 
       const totals = dayData.reduce(
@@ -713,14 +721,9 @@ const LineTrends = ({
         { sales: 0, hours: 0 },
       );
 
-      let value = 0;
-      if (metricType === "sales") {
-        value = totals.sales;
-      } else {
-        value = totals.hours;
-      }
+      const value = metricType === "sales" ? totals.sales : totals.hours;
 
-      return { date, value };
+      return { date, value, sales: totals.sales, hours: totals.hours };
     });
 
     return dataByDate;
@@ -729,7 +732,7 @@ const LineTrends = ({
     metricType,
     dailyDataSet,
     selectedSedeIdSet,
-    availableDates,
+    temporalDates,
   ]);
 
   const maxValue = useMemo(() => {
@@ -965,7 +968,18 @@ const LineTrends = ({
                 {trendData.map((point) => {
                   const percentage =
                     maxValue > 0 ? (point.value / maxValue) * 100 : 0;
-                  const isAboveAverage = point.value > avgValue;
+                  const avgRatio =
+                    avgValue > 0 ? (point.value / avgValue) * 100 : 0;
+                  const salesPerHour =
+                    point.hours > 0 ? point.sales / point.hours : 0;
+                  const heatColor =
+                    avgRatio >= 110
+                      ? "#16a34a"
+                      : avgRatio >= 100
+                        ? "#facc15"
+                        : avgRatio >= 90
+                          ? "#f97316"
+                          : "#dc2626";
 
                   return (
                     <div key={point.date} className="space-y-1">
@@ -973,20 +987,23 @@ const LineTrends = ({
                         <span className="font-mono text-slate-700">
                           {formatDateLabel(point.date)}
                         </span>
-                        <span className="font-semibold text-slate-900">
-                          {metricType === "hours"
-                            ? `${point.value.toFixed(1)}h`
-                            : formatCOP(point.value)}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] font-semibold text-slate-700">
+                            Vta/Hr: {salesPerHour.toFixed(2)}
+                          </span>
+                          <span className="font-semibold text-slate-900">
+                            {metricType === "hours"
+                              ? `${point.value.toFixed(1)}h`
+                              : formatCOP(point.value)}
+                          </span>
+                        </div>
                       </div>
                       <div className="relative h-6 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
                           style={{
                             width: `${percentage}%`,
-                            backgroundColor: isAboveAverage
-                              ? "#10b981"
-                              : "#f59e0b",
+                            backgroundColor: heatColor,
                           }}
                         />
                       </div>
