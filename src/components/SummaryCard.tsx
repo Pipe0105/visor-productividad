@@ -1,23 +1,16 @@
 import {
   Gauge,
-  PiggyBank,
   Timer,
-  TrendingDown,
-  TrendingUp,
   LucideIcon,
 } from "lucide-react";
 import { DailySummary } from "@/types";
-import { formatCOP, formatHours, formatPercent } from "@/lib/calc";
+import { formatCOP, formatHours } from "@/lib/calc";
 
 interface SummaryCardProps {
   summary: DailySummary;
   title: string;
   salesLabel: string;
   hasData?: boolean;
-  comparisons?: {
-    label: string;
-    baseline?: DailySummary | null;
-  }[];
 }
 
 // ============================================================================
@@ -61,91 +54,15 @@ const MetricCard = ({
   </div>
 );
 
-const ComparisonCard = ({
-  label,
-  currentMargin,
-  baselineMargin,
-  hasData,
-}: {
-  label: string;
-  currentMargin: number;
-  baselineMargin?: number | null;
-  hasData: boolean;
-}) => {
-  if (!hasData) {
-    return (
-      <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
-        <p className="uppercase tracking-[0.2em] text-slate-700">{label}</p>
-        <p className="mt-2 text-sm font-semibold text-slate-600">Sin datos</p>
-      </div>
-    );
-  }
-  if (baselineMargin === null || baselineMargin === undefined) {
-    return (
-      <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
-        <p className="uppercase tracking-[0.2em] text-slate-700">{label}</p>
-        <p className="mt-2 text-sm font-semibold text-slate-600">Sin datos</p>
-      </div>
-    );
-  }
-
-  const delta = currentMargin - baselineMargin;
-  const deltaRatio = baselineMargin ? delta / Math.abs(baselineMargin) : 0;
-
-  const deltaClass =
-    delta > 0
-      ? "text-emerald-600"
-      : delta < 0
-        ? "text-rose-600"
-        : "text-slate-700";
-
-  const TrendIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : null;
-
-  return (
-    <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 transition-all hover:bg-slate-100/50">
-      <p className="uppercase tracking-[0.2em] text-slate-700">{label}</p>
-      <p
-        className={`mt-2 flex items-center gap-2 text-sm font-semibold ${deltaClass}`}
-      >
-        {TrendIcon && <TrendIcon className="h-4 w-4" />}
-        {formatCOP(delta)}
-      </p>
-      <p className={`text-xs font-semibold ${deltaClass}`}>
-        {formatPercent(deltaRatio)} vs margen
-      </p>
-    </div>
-  );
-};
-
 // ============================================================================
 // UTILIDADES
 // ============================================================================
 
 const calculateMetrics = (summary: DailySummary) => {
-  const marginRatio = summary.sales ? summary.margin / summary.sales : 0;
   const salesPerHour = summary.hours ? summary.sales / summary.hours : 0;
-  const marginPerHour = summary.hours ? summary.margin / summary.hours : 0;
-
-  const marginPercentClass =
-    marginRatio > 0
-      ? "text-emerald-600"
-      : marginRatio < 0
-        ? "text-rose-600"
-        : "text-slate-700";
-
-  const marginValueClass =
-    summary.margin > 0
-      ? "text-emerald-600"
-      : summary.margin < 0
-        ? "text-rose-600"
-        : "text-slate-700";
 
   return {
-    marginRatio,
     salesPerHour,
-    marginPerHour,
-    marginPercentClass,
-    marginValueClass,
   };
 };
 
@@ -158,11 +75,8 @@ export const SummaryCard = ({
   title,
   salesLabel,
   hasData = true,
-  comparisons = [],
 }: SummaryCardProps) => {
-  const { marginRatio, salesPerHour, marginPerHour, marginPercentClass, marginValueClass } =
-    calculateMetrics(summary);
-  const emptyValueClass = hasData ? "text-slate-900" : "text-slate-600";
+  const { salesPerHour } = calculateMetrics(summary);
 
   return (
     <section
@@ -178,7 +92,7 @@ export const SummaryCard = ({
       </header>
 
       {/* Metrics Grid */}
-      <div className="mt-6 grid gap-4 text-sm text-slate-800 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-4 text-sm text-slate-800 sm:grid-cols-2">
         <MetricCard
           label="Horas registradas"
           value={hasData ? `${formatHours(summary.hours)}h` : "0h"}
@@ -187,51 +101,12 @@ export const SummaryCard = ({
         />
 
         <MetricCard
-          label="Costo de nómina"
-          value={hasData ? formatCOP(summary.cost) : formatCOP(0)}
-          icon={PiggyBank}
-          iconColor="text-amber-500"
-          valueClassName={emptyValueClass}
-        />
-
-        <MetricCard
           label="Venta por hora"
           value={formatCOP(salesPerHour)}
           icon={Gauge}
           iconColor="text-sky-500"
         />
-
-        <MetricCard
-          label="Margen acumulado"
-          value={hasData ? formatCOP(summary.margin) : formatCOP(0)}
-          valueClassName={hasData ? marginValueClass : emptyValueClass}
-          subtitle={
-            hasData ? `${formatPercent(marginRatio)} margen` : undefined
-          }
-          subtitleClassName={marginPercentClass}
-        />
-
-        <MetricCard
-          label="Margen por hora trabajada"
-          value={hasData ? formatCOP(marginPerHour) : formatCOP(0)}
-          valueClassName={emptyValueClass}
-        />
       </div>
-
-      {/* Comparisons */}
-      {comparisons.length > 0 && (
-        <div className="mt-6 grid gap-3 text-xs text-slate-800 sm:grid-cols-3">
-          {comparisons.map((comparison) => (
-            <ComparisonCard
-              key={comparison.label}
-              label={comparison.label}
-              currentMargin={summary.margin}
-              baselineMargin={comparison.baseline?.margin}
-              hasData={hasData}
-            />
-          ))}
-        </div>
-      )}
     </section>
   );
 };

@@ -1,9 +1,6 @@
 import {
-  calcLineCost,
-  calcLineMargin,
   formatCOP,
   formatHours,
-  formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import { LineMetrics } from "@/types";
@@ -35,15 +32,10 @@ const MetricRow = ({
 );
 
 export const LineCard = ({ line, hasData = true }: LineCardProps) => {
-  const margin = calcLineMargin(line);
-  const cost = calcLineCost(line);
-  const marginPercent = line.sales ? margin / line.sales : 0;
   const hasLaborData = hasLaborDataForLine(line.id);
   const displayHours = hasLaborData ? line.hours : 0;
   const emptyLabel = "—";
-  const zeroCurrency = formatCOP(0);
   const zeroHours = "0h";
-  const zeroPercent = formatPercent(0);
 
   return (
     <article
@@ -69,33 +61,6 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
           label="Horas trabajadas"
           value={hasData ? `${formatHours(displayHours)}h` : zeroHours}
           valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
-        />
-        <MetricRow
-          label="Costo de horas"
-          value={hasData ? formatCOP(cost) : zeroCurrency}
-          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
-        />
-        <MetricRow
-          label="Margen"
-          value={hasData ? formatCOP(margin) : zeroCurrency}
-          valueClassName={
-            hasData
-              ? margin >= 0
-                ? "text-green-600"
-                : "text-red-600"
-              : "text-slate-600"
-          }
-        />
-        <MetricRow
-          label="% Margen"
-          value={hasData ? formatPercent(marginPercent) : zeroPercent}
-          valueClassName={
-            hasData
-              ? marginPercent >= 0
-                ? "text-green-600"
-                : "text-red-600"
-              : "text-slate-600"
-          }
         />
       </div>
     </article>

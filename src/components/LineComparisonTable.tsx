@@ -3,11 +3,8 @@
 import { useState, useCallback } from "react";
 import { GripVertical } from "lucide-react";
 import {
-  calcLineCost,
-  calcLineMargin,
   formatCOP,
   formatHours,
-  formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import { LineMetrics } from "@/types";
@@ -21,12 +18,7 @@ interface LineComparisonTableProps {
 // TIPOS
 // ============================================================================
 
-type LineWithMetrics = LineMetrics & {
-  cost: number;
-  margin: number;
-  marginRatio: number;
-  marginPerHour: number;
-};
+type LineWithMetrics = LineMetrics;
 
 // ============================================================================
 // COMPONENTES AUXILIARES
@@ -39,10 +31,6 @@ const TableHeader = () => (
       <th className="sticky left-0 bg-white px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Línea</th>
       <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Ventas</th>
       <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Horas</th>
-      <th className="hidden px-2 py-1.5 text-left font-semibold sm:table-cell sm:px-4 sm:py-2">Costo</th>
-      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Margen</th>
-      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">%</th>
-      <th className="hidden px-2 py-1.5 text-left font-semibold sm:table-cell sm:px-4 sm:py-2">M/h</th>
     </tr>
   </thead>
 );
@@ -68,9 +56,7 @@ const TableRow = ({
   onDragLeave: () => void;
   onDrop: () => void;
 }) => {
-  const zeroCurrency = formatCOP(0);
   const zeroHours = "0h";
-  const zeroPercent = formatPercent(0);
   const displayHours = hasLaborDataForLine(line.id) ? line.hours : 0;
 
   return (
@@ -103,26 +89,6 @@ const TableRow = ({
       <td className="px-2 py-2 text-xs text-slate-700 sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? `${formatHours(displayHours)}h` : zeroHours}
       </td>
-      <td className="hidden px-2 py-2 text-xs text-slate-700 sm:table-cell sm:px-4 sm:py-3 sm:text-sm">
-        {hasData ? formatCOP(line.cost) : zeroCurrency}
-      </td>
-      <td
-        className={`px-2 py-2 text-xs font-semibold sm:px-4 sm:py-3 sm:text-sm ${
-          hasData && line.margin >= 0 ? "text-green-600" : hasData && line.margin < 0 ? "text-red-600" : "text-slate-900"
-        }`}
-      >
-        {hasData ? formatCOP(line.margin) : zeroCurrency}
-      </td>
-      <td
-        className={`px-2 py-2 text-xs font-semibold sm:px-4 sm:py-3 sm:text-sm ${
-          hasData && line.marginRatio >= 0 ? "text-green-600" : hasData && line.marginRatio < 0 ? "text-red-600" : "text-slate-900"
-        }`}
-      >
-        {hasData ? formatPercent(line.marginRatio) : zeroPercent}
-      </td>
-      <td className="hidden rounded-r-xl px-2 py-2 text-xs font-semibold text-slate-900 sm:table-cell sm:rounded-r-2xl sm:px-4 sm:py-3 sm:text-sm">
-        {hasData ? formatCOP(line.marginPerHour) : zeroCurrency}
-      </td>
     </tr>
   );
 };
@@ -142,12 +108,12 @@ const TableSummary = ({
         Comparativo de líneas
       </p>
       <h3 className="text-lg font-semibold text-slate-900 sm:text-2xl">
-        Rentabilidad en comparación
+        Ventas en comparación
       </h3>
       <p className="mt-1 text-xs text-slate-700 sm:mt-2 sm:text-sm">
         {isCustomOrder
           ? "Orden personalizado."
-          : "Ordenado por margen."}
+          : "Ordenado por ventas."}
         <span className="hidden sm:inline"> Arrastra las filas para comparar.</span>
       </p>
     </div>
@@ -182,22 +148,11 @@ const EmptyState = () => (
 // ============================================================================
 
 const enrichLineWithMetrics = (line: LineMetrics): LineWithMetrics => {
-  const cost = calcLineCost(line);
-  const margin = calcLineMargin(line);
-  const marginRatio = line.sales ? margin / line.sales : 0;
-  const marginPerHour = line.hours ? margin / line.hours : 0;
-
-  return {
-    ...line,
-    cost,
-    margin,
-    marginRatio,
-    marginPerHour,
-  };
+  return { ...line };
 };
 
-const sortLinesByMargin = (lines: LineWithMetrics[]): LineWithMetrics[] => {
-  return [...lines].sort((a, b) => b.margin - a.margin);
+const sortLinesBySales = (lines: LineWithMetrics[]): LineWithMetrics[] => {
+  return [...lines].sort((a, b) => b.sales - a.sales);
 };
 
 // ============================================================================
@@ -216,8 +171,8 @@ export const LineComparisonTable = ({
   // Enriquecer líneas con métricas calculadas
   const enrichedLines = lines.map((line) => enrichLineWithMetrics(line));
 
-  // Ordenar por margen (orden por defecto)
-  const defaultSortedLines = sortLinesByMargin(enrichedLines);
+  // Ordenar por ventas (orden por defecto)
+  const defaultSortedLines = sortLinesBySales(enrichedLines);
 
   // Aplicar orden personalizado si existe
   const sortedLines = customOrder

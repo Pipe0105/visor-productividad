@@ -8,11 +8,12 @@ export const hasLaborDataForLine = (lineId: string) =>
   !linesWithoutLaborData.has(lineId);
 
 export const formatCOP = (value: number) => {
+  const inThousands = Math.round(value / 1000);
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(inThousands);
 };
 
 export const formatHours = (value: number) => {

@@ -21,10 +21,7 @@ import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
 import {
   calcDailySummary,
-  calcLineCost,
-  calcLineMargin,
   formatCOP,
-  formatPercent,
   hasLaborDataForLine,
 } from "@/lib/calc";
 import {
@@ -349,29 +346,6 @@ const filterLinesByStatus = (
   return lines;
 };
 
-const calculateMonthlyAverage = (
-  summaries: ReturnType<typeof calcDailySummary>[],
-) => {
-  if (summaries.length === 0) return null;
-
-  const total = summaries.reduce(
-    (acc, item) => ({
-      sales: acc.sales + item.sales,
-      hours: acc.hours + item.hours,
-      cost: acc.cost + item.cost,
-      margin: acc.margin + item.margin,
-    }),
-    { sales: 0, hours: 0, cost: 0, margin: 0 },
-  );
-
-  return {
-    sales: total.sales / summaries.length,
-    hours: total.hours / summaries.length,
-    cost: total.cost / summaries.length,
-    margin: total.margin / summaries.length,
-  };
-};
-
 // ============================================================================
 // COMPONENTES
 // ============================================================================
@@ -434,8 +408,8 @@ const SearchAndSort = ({
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  sortBy: "sales" | "margin" | "hours" | "name";
-  onSortByChange: (value: "sales" | "margin" | "hours" | "name") => void;
+  sortBy: "sales" | "hours" | "name";
+  onSortByChange: (value: "sales" | "hours" | "name") => void;
   sortOrder: "asc" | "desc";
   onSortOrderToggle: () => void;
 }) => (
@@ -461,12 +435,11 @@ const SearchAndSort = ({
           value={sortBy}
           onChange={(e) =>
             onSortByChange(
-              e.target.value as "sales" | "margin" | "hours" | "name",
+              e.target.value as "sales" | "hours" | "name",
             )
           }
           className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
         >
-          <option value="margin">Margen</option>
           <option value="sales">Ventas</option>
           <option value="hours">Horas</option>
           <option value="name">Nombre</option>
@@ -498,7 +471,7 @@ const ViewToggle = ({
       case "cards":
         return "Tarjetas detalladas";
       case "comparison":
-        return "Comparativo de rentabilidad";
+        return "Comparativo de líneas";
       case "chart":
         return "Top 6 líneas (gráfico)";
       case "trends":
@@ -576,26 +549,16 @@ const ViewToggle = ({
 };
 
 const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
-  const [chartType, setChartType] = useState<"sales" | "margin">("sales");
-
   const sortedLines = useMemo(() => {
     return [...lines]
-      .sort((a, b) => {
-        if (chartType === "sales") {
-          return b.sales - a.sales;
-        }
-        return calcLineMargin(b) - calcLineMargin(a);
-      })
+      .sort((a, b) => b.sales - a.sales)
       .slice(0, 6); // Top 6
-  }, [lines, chartType]);
+  }, [lines]);
 
   const maxValue = useMemo(() => {
     if (sortedLines.length === 0) return 1;
-    if (chartType === "sales") {
-      return Math.max(...sortedLines.map((line) => line.sales));
-    }
-    return Math.max(...sortedLines.map((line) => calcLineMargin(line)));
-  }, [sortedLines, chartType]);
+    return Math.max(...sortedLines.map((line) => line.sales));
+  }, [sortedLines]);
 
   if (lines.length === 0) return null;
 
@@ -607,39 +570,14 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
             Análisis visual
           </p>
           <h3 className="mt-1 text-lg font-semibold text-slate-900">
-            Top 6 líneas por {chartType === "sales" ? "ventas" : "margen"}
+            Top 6 líneas por ventas
           </h3>
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
-          <button
-            type="button"
-            onClick={() => setChartType("sales")}
-            className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
-              chartType === "sales"
-                ? "bg-white text-mercamio-700 shadow-sm"
-                : "text-slate-700 hover:text-slate-800"
-            }`}
-          >
-            Ventas
-          </button>
-          <button
-            type="button"
-            onClick={() => setChartType("margin")}
-            className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
-              chartType === "margin"
-                ? "bg-white text-mercamio-700 shadow-sm"
-                : "text-slate-700 hover:text-slate-800"
-            }`}
-          >
-            Margen
-          </button>
         </div>
       </div>
 
       <div className="space-y-3">
         {sortedLines.map((line, index) => {
-          const value =
-            chartType === "sales" ? line.sales : calcLineMargin(line);
+          const value = line.sales;
           const rawPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
           const percentage = Number.isFinite(rawPercentage)
             ? Math.min(Math.max(rawPercentage, 0), 100)
@@ -687,24 +625,65 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
   );
 };
 
+const SEDE_COLORS = [
+  "#2a8f7c", "#2563eb", "#d97706", "#dc2626", "#7c3aed",
+  "#059669", "#db2777", "#0891b2", "#ca8a04", "#6366f1",
+];
+
 const LineTrends = ({
   dailyDataSet,
   selectedSedeIds,
   availableDates,
   lines,
+  sedes,
+  dateRange,
 }: {
   dailyDataSet: DailyProductivity[];
   selectedSedeIds: string[];
   availableDates: string[];
   lines: LineMetrics[];
+  sedes: Sede[];
+  dateRange: DateRange;
 }) => {
   const [selectedLine, setSelectedLine] = useState<string>("");
-  const [metricType, setMetricType] = useState<"sales" | "margin" | "hours">(
+  const [metricType, setMetricType] = useState<"sales" | "hours">(
     "sales",
   );
+  const [viewType, setViewType] = useState<"temporal" | "por-sede">(
+    "temporal",
+  );
+  const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setComparisonSedeIds(sedes.map((s) => s.id));
+  }, [sedes]);
+
+  const toggleComparisonSede = useCallback((sedeId: string) => {
+    setComparisonSedeIds((prev) =>
+      prev.includes(sedeId)
+        ? prev.filter((id) => id !== sedeId)
+        : [...prev, sedeId],
+    );
+  }, []);
+
+  const toggleAllComparisonSedes = useCallback(() => {
+    setComparisonSedeIds((prev) =>
+      prev.length === sedes.length ? [] : sedes.map((s) => s.id),
+    );
+  }, [sedes]);
+
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
     [selectedSedeIds],
+  );
+  const sedeNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sedes.forEach((s) => map.set(s.id, s.name));
+    return map;
+  }, [sedes]);
+  const availableDateSet = useMemo(
+    () => new Set(availableDates),
+    [availableDates],
   );
 
   // Calculate trend data for selected line
@@ -729,22 +708,18 @@ const LineTrends = ({
 
           const hasLaborData = hasLaborDataForLine(lineData.id);
           const hours = hasLaborData ? lineData.hours : 0;
-          const cost = hours * lineData.hourlyRate;
 
           return {
             sales: acc.sales + lineData.sales,
             hours: acc.hours + hours,
-            margin: acc.margin + (lineData.sales - cost),
           };
         },
-        { sales: 0, hours: 0, margin: 0 },
+        { sales: 0, hours: 0 },
       );
 
       let value = 0;
       if (metricType === "sales") {
         value = totals.sales;
-      } else if (metricType === "margin") {
-        value = totals.margin;
       } else {
         value = totals.hours;
       }
@@ -772,6 +747,63 @@ const LineTrends = ({
     return sum / trendData.length;
   }, [trendData]);
 
+  // Per-sede comparison data (day by day)
+  const sedeComparisonData = useMemo(() => {
+    if (!selectedLine || comparisonSedeIds.length === 0) return [];
+
+    const rangeDates = availableDates.filter(
+      (d) => d >= dateRange.start && d <= dateRange.end,
+    );
+
+    return rangeDates.map((date) => {
+      const sedes = comparisonSedeIds.map((sedeId) => {
+        const dayData = dailyDataSet.filter(
+          (item) => item.sede === sedeId && item.date === date,
+        );
+
+        const totals = dayData.reduce(
+          (acc, item) => {
+            const lineData = item.lines.find((l) => l.id === selectedLine);
+            if (!lineData) return acc;
+
+            const hasLaborData = hasLaborDataForLine(lineData.id);
+            const hours = hasLaborData ? lineData.hours : 0;
+
+            return {
+              sales: acc.sales + lineData.sales,
+              hours: acc.hours + hours,
+            };
+          },
+          { sales: 0, hours: 0 },
+        );
+
+        return {
+          sedeId,
+          sedeName: sedeNameMap.get(sedeId) || sedeId,
+          value: metricType === "sales" ? totals.sales : totals.hours,
+        };
+      });
+
+      return { date, sedes };
+    });
+  }, [selectedLine, comparisonSedeIds, dailyDataSet, availableDates, dateRange, metricType, sedeNameMap]);
+
+  const sedeColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    comparisonSedeIds.forEach((id, i) => {
+      map.set(id, SEDE_COLORS[i % SEDE_COLORS.length]);
+    });
+    return map;
+  }, [comparisonSedeIds]);
+
+  const sedeMaxValue = useMemo(() => {
+    if (sedeComparisonData.length === 0) return 1;
+    const allValues = sedeComparisonData.flatMap((d) =>
+      d.sedes.map((s) => s.value),
+    );
+    return Math.max(...allValues, 1);
+  }, [sedeComparisonData]);
+
   // Calculate trend direction
   const trendDirection = useMemo(() => {
     if (trendData.length < 2) return "stable";
@@ -793,13 +825,40 @@ const LineTrends = ({
 
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-      <div className="mb-6">
+      <div className="mb-4">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Análisis de tendencias
         </p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">
-          Evolución temporal por línea
+          {viewType === "temporal"
+            ? "Evolución temporal por línea"
+            : "Comparativo por sede"}
         </h3>
+      </div>
+
+      <div className="mb-4 flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+        <button
+          type="button"
+          onClick={() => setViewType("temporal")}
+          className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+            viewType === "temporal"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-700 hover:text-slate-800"
+          }`}
+        >
+          Evolución temporal
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewType("por-sede")}
+          className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+            viewType === "por-sede"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-700 hover:text-slate-800"
+          }`}
+        >
+          Comparativo por sede
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 mb-6">
@@ -824,87 +883,222 @@ const LineTrends = ({
           <select
             value={metricType}
             onChange={(e) =>
-              setMetricType(e.target.value as "sales" | "margin" | "hours")
+              setMetricType(e.target.value as "sales" | "hours")
             }
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
             <option value="sales">Ventas</option>
-            <option value="margin">Margen</option>
             <option value="hours">Horas trabajadas</option>
           </select>
         </label>
       </div>
 
-      {selectedLine && trendData.length > 0 && (
-        <>
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-700">Promedio del período</p>
-              <p className="text-2xl font-semibold text-slate-900">
-                {metricType === "hours"
-                  ? `${avgValue.toFixed(1)}h`
-                  : formatCOP(avgValue)}
-              </p>
-            </div>
-            <div
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
-                trendDirection === "up"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : trendDirection === "down"
-                    ? "bg-red-50 text-red-700"
-                    : "bg-slate-100 text-slate-700"
-              }`}
+      {viewType === "por-sede" && (
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700">
+              Sedes a comparar
+            </span>
+            <button
+              type="button"
+              onClick={toggleAllComparisonSedes}
+              className="text-xs font-semibold text-mercamio-700 hover:text-mercamio-800 transition-colors"
             >
-              {trendDirection === "up" && "↑ Tendencia al alza"}
-              {trendDirection === "down" && "↓ Tendencia a la baja"}
-              {trendDirection === "stable" && "→ Estable"}
-            </div>
+              {comparisonSedeIds.length === sedes.length
+                ? "Deseleccionar todas"
+                : "Seleccionar todas"}
+            </button>
           </div>
-
-          <div className="space-y-2">
-            {trendData.map((point) => {
-              const percentage =
-                maxValue > 0 ? (point.value / maxValue) * 100 : 0;
-              const isAboveAverage = point.value > avgValue;
-
+          <div className="flex flex-wrap gap-2">
+            {sedes.map((sede) => {
+              const isSelected = comparisonSedeIds.includes(sede.id);
               return (
-                <div key={point.date} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-700">
-                      {formatDateLabel(point.date)}
-                    </span>
-                    <span className="font-semibold text-slate-900">
-                      {metricType === "hours"
-                        ? `${point.value.toFixed(1)}h`
-                        : formatCOP(point.value)}
-                    </span>
-                  </div>
-                  <div className="relative h-6 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${percentage}%`,
-                        backgroundColor: isAboveAverage ? "#10b981" : "#f59e0b",
-                      }}
-                    />
-                  </div>
-                </div>
+                <button
+                  key={sede.id}
+                  type="button"
+                  onClick={() => toggleComparisonSede(sede.id)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                    isSelected
+                      ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                      : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  {sede.name}
+                </button>
               );
             })}
           </div>
+        </div>
+      )}
+
+      {viewType === "temporal" ? (
+        <>
+          {selectedLine && trendData.length > 0 && (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-700">Promedio del período</p>
+                  <p className="text-2xl font-semibold text-slate-900">
+                    {metricType === "hours"
+                      ? `${avgValue.toFixed(1)}h`
+                      : formatCOP(avgValue)}
+                  </p>
+                </div>
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                    trendDirection === "up"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : trendDirection === "down"
+                        ? "bg-red-50 text-red-700"
+                        : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {trendDirection === "up" && "↑ Tendencia al alza"}
+                  {trendDirection === "down" && "↓ Tendencia a la baja"}
+                  {trendDirection === "stable" && "→ Estable"}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {trendData.map((point) => {
+                  const percentage =
+                    maxValue > 0 ? (point.value / maxValue) * 100 : 0;
+                  const isAboveAverage = point.value > avgValue;
+
+                  return (
+                    <div key={point.date} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-slate-700">
+                          {formatDateLabel(point.date)}
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {metricType === "hours"
+                            ? `${point.value.toFixed(1)}h`
+                            : formatCOP(point.value)}
+                        </span>
+                      </div>
+                      <div className="relative h-6 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${percentage}%`,
+                            backgroundColor: isAboveAverage ? "#10b981" : "#f59e0b",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {!selectedLine && (
+            <p className="text-center text-sm text-slate-700 py-8">
+              Selecciona una línea para ver su tendencia temporal
+            </p>
+          )}
+
+          {selectedLine && trendData.length === 0 && (
+            <p className="text-center text-sm text-slate-700 py-8">
+              No hay datos disponibles para esta línea
+            </p>
+          )}
         </>
-      )}
+      ) : (
+        <>
+          {selectedLine && sedeComparisonData.length > 0 && (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-700">Comparativo diario</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {sedeComparisonData.length}{" "}
+                    {sedeComparisonData.length === 1 ? "día" : "días"},{" "}
+                    {comparisonSedeIds.length}{" "}
+                    {comparisonSedeIds.length === 1 ? "sede" : "sedes"}
+                  </p>
+                </div>
+              </div>
 
-      {!selectedLine && (
-        <p className="text-center text-sm text-slate-700 py-8">
-          Selecciona una línea para ver su tendencia temporal
-        </p>
-      )}
+              <div className="mb-4 flex flex-wrap gap-3">
+                {comparisonSedeIds.map((sedeId) => (
+                  <div key={sedeId} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-3 w-3 rounded-full"
+                      style={{
+                        backgroundColor: sedeColorMap.get(sedeId) || "#94a3b8",
+                      }}
+                    />
+                    <span className="text-xs font-semibold text-slate-700">
+                      {sedeNameMap.get(sedeId) || sedeId}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-      {selectedLine && trendData.length === 0 && (
-        <p className="text-center text-sm text-slate-700 py-8">
-          No hay datos disponibles para esta línea
-        </p>
+              <div className="space-y-5">
+                {sedeComparisonData.map((day) => (
+                  <div key={day.date}>
+                    <p className="mb-1.5 text-xs font-mono font-semibold text-slate-800">
+                      {formatDateLabel(day.date)}
+                    </p>
+                    <div className="space-y-1">
+                      {day.sedes.map((sede) => {
+                        const percentage =
+                          sedeMaxValue > 0
+                            ? (sede.value / sedeMaxValue) * 100
+                            : 0;
+                        const color =
+                          sedeColorMap.get(sede.sedeId) || "#94a3b8";
+
+                        return (
+                          <div
+                            key={sede.sedeId}
+                            className="flex items-center gap-2"
+                          >
+                            <span
+                              className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                              style={{ backgroundColor: color }}
+                            />
+                            <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${percentage}%`,
+                                  backgroundColor: color,
+                                }}
+                              />
+                            </div>
+                            <span className="w-24 text-right text-xs font-semibold text-slate-900">
+                              {metricType === "hours"
+                                ? `${sede.value.toFixed(1)}h`
+                                : formatCOP(sede.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {!selectedLine && (
+            <p className="text-center text-sm text-slate-700 py-8">
+              Selecciona una línea para comparar entre sedes
+            </p>
+          )}
+
+          {selectedLine && sedeComparisonData.length === 0 && (
+            <p className="text-center text-sm text-slate-700 py-8">
+              {comparisonSedeIds.length === 0
+                ? "Selecciona al menos una sede para ver la comparación."
+                : "No hay datos disponibles para esta línea en las sedes seleccionadas."}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -960,20 +1154,16 @@ const PeriodComparison = ({
   };
 
   const salesDiff = calculateDiff(period1Data.sales, period2Data.sales);
-  const marginDiff = calculateDiff(period1Data.margin, period2Data.margin);
   const hoursDiff = calculateDiff(period1Data.hours, period2Data.hours);
-  const costDiff = calculateDiff(period1Data.cost, period2Data.cost);
 
   const renderMetric = (
     label: string,
     value1: number,
     value2: number,
     diff: number,
-    isPercentage?: boolean,
   ) => {
     const isPositive = diff > 0;
-    const displayValue = (val: number) =>
-      isPercentage ? formatPercent(val) : formatCOP(val);
+    const displayValue = (val: number) => formatCOP(val);
 
     return (
       <div className="space-y-2">
@@ -1112,22 +1302,10 @@ const PeriodComparison = ({
           salesDiff,
         )}
         {renderMetric(
-          "Margen",
-          period1Data.margin,
-          period2Data.margin,
-          marginDiff,
-        )}
-        {renderMetric(
           "Horas trabajadas",
           period1Data.hours,
           period2Data.hours,
           hoursDiff,
-        )}
-        {renderMetric(
-          "Costos laborales",
-          period1Data.cost,
-          period2Data.cost,
-          costDiff,
         )}
       </div>
     </div>
@@ -1388,8 +1566,8 @@ export default function Home() {
 
   // Estados adicionales para búsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"sales" | "margin" | "hours" | "name">(
-    "margin",
+  const [sortBy, setSortBy] = useState<"sales" | "hours" | "name">(
+    "sales",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -1496,9 +1674,6 @@ export default function Home() {
         case "sales":
           compareValue = a.sales - b.sales;
           break;
-        case "margin":
-          compareValue = calcLineMargin(a) - calcLineMargin(b);
-          break;
         case "hours":
           compareValue = a.hours - b.hours;
           break;
@@ -1514,7 +1689,7 @@ export default function Home() {
   }, [lineFilter, lines, searchQuery, sortBy, sortOrder]);
   const pdfLines = useMemo(
     () =>
-      [...filteredLines].sort((a, b) => calcLineMargin(b) - calcLineMargin(a)),
+      [...filteredLines].sort((a, b) => b.sales - a.sales),
     [filteredLines],
   );
 
@@ -1549,54 +1724,6 @@ export default function Home() {
         item.date.startsWith(selectedMonth),
     );
   }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
-
-  // Comparaciones
-  const summariesByDate = useMemo(() => {
-    const map = new Map<string, LineMetrics[]>();
-
-    dailyDataSet
-      .filter((item) => selectedSedeIdSet.has(item.sede))
-      .forEach((item) => {
-        const existing = map.get(item.date) ?? [];
-        map.set(item.date, [...existing, ...item.lines]);
-      });
-
-    return new Map(
-      Array.from(map.entries(), ([date, lines]) => [
-        date,
-        calcDailySummary(lines),
-      ]),
-    );
-  }, [dailyDataSet, selectedSedeIdSet]);
-
-  const dailyComparisons = useMemo(() => {
-    const selectedDateValue = parseDateKey(dateRange.end);
-
-    const previousDay = new Date(selectedDateValue);
-    previousDay.setUTCDate(previousDay.getUTCDate() - 1);
-
-    const previousWeek = new Date(selectedDateValue);
-    previousWeek.setUTCDate(previousWeek.getUTCDate() - 7);
-
-    const monthlyDailySummaries = Array.from(summariesByDate.entries())
-      .filter(([date]) => date.startsWith(selectedMonth))
-      .map(([, summary]) => summary);
-
-    return [
-      {
-        label: "Vs. día anterior",
-        baseline: summariesByDate.get(toDateKey(previousDay)) ?? null,
-      },
-      {
-        label: "Vs. semana anterior",
-        baseline: summariesByDate.get(toDateKey(previousWeek)) ?? null,
-      },
-      {
-        label: "Vs. promedio mensual",
-        baseline: calculateMonthlyAverage(monthlyDailySummaries),
-      },
-    ];
-  }, [dateRange.end, selectedMonth, summariesByDate]);
 
   // Handlers
   const handleStartDateChange = useCallback((value: string) => {
@@ -1662,15 +1789,6 @@ export default function Home() {
       const hasLaborData = hasLaborDataForLine(line.id);
       return acc + (hasLaborData ? line.hours : 0);
     }, 0);
-    const totalCost = pdfLines.reduce((acc, line) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      return acc + (hasLaborData ? calcLineCost(line) : 0);
-    }, 0);
-    const totalMargin = pdfLines.reduce((acc, line) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      return acc + (hasLaborData ? calcLineMargin(line) : 0);
-    }, 0);
-    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
 
     // Separador visual
     const separator = "═".repeat(80);
@@ -1695,29 +1813,23 @@ export default function Home() {
       "DETALLE POR LÍNEA",
       thinSeparator,
       "",
-      "#,Línea,Código,Ventas ($),Horas,Costo ($),Margen ($),Margen %",
+      "#,Línea,Código,Ventas ($),Horas",
       ...pdfLines.map((line, index) => {
         const hasLaborData = hasLaborDataForLine(line.id);
         const hours = hasLaborData ? line.hours : 0;
-        const cost = hasLaborData ? calcLineCost(line) : 0;
-        const margin = hasLaborData ? calcLineMargin(line) : 0;
-        const marginRatio = line.sales ? margin / line.sales : 0;
         return [
           index + 1,
           escapeCsv(line.name),
           escapeCsv(line.id),
           formatNumber(Math.round(line.sales)),
           hours.toFixed(2),
-          formatNumber(Math.round(cost)),
-          formatNumber(Math.round(margin)),
-          `${(marginRatio * 100).toFixed(2)}%`,
         ].join(",");
       }),
       "",
       thinSeparator,
       "TOTALES",
       thinSeparator,
-      `,TOTAL,,${formatNumber(Math.round(totalSales))},${totalHours.toFixed(2)},${formatNumber(Math.round(totalCost))},${formatNumber(Math.round(totalMargin))},${(totalMarginRatio * 100).toFixed(2)}%`,
+      `,TOTAL,,${formatNumber(Math.round(totalSales))},${totalHours.toFixed(2)}`,
       "",
       "",
       separator,
@@ -1771,13 +1883,10 @@ export default function Home() {
       { key: "codigo", width: 18 },
       { key: "ventas", width: 18 },
       { key: "horas", width: 12 },
-      { key: "costo", width: 18 },
-      { key: "margen", width: 18 },
-      { key: "margenPct", width: 14 },
     ];
 
     // === TÍTULO ===
-    worksheet.mergeCells("A1:H1");
+    worksheet.mergeCells("A1:E1");
     const titleCell = worksheet.getCell("A1");
     titleCell.value = "REPORTE DE PRODUCTIVIDAD POR LÍNEA";
     titleCell.font = { name: "Calibri", size: 18, bold: true, color: { argb: primaryColor } };
@@ -1793,7 +1902,7 @@ export default function Home() {
       ["Generado:", formatPdfDate()],
     ];
 
-    worksheet.mergeCells(`A${infoStartRow}:H${infoStartRow}`);
+    worksheet.mergeCells(`A${infoStartRow}:E${infoStartRow}`);
     const infoHeaderCell = worksheet.getCell(`A${infoStartRow}`);
     infoHeaderCell.value = "Información del Reporte";
     infoHeaderCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: primaryColor } };
@@ -1810,7 +1919,7 @@ export default function Home() {
 
     // === ENCABEZADOS DE TABLA ===
     const headerRow = infoStartRow + infoData.length + 2;
-    const headers = ["#", "Línea", "Código", "Ventas ($)", "Horas", "Costo ($)", "Margen ($)", "Margen %"];
+    const headers = ["#", "Línea", "Código", "Ventas ($)", "Horas"];
 
     const headerRowObj = worksheet.getRow(headerRow);
     headers.forEach((header, index) => {
@@ -1832,20 +1941,13 @@ export default function Home() {
     const dataStartRow = headerRow + 1;
     let totalSales = 0;
     let totalHours = 0;
-    let totalCost = 0;
-    let totalMargin = 0;
 
     pdfLines.forEach((line, index) => {
       const hasLaborData = hasLaborDataForLine(line.id);
       const hours = hasLaborData ? line.hours : 0;
-      const cost = hasLaborData ? calcLineCost(line) : 0;
-      const margin = hasLaborData ? calcLineMargin(line) : 0;
-      const marginRatio = line.sales ? margin / line.sales : 0;
 
       totalSales += line.sales;
       totalHours += hours;
-      totalCost += cost;
-      totalMargin += margin;
 
       const rowNum = dataStartRow + index;
       const row = worksheet.getRow(rowNum);
@@ -1858,9 +1960,6 @@ export default function Home() {
         line.id,
         Math.round(line.sales),
         hours,
-        Math.round(cost),
-        Math.round(margin),
-        marginRatio,
       ];
 
       rowData.forEach((value, colIndex) => {
@@ -1877,11 +1976,8 @@ export default function Home() {
         };
 
         // Formato numérico
-        if (colIndex >= 3 && colIndex <= 6) {
+        if (colIndex >= 3) {
           cell.numFmt = "#,##0";
-        }
-        if (colIndex === 7) {
-          cell.numFmt = "0.00%";
         }
       });
       row.height = 20;
@@ -1890,7 +1986,6 @@ export default function Home() {
     // === FILA DE TOTALES ===
     const totalRowNum = dataStartRow + pdfLines.length + 1;
     const totalRow = worksheet.getRow(totalRowNum);
-    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
 
     const totalsData = [
       "",
@@ -1898,9 +1993,6 @@ export default function Home() {
       "",
       Math.round(totalSales),
       totalHours,
-      Math.round(totalCost),
-      Math.round(totalMargin),
-      totalMarginRatio,
     ];
 
     totalsData.forEach((value, colIndex) => {
@@ -1916,18 +2008,15 @@ export default function Home() {
         right: { style: "thin", color: { argb: accentColor } },
       };
 
-      if (colIndex >= 3 && colIndex <= 6) {
+      if (colIndex >= 3) {
         cell.numFmt = "#,##0";
-      }
-      if (colIndex === 7) {
-        cell.numFmt = "0.00%";
       }
     });
     totalRow.height = 24;
 
     // === PIE DE PÁGINA ===
     const footerRow = totalRowNum + 2;
-    worksheet.mergeCells(`A${footerRow}:H${footerRow}`);
+    worksheet.mergeCells(`A${footerRow}:E${footerRow}`);
     const footerCell = worksheet.getCell(`A${footerRow}`);
     footerCell.value = "Generado automáticamente por Visor de Productividad";
     footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "808080" } };
@@ -2017,23 +2106,11 @@ export default function Home() {
       const hasLaborData = hasLaborDataForLine(line.id);
       return acc + (hasLaborData ? line.hours : 0);
     }, 0);
-    const totalCost = pdfLines.reduce((acc, line) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      return acc + (hasLaborData ? calcLineCost(line) : 0);
-    }, 0);
-    const totalMargin = pdfLines.reduce((acc, line) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      return acc + (hasLaborData ? calcLineMargin(line) : 0);
-    }, 0);
-    const totalMarginRatio = totalSales ? totalMargin / totalSales : 0;
 
     // Preparar filas de datos
     const tableBody = pdfLines.map((line, index) => {
       const hasLaborData = hasLaborDataForLine(line.id);
       const hours = hasLaborData ? line.hours : 0;
-      const cost = hasLaborData ? calcLineCost(line) : 0;
-      const margin = hasLaborData ? calcLineMargin(line) : 0;
-      const marginRatio = line.sales ? margin / line.sales : 0;
 
       return [
         (index + 1).toString(),
@@ -2041,9 +2118,6 @@ export default function Home() {
         line.id,
         `$ ${formatNumber(Math.round(line.sales))}`,
         hours.toFixed(2),
-        `$ ${formatNumber(Math.round(cost))}`,
-        `$ ${formatNumber(Math.round(margin))}`,
-        `${(marginRatio * 100).toFixed(2)}%`,
       ];
     });
 
@@ -2054,14 +2128,11 @@ export default function Home() {
       "",
       `$ ${formatNumber(Math.round(totalSales))}`,
       totalHours.toFixed(2),
-      `$ ${formatNumber(Math.round(totalCost))}`,
-      `$ ${formatNumber(Math.round(totalMargin))}`,
-      `${(totalMarginRatio * 100).toFixed(2)}%`,
     ];
 
     autoTable(doc, {
       startY: tableStartY,
-      head: [["#", "Línea", "Código", "Ventas", "Horas", "Costo", "Margen", "Margen %"]],
+      head: [["#", "Línea", "Código", "Ventas", "Horas"]],
       body: tableBody,
       foot: [totalsRow],
       theme: "grid",
@@ -2086,14 +2157,11 @@ export default function Home() {
         fillColor: [245, 245, 245],
       },
       columnStyles: {
-        0: { halign: "center", cellWidth: 12 },
-        1: { halign: "left", cellWidth: 50 },
-        2: { halign: "left", cellWidth: 35 },
-        3: { halign: "right", cellWidth: 35 },
-        4: { halign: "right", cellWidth: 22 },
-        5: { halign: "right", cellWidth: 35 },
-        6: { halign: "right", cellWidth: 35 },
-        7: { halign: "right", cellWidth: 25 },
+        0: { halign: "center", cellWidth: 15 },
+        1: { halign: "left", cellWidth: 80 },
+        2: { halign: "left", cellWidth: 50 },
+        3: { halign: "right", cellWidth: 50 },
+        4: { halign: "right", cellWidth: 30 },
       },
       margin: { left: 15, right: 15 },
       styles: {
@@ -2308,6 +2376,8 @@ export default function Home() {
                     selectedSedeIds={selectedSedeIds}
                     availableDates={availableDates}
                     lines={lines}
+                    sedes={availableSedes}
+                    dateRange={dateRange}
                   />
                 ) : (
                   <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -2339,7 +2409,6 @@ export default function Home() {
                   summary={summary}
                   title="Resumen del día"
                   salesLabel="Venta total"
-                  comparisons={dailyComparisons}
                   hasData={hasRangeData}
                 />
                 <SummaryCard
