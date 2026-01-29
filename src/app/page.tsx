@@ -270,6 +270,13 @@ const sortSedesByOrder = (sedes: Sede[]) => {
   });
 };
 
+const getHeatColor = (ratioPercent: number) => {
+  if (ratioPercent >= 110) return "#16a34a";
+  if (ratioPercent >= 100) return "#facc15";
+  if (ratioPercent >= 90) return "#f97316";
+  return "#dc2626";
+};
+
 const buildCompanyOptions = (): Sede[] =>
   SEDE_GROUPS.filter((group) => group.id !== "all").map((group) => ({
     id: group.id,
@@ -954,14 +961,7 @@ const LineTrends = ({
                     avgSalesPerHour > 0
                       ? (salesPerHour / avgSalesPerHour) * 100
                       : 0;
-                  const heatColor =
-                    heatRatio >= 110
-                      ? "#16a34a"
-                      : heatRatio >= 100
-                        ? "#facc15"
-                        : heatRatio >= 90
-                          ? "#f97316"
-                          : "#dc2626";
+                  const heatColor = getHeatColor(heatRatio);
 
                   return (
                     <div key={point.date} className="space-y-1">
@@ -1032,39 +1032,37 @@ const LineTrends = ({
                     </p>
                     <div className="space-y-1">
                       {(() => {
-                        const totals = day.sedes.reduce(
-                          (acc, sede) => ({
-                            sales: acc.sales + sede.sales,
-                            hours: acc.hours + sede.hours,
-                          }),
-                          { sales: 0, hours: 0 },
-                        );
+                        const sedeSalesPerHour = day.sedes
+                          .map((sede) =>
+                            sede.hours > 0
+                              ? sede.sales / 1_000_000 / sede.hours
+                              : 0,
+                          )
+                          .filter((value) => value > 0);
+                        const dayMaxSalesPerHour =
+                          sedeSalesPerHour.length > 0
+                            ? Math.max(...sedeSalesPerHour)
+                            : 0;
                         const dayAvgSalesPerHour =
-                          totals.hours > 0
-                            ? totals.sales / 1_000_000 / totals.hours
+                          sedeSalesPerHour.length > 0
+                            ? sedeSalesPerHour.reduce((acc, value) => acc + value, 0) /
+                              sedeSalesPerHour.length
                             : 0;
 
                         return day.sedes.map((sede) => {
-                          const percentage =
-                            sedeMaxValue > 0
-                              ? (sede.value / sedeMaxValue) * 100
-                              : 0;
                           const salesPerHour =
                             sede.hours > 0
                               ? sede.sales / 1_000_000 / sede.hours
+                              : 0;
+                          const percentage =
+                            dayMaxSalesPerHour > 0
+                              ? (salesPerHour / dayMaxSalesPerHour) * 100
                               : 0;
                           const heatRatio =
                             dayAvgSalesPerHour > 0
                               ? (salesPerHour / dayAvgSalesPerHour) * 100
                               : 0;
-                          const heatColor =
-                            heatRatio >= 110
-                              ? "#16a34a"
-                              : heatRatio >= 100
-                                ? "#facc15"
-                                : heatRatio >= 90
-                                  ? "#f97316"
-                                  : "#dc2626";
+                          const heatColor = getHeatColor(heatRatio);
 
                           return (
                             <div
