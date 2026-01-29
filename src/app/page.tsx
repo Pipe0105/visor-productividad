@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { LineChart } from "@mui/x-charts/LineChart";
 import * as ExcelJS from "exceljs";
+import type { XAxis, YAxis } from "@mui/x-charts/models";
+import type { LineSeriesType } from "@mui/x-charts/models/seriesType/line";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { LineCard } from "@/components/LineCard";
@@ -574,16 +576,24 @@ const ChartVisualization = ({
   availableDates,
   dateRange,
   lines,
+  sedes,
 }: {
   dailyDataSet: DailyProductivity[];
   selectedSedeIds: string[];
   availableDates: string[];
   dateRange: DateRange;
   lines: LineMetrics[];
+  sedes: Sede[];
 }) => {
   const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
+  const [selectedChartSedes, setSelectedChartSedes] = useState<string[]>([]);
 
-  const chartDates = useMemo(() => {
+  const sedeOptions = useMemo(
+    () => sortSedesByOrder(sedes ?? []),
+    [sedes],
+  );
+
+  const chartDates = useMemo<string[]>(() => {
     if (!dateRange.start || !dateRange.end) {
       return availableDates;
     }
@@ -614,10 +624,55 @@ const ChartVisualization = ({
     });
   }, [lineOptions]);
 
-  const selectedSedeIdSet = useMemo(
-    () => new Set(selectedSedeIds),
-    [selectedSedeIds],
+  useEffect(() => {
+    if (sedeOptions.length === 0) {
+      setSelectedChartSedes([]);
+      return;
+    }
+    setSelectedChartSedes((prev) => {
+      const available = new Set(sedeOptions.map((sede) => sede.id));
+      const next = prev.filter((id) => available.has(id));
+      if (next.length > 0) return next;
+      return sedeOptions.map((sede) => sede.id);
+    });
+  }, [sedeOptions]);
+
+  const effectiveSedes = useMemo(
+    () =>
+      selectedChartSedes.length > 0 ? selectedChartSedes : selectedSedeIds,
+    [selectedChartSedes, selectedSedeIds],
   );
+  const selectedSedeIdSet = useMemo(
+    () => new Set(effectiveSedes),
+    [effectiveSedes],
+  );
+
+  const sedeNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sedes.forEach((sede) => map.set(sede.id, sede.name));
+    return map;
+  }, [sedes]);
+
+  const seriesDefinitions = useMemo(() => {
+    if (selectedSeries.length === 0 || effectiveSedes.length === 0) {
+      return [] as Array<{
+        id: string;
+        lineId: string;
+        sedeId: string;
+        label: string;
+      }>;
+    }
+    return selectedSeries.flatMap((lineId) =>
+      effectiveSedes.map((sedeId) => ({
+        id: `${sedeId}::${lineId}`,
+        lineId,
+        sedeId,
+        label: `${sedeNameMap.get(sedeId) ?? sedeId} · ${
+          lineOptions.find((line) => line.id === lineId)?.name ?? lineId
+        }`,
+      })),
+    );
+  }, [effectiveSedes, lineOptions, selectedSeries, sedeNameMap]);
 
   const seriesMap = useMemo(() => {
     const map = new Map<string, number[]>();
@@ -630,9 +685,11 @@ const ChartVisualization = ({
       dailyByDate.set(date, dayData);
     });
 
-    selectedSeries.forEach((lineId) => {
+    seriesDefinitions.forEach(({ id, lineId, sedeId }) => {
       const data = chartDates.map((date) => {
-        const dayData = dailyByDate.get(date) ?? [];
+        const dayData = (dailyByDate.get(date) ?? []).filter(
+          (item) => item.sede === sedeId,
+        );
         const totals = dayData.reduce(
           (acc, item) => {
             const lineData = item.lines.find((line) => line.id === lineId);
@@ -652,17 +709,61 @@ const ChartVisualization = ({
         return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
       });
 
-      map.set(lineId, data);
+      map.set(id, data);
     });
 
     return map;
-  }, [chartDates, dailyDataSet, selectedSedeIdSet, selectedSeries]);
+  }, [
+    chartDates,
+    dailyDataSet,
+    selectedSedeIdSet,
+    seriesDefinitions,
+  ]);
 
+
+  const xAxis = useMemo<XAxis<"point", string>[]>(
+    () => [
+      {
+        data: chartDates,
+        scaleType: "point",
+        valueFormatter: (value: string) => formatDateLabel(value),
+      },
+    ],
+    [chartDates],
+  );
+
+  const yAxis = useMemo<YAxis<"linear", number>[]>(
+    () => [{ label: "Vta/Hr" }],
+    [],
+  );
+
+  const chartSeries = useMemo<LineSeriesType[]>(
+    () =>
+      seriesDefinitions.map((series) => ({
+        type: "line",
+        id: series.id,
+        label: series.label,
+        data: seriesMap.get(series.id) ?? [],
+        showMark: true,
+        curve: "linear",
+        valueFormatter: (value: number | null) =>
+          `${(value ?? 0).toFixed(3)}`,
+      })),
+    [seriesDefinitions, seriesMap],
+  );
   const handleToggleSeries = (lineId: string) => {
     setSelectedSeries((prev) =>
       prev.includes(lineId)
         ? prev.filter((id) => id !== lineId)
         : [...prev, lineId],
+    );
+  };
+
+  const handleToggleSede = (sedeId: string) => {
+    setSelectedChartSedes((prev) =>
+      prev.includes(sedeId)
+        ? prev.filter((id) => id !== sedeId)
+        : [...prev, sedeId],
     );
   };
 
@@ -721,31 +822,61 @@ const ChartVisualization = ({
         </div>
       </div>
 
-      {selectedSeries.length === 0 || chartDates.length === 0 ? (
+      <div className="mb-6">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-700">
+            Sedes a comparar
+          </span>
+          <button
+            type="button"
+            className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
+            onClick={() =>
+              setSelectedChartSedes(
+                selectedChartSedes.length === sedeOptions.length
+                  ? []
+                  : sedeOptions.map((sede) => sede.id),
+              )
+            }
+          >
+            {selectedChartSedes.length === sedeOptions.length
+              ? "Deseleccionar todas"
+              : "Seleccionar todas"}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sedeOptions.map((sede) => {
+            const isSelected = selectedChartSedes.includes(sede.id);
+            return (
+              <button
+                key={sede.id}
+                type="button"
+                onClick={() => handleToggleSede(sede.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                    : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                }`}
+              >
+                {sede.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedSeries.length === 0 ||
+      effectiveSedes.length === 0 ||
+      chartDates.length === 0 ? (
         <p className="py-10 text-center text-sm text-slate-600">
           Selecciona al menos una serie para ver el grafico.
         </p>
       ) : (
-        <div className="h-85">
+        <div className="h-[340px]">
           <LineChart
             height={340}
-            xAxis={[
-              {
-                data: chartDates,
-                scaleType: "point",
-                valueFormatter: (value) => formatDateLabel(String(value)),
-              },
-            ]}
-            yAxis={[{ label: "Vta/Hr" }]}
-            series={selectedSeries.map((lineId) => ({
-              id: lineId,
-              label:
-                lineOptions.find((line) => line.id === lineId)?.name ?? lineId,
-              data: seriesMap.get(lineId) ?? [],
-              showMark: true,
-              curve: "linear",
-              valueFormatter: (value) => `${(value ?? 0).toFixed(3)}`,
-            }))}
+            xAxis={xAxis}
+            yAxis={yAxis}
+            series={chartSeries}
             grid={{ horizontal: true, vertical: false }}
           />
         </div>
@@ -2566,6 +2697,7 @@ export default function Home() {
                       availableDates={availableDates}
                       dateRange={dateRange}
                       lines={lines}
+                      sedes={orderedSedes}
                     />
                   </div>
                 ) : viewMode === "trends" ? (
