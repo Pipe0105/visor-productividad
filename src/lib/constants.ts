@@ -6,19 +6,33 @@ export const MERCAMIO_SEDES = [
   "Calle 5ta",
   "La 39",
   "Plaza Norte",
-  "Ciudad Jardín",
+  "Ciudad Jardin",
   "Centro Sur",
   "Palmira",
 ];
 
 export const MERCATODO_SEDES = ["Floresta", "Floralia", "Guaduales"];
 
-export const MERKMIOS_SEDES = ["Bogotá", "Chía"];
+export const MERKMIOS_SEDES = ["Bogota", "Chia"];
 
 export const BRANCH_LOCATIONS = [
   ...MERCAMIO_SEDES,
   ...MERCATODO_SEDES,
   ...MERKMIOS_SEDES,
+];
+
+export const SEDE_ORDER = [
+  "Calle 5ta",
+  "La 39",
+  "Plaza Norte",
+  "Ciudad Jardin",
+  "Centro Sur",
+  "Palmira",
+  "Floresta",
+  "Floralia",
+  "Guaduales",
+  "Bogota",
+  "Chia",
 ];
 
 export const SEDE_GROUPS: Array<{ id: string; name: string; sedes: string[] }> =

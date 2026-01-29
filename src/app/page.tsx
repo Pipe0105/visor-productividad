@@ -23,6 +23,7 @@ import { calcDailySummary, formatCOP, hasLaborDataForLine } from "@/lib/calc";
 import {
   DEFAULT_LINES,
   DEFAULT_SEDES,
+  SEDE_ORDER,
   SEDE_GROUPS,
   Sede,
 } from "@/lib/constants";
@@ -245,6 +246,30 @@ const extractSedesFromData = (data: DailyProductivity[]): Sede[] => {
   ).map(([id, name]) => ({ id, name }));
 };
 
+const normalizeSedeKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, "");
+
+const SEDE_ORDER_MAP = new Map(
+  SEDE_ORDER.map((name, index) => [normalizeSedeKey(name), index]),
+);
+
+const sortSedesByOrder = (sedes: Sede[]) => {
+  return [...sedes].sort((a, b) => {
+    const aKey = normalizeSedeKey(a.id || a.name);
+    const bKey = normalizeSedeKey(b.id || b.name);
+    const aOrder = SEDE_ORDER_MAP.get(aKey) ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = SEDE_ORDER_MAP.get(bKey) ?? Number.MAX_SAFE_INTEGER;
+
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.name.localeCompare(b.name, "es");
+  });
+};
+
 const buildCompanyOptions = (): Sede[] =>
   SEDE_GROUPS.filter((group) => group.id !== "all").map((group) => ({
     id: group.id,
@@ -256,15 +281,8 @@ const resolveSelectedSedeIds = (
   selectedCompany: string,
   availableSedes: Sede[],
 ): string[] => {
-  const normalizeKey = (value: string) =>
-    value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]/g, "");
   const availableByKey = new Map(
-    availableSedes.map((sede) => [normalizeKey(sede.id), sede.id]),
+    availableSedes.map((sede) => [normalizeSedeKey(sede.id), sede.id]),
   );
 
   if (selectedCompany) {
@@ -273,12 +291,12 @@ const resolveSelectedSedeIds = (
     );
     if (!group) return [];
     return group.sedes
-      .map((sedeId) => availableByKey.get(normalizeKey(sedeId)))
+      .map((sedeId) => availableByKey.get(normalizeSedeKey(sedeId)))
       .filter((sedeId): sedeId is string => Boolean(sedeId));
   }
 
   if (selectedSede) {
-    const resolved = availableByKey.get(normalizeKey(selectedSede));
+    const resolved = availableByKey.get(normalizeSedeKey(selectedSede));
     return resolved ? [resolved] : [];
   }
 
@@ -1006,10 +1024,10 @@ const LineTrends = ({
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {sedeComparisonData.map((day) => (
                   <div key={day.date}>
-                    <p className="mb-1.5 text-xs font-mono font-semibold text-slate-800">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
                       {formatDateLabel(day.date)}
                     </p>
                     <div className="space-y-1">
@@ -1047,43 +1065,30 @@ const LineTrends = ({
                                 : heatRatio >= 90
                                   ? "#f97316"
                                   : "#dc2626";
-                          const labelPosition = Math.min(
-                            Math.max(percentage, 12),
-                            100,
-                          );
 
                           return (
                             <div
                               key={sede.sedeId}
-                              className="flex items-center gap-2"
+                              className="flex items-center gap-3"
                             >
-                              <span
-                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                                style={{ backgroundColor: heatColor }}
-                              />
-                              <div className="relative h-8 flex-1 overflow-hidden rounded-full bg-slate-100">
+                              <span className="w-32 truncate text-sm font-semibold text-slate-900">
+                                {sede.sedeName}
+                              </span>
+                              <div className="relative h-7 flex-1 overflow-hidden rounded-full bg-slate-100">
                                 <div
-                                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                                  className="absolute inset-y-0 left-0 flex items-center gap-3 truncate rounded-full px-3 text-[12px] font-semibold text-slate-900"
                                   style={{
                                     width: `${percentage}%`,
                                     backgroundColor: heatColor,
                                   }}
-                                />
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 truncate px-3 text-[11px] font-semibold text-white">
-                                  {sede.sedeName}
-                                </span>
-                                <span
-                                  className="absolute top-1/2 -translate-y-1/2 rounded-full bg-slate-900/80 px-2 py-0.5 text-[11px] font-semibold text-white"
-                                  style={{
-                                    left: `calc(${labelPosition}% - 6px)`,
-                                    transform: "translate(-100%, -50%)",
-                                  }}
                                 >
-                                  Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
-                                  {metricType === "hours"
-                                    ? `${sede.value.toFixed(1)}h`
-                                    : formatCOP(sede.value)}
-                                </span>
+                                  <span className="ml-auto shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[12px] font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
+                                    Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
+                                    {metricType === "hours"
+                                      ? `${sede.value.toFixed(1)}h`
+                                      : formatCOP(sede.value)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -1582,19 +1587,25 @@ export default function Home() {
   // Cargar datos
   const { dailyDataSet, availableSedes, isLoading, error } =
     useProductivityData();
+  const orderedSedes = useMemo(() => {
+    const filtered = availableSedes.filter(
+      (sede) => normalizeSedeKey(sede.id) !== "adm",
+    );
+    return sortSedesByOrder(filtered);
+  }, [availableSedes]);
 
   const companyOptions = useMemo(() => buildCompanyOptions(), []);
   const selectedSedeIds = useMemo(
-    () => resolveSelectedSedeIds(selectedSede, selectedCompany, availableSedes),
-    [selectedSede, selectedCompany, availableSedes],
+    () => resolveSelectedSedeIds(selectedSede, selectedCompany, orderedSedes),
+    [selectedSede, selectedCompany, orderedSedes],
   );
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
     [selectedSedeIds],
   );
   const availableSedesKey = useMemo(
-    () => availableSedes.map((sede) => sede.id).join("|"),
-    [availableSedes],
+    () => orderedSedes.map((sede) => sede.id).join("|"),
+    [orderedSedes],
   );
 
   // Fechas disponibles
@@ -1610,17 +1621,17 @@ export default function Home() {
 
   // Sincronizar sede seleccionada
   useEffect(() => {
-    if (availableSedes.length === 0) return;
+    if (orderedSedes.length === 0) return;
 
     if (selectedCompany) return;
 
     if (
       selectedSede &&
-      !availableSedes.some((sede) => sede.id === selectedSede)
+      !orderedSedes.some((sede) => sede.id === selectedSede)
     ) {
-      setSelectedSede(availableSedes[0].id);
+      setSelectedSede(orderedSedes[0].id);
     }
-  }, [availableSedesKey, selectedSede, selectedCompany, availableSedes]);
+  }, [availableSedesKey, selectedSede, selectedCompany, orderedSedes]);
 
   // Sincronizar fechas
   useEffect(() => {
@@ -1639,7 +1650,7 @@ export default function Home() {
   // Datos derivados
   const selectedSedeName =
     SEDE_GROUPS.find((group) => group.id === selectedCompany)?.name ??
-    availableSedes.find((sede) => sede.id === selectedSede)?.name ??
+    orderedSedes.find((sede) => sede.id === selectedSede)?.name ??
     "Todas las sedes";
 
   const dateRangeLabel = useMemo(() => {
@@ -2335,7 +2346,7 @@ export default function Home() {
         <TopBar
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
-          sedes={availableSedes}
+          sedes={orderedSedes}
           selectedCompany={selectedCompany}
           companies={companyOptions}
           startDate={dateRange.start}
@@ -2442,7 +2453,7 @@ export default function Home() {
                     selectedSedeIds={selectedSedeIds}
                     availableDates={availableDates}
                     lines={lines}
-                    sedes={availableSedes}
+                    sedes={orderedSedes}
                     dateRange={dateRange}
                   />
                 ) : (
