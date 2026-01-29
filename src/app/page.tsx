@@ -556,13 +556,13 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
 
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-            Análisis visual
+            Analisis visual
           </p>
           <h3 className="mt-1 text-lg font-semibold text-slate-900">
-            Top 6 líneas por ventas
+            Top 6 lineas por ventas
           </h3>
         </div>
       </div>
@@ -571,24 +571,10 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
         {sortedLines.map((line, index) => {
           const value = line.sales;
           const rawPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-                  const percentage =
-                    maxValue > 0 ? (point.value / maxValue) * 100 : 0;
-                  const salesPerHour =
-                    point.hours > 0
-                      ? point.sales / 1_000_000 / point.hours
-                      : 0;
-                  const heatRatio =
-                    avgSalesPerHour > 0
-                      ? (salesPerHour / avgSalesPerHour) * 100
-                      : 0;
-                  const heatColor =
-                    heatRatio >= 110
-                      ? "#16a34a"
-                      : heatRatio >= 100
-                        ? "#facc15"
-                        : heatRatio >= 90
-                          ? "#f97316"
-                          : "#dc2626";
+          const percentage = Number.isFinite(rawPercentage)
+            ? Math.min(Math.max(rawPercentage, 0), 100)
+            : 0;
+
           return (
             <div key={line.id} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -621,16 +607,9 @@ const ChartVisualization = ({ lines }: { lines: LineMetrics[] }) => {
           );
         })}
       </div>
-
-      {sortedLines.length === 0 && (
-        <p className="text-center text-sm text-slate-700 py-8">
-          No hay datos suficientes para mostrar el gráfico
-        </p>
-      )}
     </div>
   );
 };
-
 
 const LineTrends = ({
   dailyDataSet,
@@ -688,10 +667,6 @@ const LineTrends = ({
     sedes.forEach((s) => map.set(s.id, s.name));
     return map;
   }, [sedes]);
-  const availableDateSet = useMemo(
-    () => new Set(availableDates),
-    [availableDates],
-  );
   const temporalDates = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
       return availableDates;
@@ -701,7 +676,6 @@ const LineTrends = ({
     );
   }, [availableDates, dateRange.end, dateRange.start]);
 
-  // Calculate trend data for selected line
   const trendData = useMemo(() => {
     if (!selectedLine) return [];
 
@@ -711,26 +685,8 @@ const LineTrends = ({
       );
 
       if (dayData.length === 0) {
-        return {
-          date,
-          value: 0,
-          sales: 0,
-          hours: 0,
-          daySales: 0,
-          dayHours: 0,
-        };
+        return { date, value: 0, sales: 0, hours: 0 };
       }
-
-      let daySales = 0;
-      let dayHours = 0;
-      dayData.forEach((item) => {
-        item.lines.forEach((line) => {
-          daySales += line.sales;
-          if (hasLaborDataForLine(line.id)) {
-            dayHours += line.hours;
-          }
-        });
-      });
 
       const totals = dayData.reduce(
         (acc, item) => {
@@ -752,14 +708,7 @@ const LineTrends = ({
 
       const value = metricType === "sales" ? totals.sales : totals.hours;
 
-      return {
-        date,
-        value,
-        sales: totals.sales,
-        hours: totals.hours,
-        daySales,
-        dayHours,
-      };
+      return { date, value, sales: totals.sales, hours: totals.hours };
     });
 
     return dataByDate;
@@ -794,7 +743,6 @@ const LineTrends = ({
     return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
   }, [trendData]);
 
-  // Per-sede comparison data (day by day)
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
 
@@ -803,7 +751,7 @@ const LineTrends = ({
     );
 
     return rangeDates.map((date) => {
-      const sedes = comparisonSedeIds.map((sedeId) => {
+      const sedesForDay = comparisonSedeIds.map((sedeId) => {
         const dayData = dailyDataSet.filter(
           (item) => item.sede === sedeId && item.date === date,
         );
@@ -833,7 +781,7 @@ const LineTrends = ({
         };
       });
 
-      return { date, sedes };
+      return { date, sedes: sedesForDay };
     });
   }, [
     selectedLine,
@@ -845,7 +793,6 @@ const LineTrends = ({
     sedeNameMap,
   ]);
 
-
   const sedeMaxValue = useMemo(() => {
     if (sedeComparisonData.length === 0) return 1;
     const allValues = sedeComparisonData.flatMap((d) =>
@@ -854,19 +801,17 @@ const LineTrends = ({
     return Math.max(...allValues, 1);
   }, [sedeComparisonData]);
 
-  // Calculate trend direction
-
   if (lines.length === 0 || availableDates.length === 0) return null;
 
   return (
     <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="mb-4">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-          Análisis de tendencias
+          Analisis de tendencias
         </p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">
           {viewType === "temporal"
-            ? "Evolución temporal por línea"
+            ? "Evolucion temporal por linea"
             : "Comparativo por sede"}
         </h3>
       </div>
@@ -881,7 +826,7 @@ const LineTrends = ({
               : "text-slate-700 hover:text-slate-800"
           }`}
         >
-          Evolución temporal
+          Evolucion temporal
         </button>
         <button
           type="button"
@@ -896,15 +841,15 @@ const LineTrends = ({
         </button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Línea</span>
+          <span className="text-xs font-semibold text-slate-700">Linea</span>
           <select
             value={selectedLine}
             onChange={(e) => setSelectedLine(e.target.value)}
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
-            <option value="">Selecciona una línea</option>
+            <option value="">Selecciona una linea</option>
             {lines.map((line) => (
               <option key={line.id} value={line.id}>
                 {line.name} ({line.id})
@@ -914,7 +859,7 @@ const LineTrends = ({
         </label>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Métrica</span>
+          <span className="text-xs font-semibold text-slate-700">Metrica</span>
           <select
             value={metricType}
             onChange={(e) => setMetricType(e.target.value as "sales" | "hours")}
@@ -935,7 +880,7 @@ const LineTrends = ({
             <button
               type="button"
               onClick={toggleAllComparisonSedes}
-              className="text-xs font-semibold text-mercamio-700 hover:text-mercamio-800 transition-colors"
+              className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
             >
               {comparisonSedeIds.length === visibleSedes.length
                 ? "Deseleccionar todas"
@@ -970,7 +915,7 @@ const LineTrends = ({
             <>
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-slate-700">Promedio del período</p>
+                  <p className="text-sm text-slate-700">Promedio del periodo</p>
                   <p className="text-2xl font-semibold text-slate-900">
                     {metricType === "hours"
                       ? `${avgValue.toFixed(1)}h`
@@ -983,6 +928,10 @@ const LineTrends = ({
                 {trendData.map((point) => {
                   const percentage =
                     maxValue > 0 ? (point.value / maxValue) * 100 : 0;
+                  const salesPerHour =
+                    point.hours > 0
+                      ? point.sales / 1_000_000 / point.hours
+                      : 0;
                   const heatRatio =
                     avgSalesPerHour > 0
                       ? (salesPerHour / avgSalesPerHour) * 100
@@ -1030,14 +979,14 @@ const LineTrends = ({
           )}
 
           {!selectedLine && (
-            <p className="text-center text-sm text-slate-700 py-8">
-              Selecciona una línea para ver su tendencia temporal
+            <p className="py-8 text-center text-sm text-slate-700">
+              Selecciona una linea para ver su tendencia temporal
             </p>
           )}
 
           {selectedLine && trendData.length === 0 && (
-            <p className="text-center text-sm text-slate-700 py-8">
-              No hay datos disponibles para esta línea
+            <p className="py-8 text-center text-sm text-slate-700">
+              No hay datos disponibles para esta linea
             </p>
           )}
         </>
@@ -1050,22 +999,11 @@ const LineTrends = ({
                   <p className="text-sm text-slate-700">Comparativo diario</p>
                   <p className="text-lg font-semibold text-slate-900">
                     {sedeComparisonData.length}{" "}
-                    {sedeComparisonData.length === 1 ? "día" : "días"},{" "}
+                    {sedeComparisonData.length === 1 ? "dia" : "dias"},{" "}
                     {comparisonSedeIds.length}{" "}
                     {comparisonSedeIds.length === 1 ? "sede" : "sedes"}
                   </p>
                 </div>
-              </div>
-
-              <div className="mb-4 flex flex-wrap gap-3">
-                {comparisonSedeIds.map((sedeId) => (
-                  <div key={sedeId} className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-slate-400" />
-                    <span className="text-xs font-semibold text-slate-700">
-                      {sedeNameMap.get(sedeId) || sedeId}
-                    </span>
-                  </div>
-                ))}
               </div>
 
               <div className="space-y-5">
@@ -1132,7 +1070,7 @@ const LineTrends = ({
                                     {sede.sedeName}
                                   </span>
                                   <span className="shrink-0">
-                                    Vta/Hr: {salesPerHour.toFixed(3)} �{" "}
+                                    Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
                                     {metricType === "hours"
                                       ? `${sede.value.toFixed(1)}h`
                                       : formatCOP(sede.value)}
@@ -1151,16 +1089,16 @@ const LineTrends = ({
           )}
 
           {!selectedLine && (
-            <p className="text-center text-sm text-slate-700 py-8">
-              Selecciona una línea para comparar entre sedes
+            <p className="py-8 text-center text-sm text-slate-700">
+              Selecciona una linea para comparar entre sedes
             </p>
           )}
 
           {selectedLine && sedeComparisonData.length === 0 && (
-            <p className="text-center text-sm text-slate-700 py-8">
+            <p className="py-8 text-center text-sm text-slate-700">
               {comparisonSedeIds.length === 0
-                ? "Selecciona al menos una sede para ver la comparación."
-                : "No hay datos disponibles para esta línea en las sedes seleccionadas."}
+                ? "Selecciona al menos una sede para ver la comparacion."
+                : "No hay datos disponibles para esta linea en las sedes seleccionadas."}
             </p>
           )}
         </>
@@ -1168,7 +1106,6 @@ const LineTrends = ({
     </div>
   );
 };
-
 const PeriodComparison = ({
   dailyDataSet,
   selectedSedeIds,
