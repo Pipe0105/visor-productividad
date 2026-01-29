@@ -41,16 +41,16 @@ const statusConfigBySede: Record<string, StatusConfig> = {
 };
 
 const summaryLabels = {
-  excellent: "DÃ­a sÃ³lido",
-  normal: "DÃ­a estable",
+  excellent: "Día sólido",
+  normal: "Día estable",
   attention: "Revisar",
-  problem: "CrÃ­tico",
+  problem: "Crítico",
 };
 
 const lineLabels = {
   excellent: "Excelente",
   normal: "Normal",
-  attention: "AtenciÃ³n",
+  attention: "Atención",
   problem: "Problema",
 };
 
@@ -108,4 +108,5 @@ const resolveStatus = (
     textClass: "text-rose-600",
   };
 };
+
 

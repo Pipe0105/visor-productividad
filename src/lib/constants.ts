@@ -56,3 +56,4 @@ export const DEFAULT_LINES: Array<Pick<LineMetrics, "id" | "name">> = [
   { id: "pollo y pescado", name: "Pollo y pescado" },
   { id: "asadero", name: "Asadero" },
 ];
+

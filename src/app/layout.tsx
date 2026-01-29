@@ -1,9 +1,9 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 // ============================================================================
-// CONFIGURACIÓN DE FUENTES
+// CONFIGURACI?"N DE FUENTES
 // ============================================================================
 
 const geistSans = Geist({
@@ -95,3 +95,4 @@ export default function RootLayout({ children }: RootLayoutProps) {
     </html>
   );
 }
+
