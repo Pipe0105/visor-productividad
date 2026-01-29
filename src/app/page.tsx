@@ -1047,6 +1047,10 @@ const LineTrends = ({
                                 : heatRatio >= 90
                                   ? "#f97316"
                                   : "#dc2626";
+                          const labelPosition = Math.min(
+                            Math.max(percentage, 12),
+                            100,
+                          );
 
                           return (
                             <div
@@ -1065,17 +1069,21 @@ const LineTrends = ({
                                     backgroundColor: heatColor,
                                   }}
                                 />
-                                <div className="absolute inset-0 flex items-center justify-between gap-2 px-3 text-[11px] font-semibold text-white">
-                                  <span className="truncate">
-                                    {sede.sedeName}
-                                  </span>
-                                  <span className="shrink-0">
-                                    Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
-                                    {metricType === "hours"
-                                      ? `${sede.value.toFixed(1)}h`
-                                      : formatCOP(sede.value)}
-                                  </span>
-                                </div>
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 truncate px-3 text-[11px] font-semibold text-white">
+                                  {sede.sedeName}
+                                </span>
+                                <span
+                                  className="absolute top-1/2 -translate-y-1/2 rounded-full bg-slate-900/80 px-2 py-0.5 text-[11px] font-semibold text-white"
+                                  style={{
+                                    left: `calc(${labelPosition}% - 6px)`,
+                                    transform: "translate(-100%, -50%)",
+                                  }}
+                                >
+                                  Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
+                                  {metricType === "hours"
+                                    ? `${sede.value.toFixed(1)}h`
+                                    : formatCOP(sede.value)}
+                                </span>
                               </div>
                             </div>
                           );
