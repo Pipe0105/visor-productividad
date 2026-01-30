@@ -730,15 +730,31 @@ const ChartVisualization = ({
       return row;
     });
   }, [chartDates, seriesDefinitions, seriesMap]);
+  const chartAxisLabel = useMemo(() => {
+    if (chartDates.length === 0) return "";
+    const first = parseDateKey(chartDates[0]);
+    const last = parseDateKey(chartDates[chartDates.length - 1]);
+    const fmtMonth = new Intl.DateTimeFormat("es-CO", {
+      month: "long",
+      year: "numeric",
+    });
+    const firstLabel = fmtMonth.format(first);
+    const lastLabel = fmtMonth.format(last);
+    return firstLabel === lastLabel
+      ? firstLabel.charAt(0).toUpperCase() + firstLabel.slice(1)
+      : `${firstLabel.charAt(0).toUpperCase() + firstLabel.slice(1)} – ${lastLabel}`;
+  }, [chartDates]);
+
   const xAxis = useMemo<XAxis<"point", string>[]>(
     () => [
       {
         dataKey: "date",
         scaleType: "point",
-        valueFormatter: (value: string) => formatDateLabel(value),
+        label: chartAxisLabel,
+        valueFormatter: (value: string) => value.slice(8),
       },
     ],
-    [],
+    [chartAxisLabel],
   );
 
   const yAxis = useMemo<YAxis<"linear", number>[]>(
@@ -916,7 +932,8 @@ const LineTrends = ({
       sedes.filter((sede) => {
         const id = sede.id.trim().toLowerCase();
         const name = sede.name.trim().toLowerCase();
-        return id !== "adm" && name !== "adm";
+        const hidden = ["adm", "cedi-cavasa"];
+        return !hidden.some((h) => id === h || name === h);
       }),
     [sedes],
   );
@@ -1482,8 +1499,9 @@ export default function Home() {
   const { dailyDataSet, availableSedes, isLoading, error } =
     useProductivityData();
   const orderedSedes = useMemo(() => {
+    const hidden = new Set(["adm", "cedicavasa"]);
     const filtered = availableSedes.filter(
-      (sede) => normalizeSedeKey(sede.id) !== "adm",
+      (sede) => !hidden.has(normalizeSedeKey(sede.id)),
     );
     return sortSedesByOrder(filtered);
   }, [availableSedes]);
