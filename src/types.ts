@@ -20,3 +20,23 @@ export interface DailyProductivity {
   sede: string;
   lines: LineMetrics[];
 }
+
+export interface HourlyLineSales {
+  lineId: Linekey;
+  lineName: string;
+  sales: number;
+}
+
+export interface HourSlot {
+  hour: number;
+  label: string;
+  totalSales: number;
+  employeesPresent: number;
+  lines: HourlyLineSales[];
+}
+
+export interface HourlyAnalysisData {
+  date: string;
+  sede: string;
+  hours: HourSlot[];
+}

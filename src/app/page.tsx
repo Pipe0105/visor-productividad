@@ -11,6 +11,7 @@ import {
   Search,
   ArrowUpDown,
   BarChart3,
+  Clock,
 } from "lucide-react";
 import { LineChart } from "@mui/x-charts/LineChart";
 import * as ExcelJS from "exceljs";
@@ -18,8 +19,10 @@ import type { XAxis, YAxis } from "@mui/x-charts/models";
 import type { LineSeries } from "@mui/x-charts/LineChart";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { HourlyAnalysis } from "@/components/HourlyAnalysis";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
+import { SelectionSummary } from "@/components/SelectionSummary";
 import { TopBar } from "@/components/TopBar";
 import { formatCOP, hasLaborDataForLine } from "@/lib/calc";
 import {
@@ -147,7 +150,7 @@ const useProductivityData = () => {
 const useAnimations = (
   isLoading: boolean,
   filteredLinesCount: number,
-  viewMode: "cards" | "comparison" | "chart" | "trends",
+  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly",
 ) => {
   useEffect(() => {
     if (
@@ -208,6 +211,17 @@ const useAnimations = (
       if (viewMode === "chart") {
         if (hasTargets("[data-animate='chart-card']")) {
           animate("[data-animate='chart-card']", {
+            translateY: [-8, 0],
+            opacity: [0, 1],
+            duration: 550,
+            easing: "easeOutCubic",
+          });
+        }
+      }
+
+      if (viewMode === "hourly") {
+        if (hasTargets("[data-animate='hourly-card']")) {
+          animate("[data-animate='hourly-card']", {
             translateY: [-8, 0],
             opacity: [0, 1],
             duration: 550,
@@ -468,8 +482,8 @@ const ViewToggle = ({
   viewMode,
   onChange,
 }: {
-  viewMode: "cards" | "comparison" | "chart" | "trends";
-  onChange: (value: "cards" | "comparison" | "chart" | "trends") => void;
+  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly";
+  onChange: (value: "cards" | "comparison" | "chart" | "trends" | "hourly") => void;
 }) => {
   const getModeLabel = () => {
     switch (viewMode) {
@@ -481,6 +495,8 @@ const ViewToggle = ({
         return "Top 6 líneas (gráfico)";
       case "trends":
         return "Análisis de tendencias";
+      case "hourly":
+        return "Análisis por hora";
     }
   };
 
@@ -547,6 +563,19 @@ const ViewToggle = ({
         >
           <ArrowUpDown className="h-4 w-4" />
           Tendencias
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("hourly")}
+          aria-pressed={viewMode === "hourly"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "hourly"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-700 hover:text-slate-800"
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          Por hora
         </button>
       </div>
     </div>
@@ -1362,7 +1391,7 @@ export default function Home() {
   });
   const [lineFilter, setLineFilter] = useState("all");
   const [viewMode, setViewMode] = useState<
-    "cards" | "comparison" | "chart" | "trends"
+    "cards" | "comparison" | "chart" | "trends" | "hourly"
   >("cards");
 
   // Cargar preferencias desde localStorage después de montar
@@ -1393,7 +1422,7 @@ export default function Home() {
 
     const savedViewMode = localStorage.getItem("viewMode");
     if (savedViewMode) {
-      setViewMode(savedViewMode as "cards" | "comparison" | "chart" | "trends");
+      setViewMode(savedViewMode as "cards" | "comparison" | "chart" | "trends" | "hourly");
     }
 
     const savedTheme = localStorage.getItem("theme");
@@ -1617,7 +1646,7 @@ export default function Home() {
   }, []);
 
   const handleViewChange = useCallback(
-    (value: "cards" | "comparison" | "chart" | "trends") => {
+    (value: "cards" | "comparison" | "chart" | "trends" | "hourly") => {
       setViewMode(value);
     },
     [],
@@ -2159,6 +2188,7 @@ export default function Home() {
           if (prev === "cards") return "comparison";
           if (prev === "comparison") return "chart";
           if (prev === "chart") return "trends";
+          if (prev === "trends") return "hourly";
           return "cards";
         });
       }
@@ -2262,6 +2292,13 @@ export default function Home() {
                 lines={lines}
                 sedes={orderedSedes}
                 dateRange={dateRange}
+              />
+            ) : viewMode === "hourly" ? (
+              <HourlyAnalysis
+                availableDates={availableDates}
+                availableSedes={orderedSedes}
+                defaultDate={dateRange.end}
+                defaultSede={selectedSede || (orderedSedes.length > 0 ? orderedSedes[0].name : "")}
               />
             ) : (
               <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">

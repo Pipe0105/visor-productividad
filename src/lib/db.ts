@@ -11,7 +11,7 @@ type DbQueryResult = {
 };
 
 type DbClient = {
-  query: (sql: string) => Promise<DbQueryResult>;
+  query: (sql: string, params?: unknown[]) => Promise<DbQueryResult>;
   release: () => void;
 };
 
