@@ -30,6 +30,7 @@ const TableHeader = () => (
       <th className="w-6 px-1 py-1.5 sm:w-8 sm:px-2 sm:py-2"></th>
       <th className="sticky left-0 bg-white px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Línea</th>
       <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Ventas</th>
+      <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Vta/Hr</th>
       <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">Horas</th>
     </tr>
   </thead>
@@ -58,6 +59,9 @@ const TableRow = ({
 }) => {
   const zeroHours = "0h";
   const displayHours = hasLaborDataForLine(line.id) ? line.hours : 0;
+  const salesPerHour = hasLaborDataForLine(line.id) && line.hours > 0
+    ? line.sales / 1_000_000 / line.hours
+    : 0;
 
   return (
     <tr
@@ -85,6 +89,9 @@ const TableRow = ({
       </td>
       <td className="px-2 py-2 text-xs font-semibold text-slate-900 sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? formatCOP(line.sales) : "—"}
+      </td>
+      <td className="px-2 py-2 text-xs font-semibold text-slate-900 sm:px-4 sm:py-3 sm:text-sm">
+        {hasData ? salesPerHour.toFixed(3) : "—"}
       </td>
       <td className="px-2 py-2 text-xs text-slate-700 sm:px-4 sm:py-3 sm:text-sm">
         {hasData ? `${formatHours(displayHours)}h` : zeroHours}

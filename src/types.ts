@@ -20,10 +20,3 @@ export interface DailyProductivity {
   sede: string;
   lines: LineMetrics[];
 }
-
-export interface DailySummary {
-  sales: number;
-  hours: number;
-  cost: number;
-  margin: number;
-}

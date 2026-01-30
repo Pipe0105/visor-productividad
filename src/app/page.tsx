@@ -20,9 +20,8 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
-import { SummaryCard } from "@/components/SummaryCard";
 import { TopBar } from "@/components/TopBar";
-import { calcDailySummary, formatCOP, hasLaborDataForLine } from "@/lib/calc";
+import { formatCOP, hasLaborDataForLine } from "@/lib/calc";
 import {
   DEFAULT_LINES,
   DEFAULT_SEDES,
@@ -49,12 +48,6 @@ const formatDateLabel = (dateKey: string): string =>
     month: "short",
     year: "numeric",
   }).format(parseDateKey(dateKey));
-
-const formatMonthLabel = (yearMonth: string): string =>
-  new Intl.DateTimeFormat("es-CO", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${yearMonth}-01T00:00:00`));
 
 const formatPdfDate = () =>
   new Intl.DateTimeFormat("es-CO", {
@@ -187,16 +180,6 @@ const useAnimations = (
           translateY: [18, 0],
           opacity: [0, 1],
           duration: 550,
-          easing: "easeOutCubic",
-        });
-      }
-
-      if (hasTargets("[data-animate='summary-card']")) {
-        animate("[data-animate='summary-card']", {
-          scale: [0.97, 1],
-          opacity: [0, 1],
-          delay: (_el: unknown, index: number) => index * 120,
-          duration: 600,
           easing: "easeOutCubic",
         });
       }
@@ -1361,357 +1344,6 @@ const LineTrends = ({
     </div>
   );
 };
-const PeriodComparison = ({
-  dailyDataSet,
-  selectedSedeIds,
-  availableDates,
-}: {
-  dailyDataSet: DailyProductivity[];
-  selectedSedeIds: string[];
-  availableDates: string[];
-}) => {
-  const selectedSedeIdSet = useMemo(
-    () => new Set(selectedSedeIds),
-    [selectedSedeIds],
-  );
-  const [period1, setPeriod1] = useState<DateRange>({
-    start: availableDates[0] || "",
-    end: availableDates[0] || "",
-  });
-  const [period2, setPeriod2] = useState<DateRange>({
-    start: availableDates[availableDates.length - 1] || "",
-    end: availableDates[availableDates.length - 1] || "",
-  });
-
-  const period1Data = useMemo(() => {
-    const filtered = dailyDataSet.filter(
-      (item) =>
-        selectedSedeIdSet.has(item.sede) &&
-        item.date >= period1.start &&
-        item.date <= period1.end,
-    );
-    const lines = aggregateLines(filtered);
-    return calcDailySummary(lines);
-  }, [dailyDataSet, selectedSedeIdSet, period1]);
-
-  const period2Data = useMemo(() => {
-    const filtered = dailyDataSet.filter(
-      (item) =>
-        selectedSedeIdSet.has(item.sede) &&
-        item.date >= period2.start &&
-        item.date <= period2.end,
-    );
-    const lines = aggregateLines(filtered);
-    return calcDailySummary(lines);
-  }, [dailyDataSet, selectedSedeIdSet, period2]);
-
-  const calculateDiff = (val1: number, val2: number) => {
-    if (val2 === 0) return 0;
-    return ((val1 - val2) / val2) * 100;
-  };
-
-  const salesDiff = calculateDiff(period1Data.sales, period2Data.sales);
-  const hoursDiff = calculateDiff(period1Data.hours, period2Data.hours);
-
-  const renderMetric = (
-    label: string,
-    value1: number,
-    value2: number,
-    diff: number,
-  ) => {
-    const isPositive = diff > 0;
-    const displayValue = (val: number) => formatCOP(val);
-
-    return (
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-700">
-          {label}
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-slate-700">Período 1</p>
-            <p className="text-lg font-semibold text-slate-900">
-              {displayValue(value1)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-700">Período 2</p>
-            <p className="text-lg font-semibold text-slate-900">
-              {displayValue(value2)}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
-              isPositive
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-red-50 text-red-700"
-            }`}
-          >
-            <span>{isPositive ? "↑" : "↓"}</span>
-            <span>{Math.abs(diff).toFixed(1)}%</span>
-          </div>
-          <span className="text-xs text-slate-700">
-            {isPositive ? "incremento" : "disminución"}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  if (availableDates.length === 0) return null;
-
-  return (
-    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-      <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-          Comparación de períodos
-        </p>
-        <h3 className="mt-1 text-lg font-semibold text-slate-900">
-          Compara dos rangos de fechas
-        </h3>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-slate-900">Período 1</p>
-          <div className="space-y-2">
-            <label className="block">
-              <span className="text-xs text-slate-700">Desde</span>
-              <select
-                value={period1.start}
-                onChange={(e) =>
-                  setPeriod1((prev) => ({ ...prev, start: e.target.value }))
-                }
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              >
-                {availableDates.map((date) => (
-                  <option key={date} value={date}>
-                    {formatDateLabel(date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs text-slate-700">Hasta</span>
-              <select
-                value={period1.end}
-                onChange={(e) =>
-                  setPeriod1((prev) => ({ ...prev, end: e.target.value }))
-                }
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              >
-                {availableDates.map((date) => (
-                  <option key={date} value={date}>
-                    {formatDateLabel(date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-slate-900">Período 2</p>
-          <div className="space-y-2">
-            <label className="block">
-              <span className="text-xs text-slate-700">Desde</span>
-              <select
-                value={period2.start}
-                onChange={(e) =>
-                  setPeriod2((prev) => ({ ...prev, start: e.target.value }))
-                }
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              >
-                {availableDates.map((date) => (
-                  <option key={date} value={date}>
-                    {formatDateLabel(date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs text-slate-700">Hasta</span>
-              <select
-                value={period2.end}
-                onChange={(e) =>
-                  setPeriod2((prev) => ({ ...prev, end: e.target.value }))
-                }
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              >
-                {availableDates.map((date) => (
-                  <option key={date} value={date}>
-                    {formatDateLabel(date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {renderMetric(
-          "Ventas",
-          period1Data.sales,
-          period2Data.sales,
-          salesDiff,
-        )}
-        {renderMetric(
-          "Horas trabajadas",
-          period1Data.hours,
-          period2Data.hours,
-          hoursDiff,
-        )}
-      </div>
-    </div>
-  );
-};
-
-const SelectionSummary = ({
-  selectedSedeName,
-  dateRangeLabel,
-  lineFilterLabel,
-  filteredCount,
-  totalCount,
-  availableDatesCount,
-  hasRangeData,
-  onDownloadPdf,
-  onDownloadCsv,
-  onDownloadXlsx,
-  isDownloadDisabled,
-}: {
-  selectedSedeName: string;
-  dateRangeLabel: string;
-  lineFilterLabel: string;
-  filteredCount: number;
-  totalCount: number;
-  availableDatesCount: number;
-  hasRangeData: boolean;
-  onDownloadPdf: () => void;
-  onDownloadCsv: () => void;
-  onDownloadXlsx: () => void;
-  isDownloadDisabled: boolean;
-}) => {
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('[data-dropdown="export"]')) {
-        setShowDownloadMenu(false);
-      }
-    };
-
-    if (showDownloadMenu) {
-      document.addEventListener("click", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showDownloadMenu]);
-
-  return (
-    <section className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.12)]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-            Resumen de filtros
-          </p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-900">
-            {selectedSedeName} · {dateRangeLabel || "Sin rango definido"}
-          </h2>
-          <p className="mt-1 text-sm text-slate-700">
-            {lineFilterLabel} · {filteredCount} de {totalCount} líneas visibles
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-              hasRangeData
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-amber-50 text-amber-700"
-            }`}
-          >
-            {hasRangeData ? "Datos disponibles" : "Sin datos en el rango"}
-          </span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">
-            {availableDatesCount} fechas disponibles
-          </span>
-          <div className="relative" data-dropdown="export">
-            <button
-              type="button"
-              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              disabled={isDownloadDisabled}
-              className="inline-flex items-center gap-2 rounded-full border border-mercamio-200/80 bg-mercamio-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-500"
-            >
-              <Download className="h-4 w-4" />
-              Exportar
-              <ChevronDown
-                className={`h-3 w-3 transition-transform ${showDownloadMenu ? "rotate-180" : ""}`}
-              />
-            </button>
-            {showDownloadMenu && !isDownloadDisabled && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white shadow-lg overflow-hidden z-10">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDownloadCsv();
-                    setShowDownloadMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
-                >
-                  <Download className="h-4 w-4" />
-                  <div>
-                    <div className="font-semibold">Descargar CSV</div>
-                    <div className="text-xs text-slate-700">
-                      Excel, Google Sheets
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDownloadXlsx();
-                    setShowDownloadMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Download className="h-4 w-4" />
-                  <div>
-                    <div className="font-semibold">Descargar XLSX</div>
-                    <div className="text-xs text-slate-700">
-                      Excel con formato
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDownloadPdf();
-                    setShowDownloadMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition-colors hover:bg-mercamio-50 hover:text-mercamio-700"
-                >
-                  <Download className="h-4 w-4" />
-                  <div>
-                    <div className="font-semibold">Descargar PDF</div>
-                    <div className="text-xs text-slate-700">
-                      Reporte imprimible
-                    </div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
@@ -1732,7 +1364,6 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<
     "cards" | "comparison" | "chart" | "trends"
   >("cards");
-  const [activeTab, setActiveTab] = useState<"lines" | "summaries">("lines");
 
   // Cargar preferencias desde localStorage después de montar
   useEffect(() => {
@@ -1764,9 +1395,6 @@ export default function Home() {
     if (savedViewMode) {
       setViewMode(savedViewMode as "cards" | "comparison" | "chart" | "trends");
     }
-
-    const savedActiveTab = localStorage.getItem("activeTab");
-    if (savedActiveTab) setActiveTab(savedActiveTab as "lines" | "summaries");
 
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme === "light" || savedTheme === "dark") {
@@ -1805,11 +1433,6 @@ export default function Home() {
     if (!mounted) return;
     localStorage.setItem("viewMode", viewMode);
   }, [viewMode, mounted]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("activeTab", activeTab);
-  }, [activeTab, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -1956,8 +1579,6 @@ export default function Home() {
     [filteredLines],
   );
 
-  const summary = useMemo(() => calcDailySummary(lines), [lines]);
-
   const lineFilterLabels: Record<string, string> = {
     all: "Todas las líneas",
     critical: "Líneas críticas (alerta)",
@@ -1965,27 +1586,6 @@ export default function Home() {
   };
 
   const lineFilterLabel = lineFilterLabels[lineFilter] ?? "Todas las líneas";
-
-  // Resumen mensual
-  const selectedMonth = dateRange.end.slice(0, 7);
-
-  const monthlySummary = useMemo(() => {
-    const monthLines = dailyDataSet
-      .filter(
-        (item) =>
-          selectedSedeIdSet.has(item.sede) &&
-          item.date.startsWith(selectedMonth),
-      )
-      .flatMap((item) => item.lines);
-
-    return calcDailySummary(monthLines);
-  }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
-  const hasMonthlyData = useMemo(() => {
-    return dailyDataSet.some(
-      (item) =>
-        selectedSedeIdSet.has(item.sede) && item.date.startsWith(selectedMonth),
-    );
-  }, [dailyDataSet, selectedMonth, selectedSedeIdSet]);
 
   // Handlers
   const handleStartDateChange = useCallback((value: string) => {
@@ -2553,18 +2153,8 @@ export default function Home() {
         }
       }
 
-      // 1: Ir a pestaña Líneas
-      if (event.key === "1" && !event.ctrlKey && !event.metaKey) {
-        setActiveTab("lines");
-      }
-
-      // 2: Ir a pestaña Resúmenes
-      if (event.key === "2" && !event.ctrlKey && !event.metaKey) {
-        setActiveTab("summaries");
-      }
-
       // T: Toggle vista (tarjetas/comparativo/gráfico/tendencias)
-      if (event.key === "t" && activeTab === "lines") {
+      if (event.key === "t") {
         setViewMode((prev) => {
           if (prev === "cards") return "comparison";
           if (prev === "comparison") return "chart";
@@ -2576,7 +2166,7 @@ export default function Home() {
 
     document.addEventListener("keydown", handleKeyPress);
     return () => document.removeEventListener("keydown", handleKeyPress);
-  }, [activeTab]);
+  }, []);
 
   // Animaciones
   useAnimations(isLoading, filteredLines.length, viewMode);
@@ -2622,35 +2212,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tabs Navigation */}
-        {!isLoading && lines.length > 0 && (
-          <div className="flex items-center gap-1 rounded-2xl border border-slate-200/70 bg-white p-1.5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] sm:gap-2 sm:rounded-3xl sm:p-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("lines")}
-              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-widest transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
-                activeTab === "lines"
-                  ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
-                  : "text-slate-700 hover:text-slate-800"
-              }`}
-            >
-              <span className="hidden sm:inline">Líneas de producción</span>
-              <span className="sm:hidden">Líneas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("summaries")}
-              className={`flex-1 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-widest transition-all sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm sm:tracking-[0.2em] ${
-                activeTab === "summaries"
-                  ? "bg-mercamio-50 text-mercamio-700 shadow-sm"
-                  : "text-slate-700 hover:text-slate-800"
-              }`}
-            >
-              Resúmenes
-            </button>
-          </div>
-        )}
-
         {isLoading ? (
           <LoadingSkeleton />
         ) : lines.length === 0 ? (
@@ -2659,98 +2220,66 @@ export default function Home() {
             description="Prueba otra fecha o sede para ver actividad."
           />
         ) : (
-          <>
-            {/* Tab: Lines */}
-            {activeTab === "lines" && (
-              <div className="space-y-6">
-                <SearchAndSort
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  sortBy={sortBy}
-                  onSortByChange={setSortBy}
-                  sortOrder={sortOrder}
-                  onSortOrderToggle={handleSortOrderToggle}
-                />
-                <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
+          <div className="space-y-6">
+            <SearchAndSort
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+              sortOrder={sortOrder}
+              onSortOrderToggle={handleSortOrderToggle}
+            />
+            <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
 
-                {viewMode === "comparison" ? (
-                  filteredLines.length > 0 ? (
-                    <LineComparisonTable
-                      lines={filteredLines}
-                      hasData={hasRangeData}
-                    />
-                  ) : (
-                    <EmptyState
-                      title="No hay líneas para comparar con este filtro."
-                      description="Ajusta el filtro para ver el comparativo de líneas."
-                    />
-                  )
-                ) : viewMode === "chart" ? (
-                  <div data-animate="chart-card">
-                    <ChartVisualization
-                      dailyDataSet={dailyDataSet}
-                      selectedSedeIds={selectedSedeIds}
-                      availableDates={availableDates}
-                      dateRange={dateRange}
-                      lines={lines}
-                      sedes={orderedSedes}
-                    />
-                  </div>
-                ) : viewMode === "trends" ? (
-                  <LineTrends
-                    dailyDataSet={dailyDataSet}
-                    selectedSedeIds={selectedSedeIds}
-                    availableDates={availableDates}
-                    lines={lines}
-                    sedes={orderedSedes}
-                    dateRange={dateRange}
-                  />
-                ) : (
-                  <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredLines.map((line) => (
-                      <LineCard
-                        key={line.id}
-                        line={line}
-                        hasData={hasRangeData}
-                      />
-                    ))}
-                  </section>
-                )}
-
-                {viewMode === "cards" && filteredLines.length === 0 && (
-                  <EmptyState
-                    title="No hay líneas para este segmento."
-                    description="Prueba otro filtro o revisa un rango distinto."
-                    actionLabel="Ver todas las líneas"
-                    onAction={() => setLineFilter("all")}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Tab: Summaries */}
-            {activeTab === "summaries" && (
-              <div className="space-y-6">
-                <SummaryCard
-                  summary={summary}
-                  title="Resumen del día"
-                  salesLabel="Venta total"
+            {viewMode === "comparison" ? (
+              filteredLines.length > 0 ? (
+                <LineComparisonTable
+                  lines={filteredLines}
                   hasData={hasRangeData}
                 />
-                <SummaryCard
-                  summary={monthlySummary}
-                  title={`Resumen del mes · ${formatMonthLabel(selectedMonth)}`}
-                  salesLabel="Ventas del mes"
-                  hasData={hasMonthlyData}
+              ) : (
+                <EmptyState
+                  title="No hay líneas para comparar con este filtro."
+                  description="Ajusta el filtro para ver el comparativo de líneas."
                 />
-                <PeriodComparison
+              )
+            ) : viewMode === "chart" ? (
+              <div data-animate="chart-card">
+                <ChartVisualization
                   dailyDataSet={dailyDataSet}
                   selectedSedeIds={selectedSedeIds}
                   availableDates={availableDates}
+                  dateRange={dateRange}
+                  lines={lines}
+                  sedes={orderedSedes}
                 />
               </div>
+            ) : viewMode === "trends" ? (
+              <LineTrends
+                dailyDataSet={dailyDataSet}
+                selectedSedeIds={selectedSedeIds}
+                availableDates={availableDates}
+                lines={lines}
+                sedes={orderedSedes}
+                dateRange={dateRange}
+              />
+            ) : (
+              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {filteredLines.map((line) => (
+                  <LineCard key={line.id} line={line} hasData={hasRangeData} />
+                ))}
+              </section>
             )}
-          </>
+
+            {viewMode === "cards" && filteredLines.length === 0 && (
+              <EmptyState
+                title="No hay líneas para este segmento."
+                description="Prueba otro filtro o revisa un rango distinto."
+                actionLabel="Ver todas las líneas"
+                onAction={() => setLineFilter("all")}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

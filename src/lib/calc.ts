@@ -1,4 +1,4 @@
-import { DailySummary, LineMetrics } from "../types";
+import { LineMetrics } from "../types";
 
 // Líneas que NO tienen datos de horas en asistencia_horas
 // Todas las líneas principales ahora tienen datos de horas
@@ -42,25 +42,3 @@ export const calcLineMargin = (line: LineMetrics) => {
   return line.sales - calcLineCost(line);
 };
 
-export const calcDailySummary = (lines: LineMetrics[]): DailySummary => {
-  return lines.reduce(
-    (acc, line) => {
-      const hasLaborData = hasLaborDataForLine(line.id);
-      const cost = hasLaborData ? calcLineCost(line) : 0;
-      const margin = hasLaborData ? calcLineMargin(line) : 0;
-      const hours = hasLaborData ? line.hours : 0;
-      return {
-        sales: acc.sales + line.sales,
-        hours: acc.hours + hours,
-        cost: acc.cost + cost,
-        margin: acc.margin + margin,
-      };
-    },
-    {
-      sales: 0,
-      hours: 0,
-      cost: 0,
-      margin: 0,
-    },
-  );
-};
