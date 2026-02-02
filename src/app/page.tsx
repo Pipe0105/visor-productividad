@@ -1373,6 +1373,14 @@ const LineTrends = ({
     return Math.max(...trendData.map((d) => d.value), 1);
   }, [trendData]);
 
+  const maxSalesPerHour = useMemo(() => {
+    if (trendData.length === 0) return 1;
+    return Math.max(
+      ...trendData.map((d) => (d.hours > 0 ? d.sales / 1_000_000 / d.hours : 0)),
+      1,
+    );
+  }, [trendData]);
+
   const avgValue = useMemo(() => {
     if (trendData.length === 0) return 0;
     const sum = trendData.reduce((acc, d) => acc + d.value, 0);
@@ -1730,10 +1738,10 @@ const LineTrends = ({
 
               <div className="space-y-2">
                 {trendData.map((point) => {
-                  const percentage =
-                    maxValue > 0 ? (point.value / maxValue) * 100 : 0;
                   const salesPerHour =
                     point.hours > 0 ? point.sales / 1_000_000 / point.hours : 0;
+                  const percentage =
+                    maxSalesPerHour > 0 ? (salesPerHour / maxSalesPerHour) * 100 : 0;
                   const dailyBaseline =
                     heatBaseline === "todas"
                       ? (dailyAvgSalesPerHour.get(point.date) ?? 0)

@@ -45,14 +45,19 @@ const SEDE_ASISTENCIA_TO_SYSTEM: Record<string, string> = {
   "merkmios chia": "Chía",
   "centro sur": "Centro Sur",
   floralia: "Floralia",
+  "floralia mercatodo": "Floralia",
+  "mercatodo floralia": "Floralia",
   "la 39": "La 39",
   "ciudad jardin": "Ciudad Jardín",
 };
 
-// Reverse: nombre del sistema -> nombre raw en asistencia_horas
-const REVERSE_SEDE_ASISTENCIA: Record<string, string> = {};
+// Reverse: nombre del sistema -> nombres raw en asistencia_horas
+const REVERSE_SEDE_ASISTENCIA: Record<string, string[]> = {};
 for (const [raw, system] of Object.entries(SEDE_ASISTENCIA_TO_SYSTEM)) {
-  REVERSE_SEDE_ASISTENCIA[system] = raw;
+  if (!REVERSE_SEDE_ASISTENCIA[system]) {
+    REVERSE_SEDE_ASISTENCIA[system] = [];
+  }
+  REVERSE_SEDE_ASISTENCIA[system].push(raw);
 }
 
 const DEPARTAMENTO_TO_LINE: Record<string, string> = {
@@ -68,6 +73,46 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   "surtidor (a) pollo y pescado": "pollo y pescado",
   asadero: "asadero",
   "pollo asado": "asadero",
+};
+
+const normalizeDepto = (depto: string): string => {
+  return (
+    depto
+      ?.toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim() || ""
+  );
+};
+
+const resolveLineId = (depto: string): string | undefined => {
+  const normalized = normalizeDepto(depto);
+  if (!normalized) return undefined;
+
+  const direct = DEPARTAMENTO_TO_LINE[normalized];
+  if (direct) return direct;
+
+  if (normalized.includes("asadero") || normalized.includes("asado"))
+    return "asadero";
+  if (
+    normalized.includes("pollo") ||
+    normalized.includes("pescado") ||
+    normalized.includes("mariscos")
+  )
+    return "pollo y pescado";
+  if (
+    normalized.includes("fruver") ||
+    normalized.includes("fruta") ||
+    normalized.includes("verdura")
+  )
+    return "fruver";
+  if (normalized.includes("caja")) return "cajas";
+  if (normalized.includes("industria") || normalized.includes("surtidor"))
+    return "industria";
+  if (normalized.includes("carn")) return "carnes";
+
+  return undefined;
 };
 
 // ============================================================================
@@ -188,11 +233,11 @@ const fetchHourlyData = async (
     const sedeInfo = REVERSE_SEDE[sedeName];
 
     // Reverse lookup: sede -> nombre raw en asistencia_horas
-    const rawAsistenciaSede = REVERSE_SEDE_ASISTENCIA[sedeName];
+    const rawAsistenciaSedeList = REVERSE_SEDE_ASISTENCIA[sedeName] ?? [];
     // Buscar todas las posibles variantes de nombre raw
     const asistenciaSedeVariants: string[] = [];
-    if (rawAsistenciaSede) {
-      asistenciaSedeVariants.push(rawAsistenciaSede);
+    if (rawAsistenciaSedeList.length > 0) {
+      asistenciaSedeVariants.push(...rawAsistenciaSedeList);
     }
     // Agregar el nombre del sistema directamente como fallback
     asistenciaSedeVariants.push(sedeName);
@@ -292,8 +337,8 @@ const fetchHourlyData = async (
           };
 
           // Solo contar empleados de departamentos conocidos
-          const depto = typedRow.departamento?.toLowerCase().trim() || "";
-          if (!DEPARTAMENTO_TO_LINE[depto]) continue;
+          const lineId = resolveLineId(typedRow.departamento);
+          if (!lineId) continue;
 
           const hours = computePresenceHours(
             typedRow.hora_entrada,

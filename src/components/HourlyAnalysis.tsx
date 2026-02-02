@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
+import { BarChart } from "@mui/x-charts/BarChart";
 import { formatCOP } from "@/lib/calc";
 import { formatDateLabel } from "@/lib/utils";
 import type { Sede } from "@/lib/constants";
@@ -174,9 +175,15 @@ export const HourlyAnalysis = ({
 }: HourlyAnalysisProps) => {
   const [selectedDate, setSelectedDate] = useState(defaultDate ?? "");
   const [selectedSede, setSelectedSede] = useState(defaultSede ?? "");
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [compareDate, setCompareDate] = useState("");
+  const [compareSede, setCompareSede] = useState("");
   const [hourlyData, setHourlyData] = useState<HourlyAnalysisData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [compareData, setCompareData] = useState<HourlyAnalysisData | null>(null);
+  const [isCompareLoading, setIsCompareLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
   const [expandedHour, setExpandedHour] = useState<number | null>(null);
 
   // Fetch data when date and sede change
@@ -216,6 +223,43 @@ export const HourlyAnalysis = ({
     return () => controller.abort();
   }, [selectedDate, selectedSede]);
 
+  // Fetch compare data when enabled
+  useEffect(() => {
+    if (!compareEnabled || !compareDate || !compareSede) {
+      setCompareData(null);
+      setCompareError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsCompareLoading(true);
+    setCompareError(null);
+
+    fetch(
+      `/api/hourly-analysis?date=${compareDate}&sede=${encodeURIComponent(compareSede)}`,
+      { signal: controller.signal },
+    )
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error ?? "Error al obtener datos");
+        }
+        return json as HourlyAnalysisData;
+      })
+      .then((data) => {
+        setCompareData(data);
+        setIsCompareLoading(false);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setCompareError(err instanceof Error ? err.message : "Error desconocido");
+        setCompareData(null);
+        setIsCompareLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [compareEnabled, compareDate, compareSede]);
+
   // Filtrar solo las horas con actividad para el resumen
   const activeHours = useMemo(() => {
     if (!hourlyData) return [];
@@ -224,23 +268,55 @@ export const HourlyAnalysis = ({
     );
   }, [hourlyData]);
 
+  const availableDateRange = useMemo(() => {
+    if (availableDates.length === 0) return { min: "", max: "" };
+    const sorted = [...availableDates].sort();
+    return { min: sorted[0], max: sorted[sorted.length - 1] };
+  }, [availableDates]);
+
   const maxSales = useMemo(() => {
     if (activeHours.length === 0) return 1;
     return Math.max(...activeHours.map((h) => h.totalSales), 1);
   }, [activeHours]);
 
-  const chartPoints = useMemo(() => {
-    if (!hourlyData || hourlyData.hours.length === 0) return "";
-    const seriesMax = Math.max(...hourlyData.hours.map((h) => h.totalSales), 1);
-    const total = hourlyData.hours.length;
-    return hourlyData.hours
-      .map((h, i) => {
-        const x = total === 1 ? 0 : (i / (total - 1)) * 100;
-        const y = 100 - (h.totalSales / seriesMax) * 100;
-        return `${x},${y}`;
-      })
-      .join(" ");
-  }, [hourlyData]);
+  const chartHours = useMemo(() => {
+    if (!hourlyData) return [];
+    if (!compareEnabled || !compareData) {
+      return hourlyData.hours.filter((h) => h.totalSales > 0);
+    }
+
+    const compareByHour = new Map(
+      compareData.hours.map((h) => [h.hour, h.totalSales]),
+    );
+    return hourlyData.hours.filter((h) => {
+      const compareSales = compareByHour.get(h.hour) ?? 0;
+      return h.totalSales > 0 || compareSales > 0;
+    });
+  }, [hourlyData, compareEnabled, compareData]);
+
+  const chartLabels = useMemo(
+    () => chartHours.map((h) => String(h.hour).padStart(2, "0")),
+    [chartHours],
+  );
+
+  const chartSeries = useMemo(
+    () => chartHours.map((h) => h.totalSales),
+    [chartHours],
+  );
+
+  const chartCompareSeries = useMemo(() => {
+    if (!compareEnabled || !compareData) return [];
+    const compareByHour = new Map(
+      compareData.hours.map((h) => [h.hour, h.totalSales]),
+    );
+    return chartHours.map((h) => compareByHour.get(h.hour) ?? 0);
+  }, [compareEnabled, compareData, chartHours]);
+
+  const chartTickEvery = useMemo(() => {
+    const count = chartLabels.length;
+    if (count <= 6) return 1;
+    return Math.ceil(count / 6);
+  }, [chartLabels]);
 
   // Totales del dia
   const dayTotals = useMemo(() => {
@@ -293,18 +369,14 @@ export const HourlyAnalysis = ({
       <div className="mb-6 grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-semibold text-slate-700">Fecha</span>
-          <select
+          <input
+            type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
+            min={availableDateRange.min}
+            max={availableDateRange.max}
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          >
-            <option value="">Selecciona un dia</option>
-            {availableDates.map((date) => (
-              <option key={date} value={date}>
-                {date}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <label className="block">
@@ -324,10 +396,75 @@ export const HourlyAnalysis = ({
         </label>
       </div>
 
+      <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Comparar
+            </p>
+            <p className="text-sm font-semibold text-slate-900">
+              Compara dos dias (misma o diferente sede)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCompareEnabled((prev) => !prev)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+              compareEnabled
+                ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
+                : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+            }`}
+          >
+            {compareEnabled ? "Comparando" : "Comparar"}
+          </button>
+        </div>
+
+        {compareEnabled && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-700">
+                Fecha a comparar
+              </span>
+              <input
+                type="date"
+                value={compareDate}
+                onChange={(e) => setCompareDate(e.target.value)}
+                min={availableDateRange.min}
+                max={availableDateRange.max}
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-700">
+                Sede a comparar
+              </span>
+              <select
+                value={compareSede}
+                onChange={(e) => setCompareSede(e.target.value)}
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                <option value="">Selecciona una sede</option>
+                {availableSedes.map((sede) => (
+                  <option key={sede.id} value={sede.name}>
+                    {sede.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+      </div>
+
       {/* Error */}
       {error && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-800">
           {error}
+        </div>
+      )}
+      {compareError && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-800">
+          {compareError}
         </div>
       )}
 
@@ -376,45 +513,69 @@ export const HourlyAnalysis = ({
                   Comportamiento de ventas durante el dia
                 </p>
               </div>
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
-                Max: {formatCOP(maxSales)}
-              </span>
-            </div>
-            <div className="h-28 w-full">
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="h-full w-full"
-              >
-                <defs>
-                  <linearGradient id="hourlyFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <rect x="0" y="0" width="100" height="100" fill="#f8fafc" />
-                {chartPoints && (
-                  <>
-                    <path
-                      d={`M 0,100 L ${chartPoints} L 100,100 Z`}
-                      fill="url(#hourlyFill)"
-                    />
-                    <polyline
-                      points={chartPoints}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="2.2"
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
-                  </>
+              <div className="flex flex-wrap items-center gap-2">
+                {compareEnabled && compareDate && compareSede && (
+                  <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/70">
+                    {compareDate} - {compareSede}
+                  </span>
                 )}
-              </svg>
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
+                  Max: {formatCOP(maxSales)}
+                </span>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-slate-500">
-              <span>00:00</span>
-              <span>12:00</span>
-              <span>23:00</span>
+            <div className="h-32 w-full">
+              <BarChart
+                height={128}
+                series={[
+                  {
+                    data: chartSeries,
+                    color: "#f59e0b",
+                    label: "Dia principal",
+                  },
+                  ...(compareEnabled && compareData
+                    ? [
+                        {
+                          data: chartCompareSeries,
+                          color: "#38bdf8",
+                          label: "Dia comparado",
+                        },
+                      ]
+                    : []),
+                ]}
+                xAxis={[
+                  {
+                    data: chartLabels,
+                    scaleType: "band",
+                    valueFormatter: (value: string | number) => `${value}:00`,
+                    tickLabelInterval: (_value, index) =>
+                      index % chartTickEvery === 0 ||
+                      index === chartLabels.length - 1,
+                    tickLabelStyle: {
+                      fontSize: 10,
+                      fill: "#64748b",
+                      fontWeight: 600,
+                    },
+                  },
+                ]}
+                yAxis={[
+                  {
+                    tickLabelStyle: { fontSize: 9, fill: "#94a3b8" },
+                    valueFormatter: (value: number) =>
+                      new Intl.NumberFormat("es-CO", {
+                        notation: "compact",
+                        maximumFractionDigits: 1,
+                      }).format(value as number),
+                  },
+                ]}
+                grid={{ horizontal: true, vertical: false }}
+                margin={{ left: 36, right: 8, top: 6, bottom: 16 }}
+                sx={{
+                  ".MuiChartsAxis-line": { stroke: "#e2e8f0" },
+                  ".MuiChartsAxis-tick": { stroke: "#e2e8f0" },
+                  ".MuiChartsGrid-line": { stroke: "#eef2f7" },
+                }}
+              />
             </div>
           </div>
 

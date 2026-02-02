@@ -97,11 +97,23 @@ const buildFallbackResponse = (message: string) =>
     },
   );
 
+const HIDDEN_SEDES = new Set(["adm", "cedi-cavasa", "cedicavasa"]);
+
+const normalizeSedeKey = (value: string) =>
+  value
+    ?.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim() || "";
+
 const buildSedes = (dailyData: DailyProductivity[]) =>
-  Array.from(new Set(dailyData.map((item) => item.sede))).map((sede) => ({
-    id: sede,
-    name: sede,
-  }));
+  Array.from(new Set(dailyData.map((item) => item.sede)))
+    .filter((sede) => !HIDDEN_SEDES.has(normalizeSedeKey(sede)))
+    .map((sede) => ({
+      id: sede,
+      name: sede,
+    }));
 
 const LINE_TABLES: Array<{
   id: DailyProductivity["lines"][number]["id"];
@@ -179,7 +191,43 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
 
 // Normaliza el nombre del departamento para mapear a línea
 const normalizeDepto = (depto: string): string => {
-  return depto?.toLowerCase().trim() || "";
+  return (
+    depto
+      ?.toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim() || ""
+  );
+};
+
+const resolveLineId = (depto: string): string | undefined => {
+  const normalized = normalizeDepto(depto);
+  if (!normalized) return undefined;
+
+  const direct = DEPARTAMENTO_TO_LINE[normalized];
+  if (direct) return direct;
+
+  if (normalized.includes("asadero") || normalized.includes("asado"))
+    return "asadero";
+  if (
+    normalized.includes("pollo") ||
+    normalized.includes("pescado") ||
+    normalized.includes("mariscos")
+  )
+    return "pollo y pescado";
+  if (
+    normalized.includes("fruver") ||
+    normalized.includes("fruta") ||
+    normalized.includes("verdura")
+  )
+    return "fruver";
+  if (normalized.includes("caja")) return "cajas";
+  if (normalized.includes("industria") || normalized.includes("surtidor"))
+    return "industria";
+  if (normalized.includes("carn")) return "carnes";
+
+  return undefined;
 };
 
 // Mapeo de nombres de sede en asistencia_horas a nombres del sistema
@@ -193,14 +241,26 @@ const SEDE_ASISTENCIA_TO_SYSTEM: Record<string, string> = {
   "merkmios chia": "Chía",
   "centro sur": "Centro Sur",
   floralia: "Floralia",
+  "floralia mercatodo": "Floralia",
+  "mercatodo floralia": "Floralia",
   "la 39": "La 39",
   "ciudad jardin": "Ciudad Jardín",
 };
 
 // Normaliza el nombre de sede de asistencia_horas al nombre del sistema
 const normalizeSedeAsistencia = (sede: string): string => {
-  const normalized = sede?.toLowerCase().trim() || "";
-  return SEDE_ASISTENCIA_TO_SYSTEM[normalized] || sede?.trim() || "";
+  const normalized =
+    sede
+      ?.toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim() || "";
+  if (SEDE_ASISTENCIA_TO_SYSTEM[normalized]) {
+    return SEDE_ASISTENCIA_TO_SYSTEM[normalized];
+  }
+  if (normalized.includes("floralia")) return "Floralia";
+  return sede?.trim() || "";
 };
 
 const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
@@ -334,8 +394,11 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
             fecha = `${year}-${month}-${day}`;
           }
           const sedeName = normalizeSedeAsistencia(typedRow.sede);
-          const depto = normalizeDepto(typedRow.departamento);
-          const lineId = DEPARTAMENTO_TO_LINE[depto];
+          if (HIDDEN_SEDES.has(normalizeSedeKey(sedeName))) {
+            filasSkipped++;
+            continue;
+          }
+          const lineId = resolveLineId(typedRow.departamento);
 
           // DEBUG: Mostrar solo las primeras 3 filas
           if (primerFila) {
