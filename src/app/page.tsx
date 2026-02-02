@@ -43,6 +43,7 @@ import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { SelectionSummary } from "@/components/SelectionSummary";
 import { TopBar } from "@/components/TopBar";
 import { formatCOP, hasLaborDataForLine } from "@/lib/calc";
+import { formatDateLabel } from "@/lib/utils";
 import {
   DEFAULT_LINES,
   DEFAULT_SEDES,
@@ -63,12 +64,11 @@ const parseDateKey = (dateKey: string): Date => {
 
 const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
 
-const formatDateLabel = (dateKey: string): string =>
-  new Intl.DateTimeFormat("es-CO", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parseDateKey(dateKey));
+const dateLabelOptions: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+};
 
 const formatPdfDate = () =>
   new Intl.DateTimeFormat("es-CO", {
@@ -1748,7 +1748,7 @@ const LineTrends = ({
                     <div key={point.date} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-mono text-slate-700">
-                          {formatDateLabel(point.date)}
+                          {formatDateLabel(point.date, dateLabelOptions)}
                         </span>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-slate-900">
@@ -1810,7 +1810,7 @@ const LineTrends = ({
                 {sedeComparisonData.map((day) => (
                   <div key={day.date}>
                     <p className="mb-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
-                      {formatDateLabel(day.date)}
+                      {formatDateLabel(day.date, dateLabelOptions)}
                     </p>
                     <div className="space-y-1">
                       {(() => {
@@ -2074,10 +2074,10 @@ export default function Home() {
     if (!dateRange.start || !dateRange.end) return "";
 
     if (dateRange.start === dateRange.end) {
-      return `el ${formatDateLabel(dateRange.start)}`;
+      return `el ${formatDateLabel(dateRange.start, dateLabelOptions)}`;
     }
 
-    return `del ${formatDateLabel(dateRange.start)} al ${formatDateLabel(dateRange.end)}`;
+    return `del ${formatDateLabel(dateRange.start, dateLabelOptions)} al ${formatDateLabel(dateRange.end, dateLabelOptions)}`;
   }, [dateRange]);
 
   const rangeDailyData = useMemo(() => {

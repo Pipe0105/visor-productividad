@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
 import { formatCOP } from "@/lib/calc";
+import { formatDateLabel } from "@/lib/utils";
 import type { Sede } from "@/lib/constants";
 import type { HourlyAnalysisData } from "@/types";
 
@@ -21,13 +22,12 @@ interface HourlyAnalysisProps {
 // UTILIDADES
 // ============================================================================
 
-const formatDateLabel = (dateKey: string): string =>
-  new Intl.DateTimeFormat("es-CO", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(dateKey + "T12:00:00"));
+const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+};
 
 // ============================================================================
 // SUBCOMPONENTES
@@ -347,7 +347,7 @@ export const HourlyAnalysis = ({
           {/* Day summary chips */}
           <div className="mb-6 flex flex-wrap items-center gap-3">
             <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
-              {formatDateLabel(hourlyData.date)}
+              {formatDateLabel(hourlyData.date, hourlyDateLabelOptions)}
             </span>
             <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/60">
               {hourlyData.sede}
