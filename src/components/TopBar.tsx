@@ -71,6 +71,42 @@ const SelectField = ({
   </label>
 );
 
+const DateField = ({
+  icon: Icon,
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  disabled = false,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  min: string;
+  max: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) => (
+  <label className="group relative flex flex-col gap-1 cursor-pointer sm:gap-1.5">
+    <div className="flex items-center gap-1 px-1 sm:gap-1.5">
+      <Icon className="h-3 w-3 text-mercamio-600 sm:h-3.5 sm:w-3.5" />
+      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
+        {label}
+      </span>
+    </div>
+    <input
+      type="date"
+      value={value}
+      min={min}
+      max={max}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 hover:shadow-md focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5"
+    />
+  </label>
+);
+
 const BrandHeader = ({ title }: { title: ReactNode }) => (
   <div className="flex items-start gap-4">
     <div className="flex-1 space-y-3">
@@ -118,10 +154,9 @@ export const TopBar = ({
     })),
   ];
 
-  const dateOptions = dates.map((date) => ({
-    value: date,
-    label: date,
-  }));
+  const sortedDates = [...dates].sort();
+  const minDate = sortedDates[0] ?? "";
+  const maxDate = sortedDates[sortedDates.length - 1] ?? "";
 
   return (
     <header
@@ -178,26 +213,26 @@ export const TopBar = ({
         {/* Selectores de Fecha */}
         <div className="contents sm:contents md:flex md:gap-3">
           <div className="md:w-40">
-            <SelectField
+            <DateField
               icon={CalendarDays}
               label="Desde"
               value={startDate}
-              options={dateOptions}
+              min={minDate}
+              max={maxDate}
               onChange={onStartDateChange}
               disabled={dates.length === 0}
-              emptyMessage="Sin fechas disponibles"
             />
           </div>
 
           <div className="md:w-40">
-            <SelectField
+            <DateField
               icon={CalendarDays}
               label="Hasta"
               value={endDate}
-              options={dateOptions}
+              min={minDate}
+              max={maxDate}
               onChange={onEndDateChange}
               disabled={dates.length === 0}
-              emptyMessage="Sin fechas disponibles"
             />
           </div>
         </div>

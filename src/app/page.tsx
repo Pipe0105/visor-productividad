@@ -781,27 +781,11 @@ const ChartVisualization = ({
     [availableDates, dateRange.start, dateRange.end],
   );
 
-  const startDateOptions = useMemo(() => {
-    if (!chartEndDate) return globalRangeDates;
-    const end = parseDateKey(chartEndDate);
-    const minStart = new Date(end);
-    minStart.setDate(minStart.getDate() - MAX_CHART_DAYS);
-    const minStartStr = toDateKey(minStart);
-    return globalRangeDates.filter(
-      (d) => d >= minStartStr && d <= chartEndDate,
-    );
-  }, [globalRangeDates, chartEndDate]);
-
-  const endDateOptions = useMemo(() => {
-    if (!chartStartDate) return globalRangeDates;
-    const start = parseDateKey(chartStartDate);
-    const maxEnd = new Date(start);
-    maxEnd.setDate(maxEnd.getDate() + MAX_CHART_DAYS);
-    const maxEndStr = toDateKey(maxEnd);
-    return globalRangeDates.filter(
-      (d) => d >= chartStartDate && d <= maxEndStr,
-    );
-  }, [globalRangeDates, chartStartDate]);
+  const chartRangeBounds = useMemo(() => {
+    if (globalRangeDates.length === 0) return { min: "", max: "" };
+    const sorted = [...globalRangeDates].sort();
+    return { min: sorted[0], max: sorted[sorted.length - 1] };
+  }, [globalRangeDates]);
 
   const lineOptions = useMemo(
     () =>
@@ -1173,34 +1157,28 @@ const ChartVisualization = ({
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
               Desde
             </span>
-            <select
+            <input
+              type="date"
               value={chartStartDate}
               onChange={(e) => handleChartStartChange(e.target.value)}
+              min={chartRangeBounds.min}
+              max={chartRangeBounds.max}
               className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-            >
-              {startDateOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <span className="mt-5 text-sm text-slate-400">&mdash;</span>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
               Hasta
             </span>
-            <select
+            <input
+              type="date"
               value={chartEndDate}
               onChange={(e) => handleChartEndChange(e.target.value)}
+              min={chartRangeBounds.min}
+              max={chartRangeBounds.max}
               className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-            >
-              {endDateOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            />
           </label>
         </div>
       </div>
