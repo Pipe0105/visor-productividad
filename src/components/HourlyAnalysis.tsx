@@ -75,14 +75,14 @@ const HourBar = ({
         disabled={!hasActivity}
         className="group flex w-full items-center gap-3 text-left transition-opacity disabled:opacity-40"
       >
-        <span className="w-[6.5rem] shrink-0 text-right font-mono text-xs text-slate-600">
+        <span className="w-26 shrink-0 text-right font-mono text-xs text-slate-600">
           {label}
         </span>
 
         <div className="relative h-9 flex-1 overflow-hidden rounded-full bg-slate-100">
           {percentage > 0 && (
             <div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-mercamio-400 to-mercamio-600 transition-all duration-500"
+              className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-mercamio-400 to-mercamio-600 transition-all duration-500"
               style={{ width: `${Math.max(percentage, 2)}%` }}
             />
           )}
@@ -111,7 +111,7 @@ const HourBar = ({
       </button>
 
       {isExpanded && hasActivity && (
-        <div className="mt-2 ml-[6.5rem] mr-36 rounded-2xl border border-slate-200/70 bg-slate-50 p-3">
+        <div className="mt-2 ml-26 mr-36 rounded-2xl border border-slate-200/70 bg-slate-50 p-3">
           <div className="grid grid-cols-3 gap-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200/50">
             <span>Linea</span>
             <span className="text-right">Ventas</span>

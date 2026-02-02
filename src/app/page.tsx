@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  createContext,
+  useContext,
+} from "react";
 import { animate, remove } from "animejs";
 import {
   Download,
@@ -14,9 +21,20 @@ import {
   Clock,
 } from "lucide-react";
 import { LineChart } from "@mui/x-charts/LineChart";
+import {
+  ChartsTooltipContainer,
+  ChartsTooltipPaper,
+  ChartsTooltipTable,
+  ChartsTooltipRow,
+  ChartsTooltipCell,
+  useAxesTooltip,
+} from "@mui/x-charts/ChartsTooltip";
+import type { ChartsTooltipProps } from "@mui/x-charts/ChartsTooltip";
+import { ChartsLabelMark } from "@mui/x-charts/ChartsLabel";
 import * as ExcelJS from "exceljs";
 import type { XAxis, YAxis } from "@mui/x-charts/models";
 import type { LineSeries } from "@mui/x-charts/LineChart";
+import type { MarkPlotProps, LinePlotProps } from "@mui/x-charts/LineChart";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { HourlyAnalysis } from "@/components/HourlyAnalysis";
@@ -582,6 +600,103 @@ const ViewToggle = ({
   );
 };
 
+// ============================================================================
+// CHART TOOLTIP CUSTOM - Sorted descending + highlight support
+// ============================================================================
+
+const HighlightContext = createContext<string | null>(null);
+
+const SortedAxisTooltipContent = () => {
+  const highlightedSeriesId = useContext(HighlightContext);
+  const tooltipData = useAxesTooltip();
+
+  if (tooltipData === null) return null;
+
+  return (
+    <ChartsTooltipPaper>
+      {tooltipData.map(
+        ({ axisId, axisFormattedValue, seriesItems, mainAxis }) => {
+          const sorted = [...seriesItems].sort((a, b) => {
+            const aVal = typeof a.value === "number" ? a.value : 0;
+            const bVal = typeof b.value === "number" ? b.value : 0;
+            return bVal - aVal;
+          });
+
+          return (
+            <ChartsTooltipTable key={axisId}>
+              {!mainAxis.hideTooltip && (
+                <caption
+                  style={{
+                    textAlign: "start",
+                    padding: "4px 8px",
+                    fontWeight: 600,
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  {axisFormattedValue}
+                </caption>
+              )}
+              <tbody>
+                {sorted.map(
+                  ({
+                    seriesId,
+                    color,
+                    formattedValue,
+                    formattedLabel,
+                    markType,
+                  }) => {
+                    if (formattedValue == null) return null;
+                    const sid = String(seriesId);
+                    const isHighlighted = highlightedSeriesId === sid;
+                    const isFaded =
+                      highlightedSeriesId != null && !isHighlighted;
+                    return (
+                      <ChartsTooltipRow
+                        key={seriesId}
+                        style={{
+                          opacity: isFaded ? 0.35 : 1,
+                          fontWeight: isHighlighted ? 700 : 400,
+                          transition: "opacity 0.2s",
+                        }}
+                      >
+                        <ChartsTooltipCell component="th">
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <ChartsLabelMark type={markType} color={color} />
+                            {formattedLabel || null}
+                          </div>
+                        </ChartsTooltipCell>
+                        <ChartsTooltipCell component="td">
+                          {formattedValue}
+                        </ChartsTooltipCell>
+                      </ChartsTooltipRow>
+                    );
+                  },
+                )}
+              </tbody>
+            </ChartsTooltipTable>
+          );
+        },
+      )}
+    </ChartsTooltipPaper>
+  );
+};
+
+const CustomChartTooltip = (props: ChartsTooltipProps) => (
+  <ChartsTooltipContainer {...props}>
+    <SortedAxisTooltipContent />
+  </ChartsTooltipContainer>
+);
+
+const MAX_CHART_DAYS = 7;
+
+// ============================================================================
+
 const ChartVisualization = ({
   dailyDataSet,
   selectedSedeIds,
@@ -599,17 +714,51 @@ const ChartVisualization = ({
 }) => {
   const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [selectedChartSedes, setSelectedChartSedes] = useState<string[]>([]);
+  const [chartStartDate, setChartStartDate] = useState<string>(dateRange.start);
+  const [chartEndDate, setChartEndDate] = useState<string>(dateRange.end);
+  const [clickedSeriesId, setClickedSeriesId] = useState<string | null>(null);
 
   const sedeOptions = useMemo(() => sortSedesByOrder(sedes ?? []), [sedes]);
 
   const chartDates = useMemo<string[]>(() => {
-    if (!dateRange.start || !dateRange.end) {
+    if (!chartStartDate || !chartEndDate) {
       return availableDates;
     }
     return availableDates.filter(
-      (date) => date >= dateRange.start && date <= dateRange.end,
+      (date) => date >= chartStartDate && date <= chartEndDate,
     );
-  }, [availableDates, dateRange.end, dateRange.start]);
+  }, [availableDates, chartStartDate, chartEndDate]);
+
+  // Date options filtered within global range, constrained by 7-day max
+  const globalRangeDates = useMemo(
+    () =>
+      availableDates.filter(
+        (d) => d >= dateRange.start && d <= dateRange.end,
+      ),
+    [availableDates, dateRange.start, dateRange.end],
+  );
+
+  const startDateOptions = useMemo(() => {
+    if (!chartEndDate) return globalRangeDates;
+    const end = parseDateKey(chartEndDate);
+    const minStart = new Date(end);
+    minStart.setDate(minStart.getDate() - MAX_CHART_DAYS);
+    const minStartStr = toDateKey(minStart);
+    return globalRangeDates.filter(
+      (d) => d >= minStartStr && d <= chartEndDate,
+    );
+  }, [globalRangeDates, chartEndDate]);
+
+  const endDateOptions = useMemo(() => {
+    if (!chartStartDate) return globalRangeDates;
+    const start = parseDateKey(chartStartDate);
+    const maxEnd = new Date(start);
+    maxEnd.setDate(maxEnd.getDate() + MAX_CHART_DAYS);
+    const maxEndStr = toDateKey(maxEnd);
+    return globalRangeDates.filter(
+      (d) => d >= chartStartDate && d <= maxEndStr,
+    );
+  }, [globalRangeDates, chartStartDate]);
 
   const lineOptions = useMemo(
     () =>
@@ -642,6 +791,22 @@ const ChartVisualization = ({
     });
   }, [sedeOptions]);
 
+  // Sync local chart dates with global dateRange, clamping to MAX_CHART_DAYS
+  useEffect(() => {
+    const start = parseDateKey(dateRange.start);
+    const end = parseDateKey(dateRange.end);
+    const diffDays =
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+    setChartStartDate(dateRange.start);
+    if (diffDays > MAX_CHART_DAYS) {
+      const clamped = new Date(start);
+      clamped.setDate(clamped.getDate() + MAX_CHART_DAYS);
+      setChartEndDate(toDateKey(clamped));
+    } else {
+      setChartEndDate(dateRange.end);
+    }
+  }, [dateRange.start, dateRange.end]);
+
   const effectiveSedes = useMemo(
     () =>
       selectedChartSedes.length > 0 ? selectedChartSedes : selectedSedeIds,
@@ -657,6 +822,44 @@ const ChartVisualization = ({
     sedes.forEach((sede) => map.set(sede.id, sede.name));
     return map;
   }, [sedes]);
+
+  const handleChartStartChange = useCallback(
+    (value: string) => {
+      setChartStartDate(value);
+      setChartEndDate((prevEnd) => {
+        const start = parseDateKey(value);
+        const end = parseDateKey(prevEnd);
+        const diffDays =
+          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays > MAX_CHART_DAYS || diffDays < 0) {
+          const clamped = new Date(start);
+          clamped.setDate(clamped.getDate() + MAX_CHART_DAYS);
+          return toDateKey(clamped);
+        }
+        return prevEnd;
+      });
+    },
+    [],
+  );
+
+  const handleChartEndChange = useCallback(
+    (value: string) => {
+      setChartEndDate(value);
+      setChartStartDate((prevStart) => {
+        const start = parseDateKey(prevStart);
+        const end = parseDateKey(value);
+        const diffDays =
+          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays > MAX_CHART_DAYS || diffDays < 0) {
+          const clamped = new Date(end);
+          clamped.setDate(clamped.getDate() - MAX_CHART_DAYS);
+          return toDateKey(clamped);
+        }
+        return prevStart;
+      });
+    },
+    [],
+  );
 
   const seriesDefinitions = useMemo(() => {
     if (selectedSeries.length === 0 || effectiveSedes.length === 0) {
@@ -771,9 +974,11 @@ const ChartVisualization = ({
         showMark: true,
         curve: "linear",
         valueFormatter: (value: number | null) => `${(value ?? 0).toFixed(3)}`,
+        highlightScope: { highlight: "series" as const, fade: "global" as const },
       })),
     [seriesDefinitions],
   );
+
   const handleToggleSeries = (lineId: string) => {
     setSelectedSeries((prev) =>
       prev.includes(lineId)
@@ -789,6 +994,31 @@ const ChartVisualization = ({
         : [...prev, sedeId],
     );
   };
+
+  const handleMarkClick = useCallback<
+    NonNullable<MarkPlotProps["onItemClick"]>
+  >((event, identifier) => {
+    event.stopPropagation();
+    const sid = String(identifier.seriesId);
+    setClickedSeriesId((prev) => (prev === sid ? null : sid));
+  }, []);
+
+  const handleLineClick = useCallback<
+    NonNullable<LinePlotProps["onItemClick"]>
+  >((event, identifier) => {
+    event.stopPropagation();
+    const sid = String(identifier.seriesId);
+    setClickedSeriesId((prev) => (prev === sid ? null : sid));
+  }, []);
+
+  // Reset clicked series when it no longer exists
+  useEffect(() => {
+    if (clickedSeriesId === null) return;
+    const stillExists = seriesDefinitions.some(
+      (s) => s.id === clickedSeriesId,
+    );
+    if (!stillExists) setClickedSeriesId(null);
+  }, [seriesDefinitions, clickedSeriesId]);
 
   if (lines.length === 0) return null;
 
@@ -887,6 +1117,51 @@ const ChartVisualization = ({
         </div>
       </div>
 
+      {/* Date range filter (max 7 days) */}
+      <div className="mb-6">
+        <div className="mb-2">
+          <span className="text-xs font-semibold text-slate-700">
+            Rango de fechas{" "}
+            <span className="font-normal text-slate-400">(max 7 dias)</span>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
+              Desde
+            </span>
+            <select
+              value={chartStartDate}
+              onChange={(e) => handleChartStartChange(e.target.value)}
+              className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              {startDateOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="mt-5 text-sm text-slate-400">&mdash;</span>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
+              Hasta
+            </span>
+            <select
+              value={chartEndDate}
+              onChange={(e) => handleChartEndChange(e.target.value)}
+              className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              {endDateOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
       {selectedSeries.length === 0 ||
       effectiveSedes.length === 0 ||
       chartDates.length === 0 ? (
@@ -894,16 +1169,30 @@ const ChartVisualization = ({
           Selecciona al menos una serie para ver el grafico.
         </p>
       ) : (
-        <div className="h-85">
-          <LineChart
-            height={340}
-            dataset={chartDataset}
-            xAxis={xAxis}
-            yAxis={yAxis}
-            series={chartSeries}
-            grid={{ horizontal: true, vertical: false }}
-          />
-        </div>
+        <HighlightContext.Provider value={clickedSeriesId}>
+          <div
+            className="h-85"
+            onClick={() => setClickedSeriesId(null)}
+          >
+            <LineChart
+              height={340}
+              dataset={chartDataset}
+              xAxis={xAxis}
+              yAxis={yAxis}
+              series={chartSeries}
+              grid={{ horizontal: true, vertical: false }}
+              slots={{ tooltip: CustomChartTooltip }}
+              highlightedItem={
+                clickedSeriesId != null
+                  ? { seriesId: clickedSeriesId }
+                  : null
+              }
+              onHighlightChange={() => {}}
+              onMarkClick={handleMarkClick}
+              onLineClick={handleLineClick}
+            />
+          </div>
+        </HighlightContext.Provider>
       )}
     </div>
   );
