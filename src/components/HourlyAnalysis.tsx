@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
-import { LineChart } from "@mui/x-charts/LineChart";
 import { formatCOP } from "@/lib/calc";
 import type { Sede } from "@/lib/constants";
 import type { HourlyAnalysisData } from "@/types";
@@ -90,8 +89,8 @@ const HourBar = ({
             />
           )}
           {hasActivity && (
-            <div className="absolute inset-0 flex items-center px-3">
-              <span className="inline-flex h-6 items-center self-center rounded-full bg-white/90 px-2 text-xs font-semibold leading-none text-slate-900 shadow-sm ring-1 ring-slate-200/60">
+            <div className="absolute inset-0 flex items-center justify-between px-3">
+              <span className="inline-flex items-center rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
                 {formatCOP(totalSales)}
               </span>
             </div>
@@ -229,14 +228,18 @@ export const HourlyAnalysis = ({
     if (activeHours.length === 0) return 1;
     return Math.max(...activeHours.map((h) => h.totalSales), 1);
   }, [activeHours]);
-  const chartLabels = useMemo(() => {
-    if (!hourlyData) return [];
-    return hourlyData.hours.map((h) => String(h.hour).padStart(2, "0"));
-  }, [hourlyData]);
 
-  const chartSeries = useMemo(() => {
-    if (!hourlyData) return [];
-    return hourlyData.hours.map((h) => h.totalSales);
+  const chartPoints = useMemo(() => {
+    if (!hourlyData || hourlyData.hours.length === 0) return "";
+    const seriesMax = Math.max(...hourlyData.hours.map((h) => h.totalSales), 1);
+    const total = hourlyData.hours.length;
+    return hourlyData.hours
+      .map((h, i) => {
+        const x = total === 1 ? 0 : (i / (total - 1)) * 100;
+        const y = 100 - (h.totalSales / seriesMax) * 100;
+        return `${x},${y}`;
+      })
+      .join(" ");
   }, [hourlyData]);
 
   // Totales del dia
@@ -378,50 +381,40 @@ export const HourlyAnalysis = ({
               </span>
             </div>
             <div className="h-28 w-full">
-              <LineChart
-                height={112}
-                series={[
-                  {
-                    data: chartSeries,
-                    label: "Ventas",
-                    color: "#f59e0b",
-                    area: true,
-                    showMark: false,
-                  },
-                ]}
-                xAxis={[
-                  {
-                    data: chartLabels,
-                    scaleType: "point",
-                    valueFormatter: (value) => `${value}:00`,
-                    tickLabelInterval: (_value, index) =>
-                      index % 6 === 0 || index === 23,
-                    tickLabelStyle: {
-                      fontSize: 10,
-                      fill: "#64748b",
-                      fontWeight: 600,
-                    },
-                  },
-                ]}
-                yAxis={[
-                  {
-                    tickLabelStyle: { fontSize: 10, fill: "#94a3b8" },
-                    valueFormatter: (value) =>
-                      new Intl.NumberFormat("es-CO", {
-                        notation: "compact",
-                        maximumFractionDigits: 1,
-                      }).format(value as number),
-                  },
-                ]}
-                margin={{ left: 40, right: 16, top: 8, bottom: 20 }}
-                grid={{ horizontal: true, vertical: false }}
-                sx={{
-                  ".MuiAreaElement-root": { fillOpacity: 0.2 },
-                  ".MuiChartsAxis-line": { stroke: "#e2e8f0" },
-                  ".MuiChartsAxis-tick": { stroke: "#e2e8f0" },
-                  ".MuiChartsGrid-line": { stroke: "#e2e8f0" },
-                }}
-              />
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                className="h-full w-full"
+              >
+                <defs>
+                  <linearGradient id="hourlyFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="0" width="100" height="100" fill="#f8fafc" />
+                {chartPoints && (
+                  <>
+                    <path
+                      d={`M 0,100 L ${chartPoints} L 100,100 Z`}
+                      fill="url(#hourlyFill)"
+                    />
+                    <polyline
+                      points={chartPoints}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="2.2"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                  </>
+                )}
+              </svg>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+              <span>00:00</span>
+              <span>12:00</span>
+              <span>23:00</span>
             </div>
           </div>
 
