@@ -1255,6 +1255,7 @@ const LineTrends = ({
   const [viewType, setViewType] = useState<"temporal" | "por-sede">("temporal");
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
   const [trendSede, setTrendSede] = useState<string>("");
+  const [heatBaseline, setHeatBaseline] = useState<"sede" | "todas">("sede");
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1268,7 +1269,10 @@ const LineTrends = ({
 
   useEffect(() => {
     setComparisonSedeIds([]);
-    setTrendSede("");
+    setTrendSede((prev) => {
+      if (prev && visibleSedes.some((s) => s.id === prev)) return prev;
+      return visibleSedes[0]?.id ?? "";
+    });
   }, [visibleSedes]);
 
   const toggleComparisonSede = useCallback((sedeId: string) => {
@@ -1294,6 +1298,17 @@ const LineTrends = ({
   const selectedSedeIdSet = useMemo(
     () => new Set(effectiveTrendSedeIds),
     [effectiveTrendSedeIds],
+  );
+  const baselineSedeIds = useMemo(
+    () =>
+      heatBaseline === "todas"
+        ? visibleSedes.map((s) => s.id)
+        : effectiveTrendSedeIds,
+    [heatBaseline, visibleSedes, effectiveTrendSedeIds],
+  );
+  const baselineSedeIdSet = useMemo(
+    () => new Set(baselineSedeIds),
+    [baselineSedeIds],
   );
   const sedeNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1380,7 +1395,7 @@ const LineTrends = ({
     const totals = fullMonthDates.reduce(
       (acc, date) => {
         const dayData = dailyDataSet.filter(
-          (item) => selectedSedeIdSet.has(item.sede) && item.date === date,
+          (item) => baselineSedeIdSet.has(item.sede) && item.date === date,
         );
         for (const item of dayData) {
           const lineData = item.lines.find((l) => l.id === selectedLine);
@@ -1394,7 +1409,29 @@ const LineTrends = ({
       { sales: 0, hours: 0 },
     );
     return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
-  }, [selectedLine, fullMonthDates, dailyDataSet, selectedSedeIdSet]);
+  }, [selectedLine, fullMonthDates, dailyDataSet, baselineSedeIdSet]);
+
+  // Daily average sales/hour for the selected range (used for "promedio total")
+  const dailyAvgSalesPerHour = useMemo(() => {
+    if (!selectedLine || temporalDates.length === 0) return new Map<string, number>();
+    const map = new Map<string, number>();
+    temporalDates.forEach((date) => {
+      let sales = 0;
+      let hours = 0;
+      const dayData = dailyDataSet.filter(
+        (item) => baselineSedeIdSet.has(item.sede) && item.date === date,
+      );
+      for (const item of dayData) {
+        const lineData = item.lines.find((l) => l.id === selectedLine);
+        if (!lineData) continue;
+        const hasLaborData = hasLaborDataForLine(lineData.id);
+        sales += lineData.sales;
+        hours += hasLaborData ? lineData.hours : 0;
+      }
+      map.set(date, hours > 0 ? sales / 1_000_000 / hours : 0);
+    });
+    return map;
+  }, [selectedLine, temporalDates, dailyDataSet, baselineSedeIdSet]);
 
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
@@ -1512,7 +1549,7 @@ const LineTrends = ({
       </div>
 
       {viewType === "temporal" && (
-        <div className="mb-6">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">Sede</span>
             <select
@@ -1527,6 +1564,36 @@ const LineTrends = ({
               ))}
             </select>
           </label>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-slate-700">
+              Mapa de calor
+            </span>
+            <div className="mt-1 flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setHeatBaseline("sede")}
+                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+                  heatBaseline === "sede"
+                    ? "bg-white text-mercamio-700 shadow-sm"
+                    : "text-slate-700 hover:text-slate-800"
+                }`}
+              >
+                Sede actual
+              </button>
+              <button
+                type="button"
+                onClick={() => setHeatBaseline("todas")}
+                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+                  heatBaseline === "todas"
+                    ? "bg-white text-mercamio-700 shadow-sm"
+                    : "text-slate-700 hover:text-slate-800"
+                }`}
+              >
+                Promedio total
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1594,9 +1661,13 @@ const LineTrends = ({
                     maxValue > 0 ? (point.value / maxValue) * 100 : 0;
                   const salesPerHour =
                     point.hours > 0 ? point.sales / 1_000_000 / point.hours : 0;
+                  const dailyBaseline =
+                    heatBaseline === "todas"
+                      ? (dailyAvgSalesPerHour.get(point.date) ?? 0)
+                      : avgSalesPerHour;
                   const heatRatio =
-                    avgSalesPerHour > 0
-                      ? (salesPerHour / avgSalesPerHour) * 100
+                    dailyBaseline > 0
+                      ? (salesPerHour / dailyBaseline) * 100
                       : 0;
                   const heatColor = getHeatColor(heatRatio);
 
