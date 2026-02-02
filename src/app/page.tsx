@@ -604,10 +604,14 @@ const ViewToggle = ({
 // CHART TOOLTIP CUSTOM - Sorted descending + highlight support
 // ============================================================================
 
-const HighlightContext = createContext<string | null>(null);
+const HighlightContext = createContext<{
+  clicked: string | null;
+  hovered: string | null;
+}>({ clicked: null, hovered: null });
 
 const SortedAxisTooltipContent = () => {
-  const highlightedSeriesId = useContext(HighlightContext);
+  const { clicked: clickedSid, hovered: hoveredSid } =
+    useContext(HighlightContext);
   const tooltipData = useAxesTooltip();
 
   if (tooltipData === null) return null;
@@ -647,15 +651,16 @@ const SortedAxisTooltipContent = () => {
                   }) => {
                     if (formattedValue == null) return null;
                     const sid = String(seriesId);
-                    const isHighlighted = highlightedSeriesId === sid;
-                    const isFaded =
-                      highlightedSeriesId != null && !isHighlighted;
+                    const isClicked = clickedSid === sid;
+                    const isFadedByClick =
+                      clickedSid != null && !isClicked;
+                    const isHovered = hoveredSid === sid;
                     return (
                       <ChartsTooltipRow
                         key={seriesId}
                         style={{
-                          opacity: isFaded ? 0.35 : 1,
-                          fontWeight: isHighlighted ? 700 : 400,
+                          opacity: isFadedByClick ? 0.35 : 1,
+                          fontWeight: isClicked ? 700 : 400,
                           transition: "opacity 0.2s",
                         }}
                       >
@@ -668,11 +673,29 @@ const SortedAxisTooltipContent = () => {
                             }}
                           >
                             <ChartsLabelMark type={markType} color={color} />
-                            {formattedLabel || null}
+                            <span
+                              style={{
+                                textDecoration: isHovered
+                                  ? "underline"
+                                  : "none",
+                                textUnderlineOffset: 2,
+                              }}
+                            >
+                              {formattedLabel || null}
+                            </span>
                           </div>
                         </ChartsTooltipCell>
                         <ChartsTooltipCell component="td">
-                          {formattedValue}
+                          <span
+                            style={{
+                              textDecoration: isHovered
+                                ? "underline"
+                                : "none",
+                              textUnderlineOffset: 2,
+                            }}
+                          >
+                            {formattedValue}
+                          </span>
                         </ChartsTooltipCell>
                       </ChartsTooltipRow>
                     );
@@ -717,6 +740,26 @@ const ChartVisualization = ({
   const [chartStartDate, setChartStartDate] = useState<string>(dateRange.start);
   const [chartEndDate, setChartEndDate] = useState<string>(dateRange.end);
   const [clickedSeriesId, setClickedSeriesId] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<{
+    seriesId: string | number;
+    dataIndex?: number;
+  } | null>(null);
+
+  // Click overrides hover; when nothing clicked, hover highlighting works
+  const effectiveHighlight = useMemo(
+    () =>
+      clickedSeriesId != null
+        ? { seriesId: clickedSeriesId }
+        : hoveredItem,
+    [clickedSeriesId, hoveredItem],
+  );
+
+  const hoveredSeriesId = hoveredItem ? String(hoveredItem.seriesId) : null;
+
+  const highlightCtx = useMemo(
+    () => ({ clicked: clickedSeriesId, hovered: hoveredSeriesId }),
+    [clickedSeriesId, hoveredSeriesId],
+  );
 
   const sedeOptions = useMemo(() => sortSedesByOrder(sedes ?? []), [sedes]);
 
@@ -1169,7 +1212,7 @@ const ChartVisualization = ({
           Selecciona al menos una serie para ver el grafico.
         </p>
       ) : (
-        <HighlightContext.Provider value={clickedSeriesId}>
+        <HighlightContext.Provider value={highlightCtx}>
           <div
             className="h-85"
             onClick={() => setClickedSeriesId(null)}
@@ -1182,12 +1225,8 @@ const ChartVisualization = ({
               series={chartSeries}
               grid={{ horizontal: true, vertical: false }}
               slots={{ tooltip: CustomChartTooltip }}
-              highlightedItem={
-                clickedSeriesId != null
-                  ? { seriesId: clickedSeriesId }
-                  : null
-              }
-              onHighlightChange={() => {}}
+              highlightedItem={effectiveHighlight}
+              onHighlightChange={(item) => setHoveredItem(item)}
               onMarkClick={handleMarkClick}
               onLineClick={handleLineClick}
             />
@@ -1213,9 +1252,9 @@ const LineTrends = ({
   dateRange: DateRange;
 }) => {
   const [selectedLine, setSelectedLine] = useState<string>("");
-  const [metricType, setMetricType] = useState<"sales" | "hours">("sales");
   const [viewType, setViewType] = useState<"temporal" | "por-sede">("temporal");
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
+  const [trendSede, setTrendSede] = useState<string>("");
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1229,6 +1268,7 @@ const LineTrends = ({
 
   useEffect(() => {
     setComparisonSedeIds([]);
+    setTrendSede("");
   }, [visibleSedes]);
 
   const toggleComparisonSede = useCallback((sedeId: string) => {
@@ -1245,9 +1285,15 @@ const LineTrends = ({
     );
   }, [visibleSedes]);
 
+  // Temporal view: use single local sede, fall back to global selection
+  const effectiveTrendSedeIds = useMemo(
+    () => (trendSede ? [trendSede] : selectedSedeIds),
+    [trendSede, selectedSedeIds],
+  );
+
   const selectedSedeIdSet = useMemo(
-    () => new Set(selectedSedeIds),
-    [selectedSedeIds],
+    () => new Set(effectiveTrendSedeIds),
+    [effectiveTrendSedeIds],
   );
   const sedeNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1293,15 +1339,12 @@ const LineTrends = ({
         { sales: 0, hours: 0 },
       );
 
-      const value = metricType === "sales" ? totals.sales : totals.hours;
-
-      return { date, value, sales: totals.sales, hours: totals.hours };
+      return { date, value: totals.sales, sales: totals.sales, hours: totals.hours };
     });
 
     return dataByDate;
   }, [
     selectedLine,
-    metricType,
     dailyDataSet,
     selectedSedeIdSet,
     temporalDates,
@@ -1318,17 +1361,40 @@ const LineTrends = ({
     return sum / trendData.length;
   }, [trendData]);
 
+  // Full-month dates: from the 1st of the start month to the last available
+  // date in the end month, so heat map baselines always use the full month.
+  const fullMonthDates = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) return availableDates;
+    const start = parseDateKey(dateRange.start);
+    const end = parseDateKey(dateRange.end);
+    const monthStart = toDateKey(new Date(start.getFullYear(), start.getMonth(), 1));
+    const monthEnd = toDateKey(
+      new Date(end.getFullYear(), end.getMonth() + 1, 0),
+    );
+    return availableDates.filter((d) => d >= monthStart && d <= monthEnd);
+  }, [availableDates, dateRange.start, dateRange.end]);
+
+  // Average sales/hour over the full month (not just the filtered range)
   const avgSalesPerHour = useMemo(() => {
-    if (trendData.length === 0) return 0;
-    const totals = trendData.reduce(
-      (acc, d) => ({
-        sales: acc.sales + d.sales,
-        hours: acc.hours + d.hours,
-      }),
+    if (!selectedLine || fullMonthDates.length === 0) return 0;
+    const totals = fullMonthDates.reduce(
+      (acc, date) => {
+        const dayData = dailyDataSet.filter(
+          (item) => selectedSedeIdSet.has(item.sede) && item.date === date,
+        );
+        for (const item of dayData) {
+          const lineData = item.lines.find((l) => l.id === selectedLine);
+          if (!lineData) continue;
+          const hasLaborData = hasLaborDataForLine(lineData.id);
+          acc.sales += lineData.sales;
+          acc.hours += hasLaborData ? lineData.hours : 0;
+        }
+        return acc;
+      },
       { sales: 0, hours: 0 },
     );
     return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
-  }, [trendData]);
+  }, [selectedLine, fullMonthDates, dailyDataSet, selectedSedeIdSet]);
 
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
@@ -1362,7 +1428,7 @@ const LineTrends = ({
         return {
           sedeId,
           sedeName: sedeNameMap.get(sedeId) || sedeId,
-          value: metricType === "sales" ? totals.sales : totals.hours,
+          value: totals.sales,
           sales: totals.sales,
           hours: totals.hours,
         };
@@ -1376,7 +1442,6 @@ const LineTrends = ({
     dailyDataSet,
     availableDates,
     dateRange,
-    metricType,
     sedeNameMap,
   ]);
 
@@ -1428,7 +1493,7 @@ const LineTrends = ({
         </button>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
+      <div className="mb-6">
         <label className="block">
           <span className="text-xs font-semibold text-slate-700">Linea</span>
           <select
@@ -1444,19 +1509,26 @@ const LineTrends = ({
             ))}
           </select>
         </label>
-
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Metrica</span>
-          <select
-            value={metricType}
-            onChange={(e) => setMetricType(e.target.value as "sales" | "hours")}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          >
-            <option value="sales">Ventas</option>
-            <option value="hours">Horas trabajadas</option>
-          </select>
-        </label>
       </div>
+
+      {viewType === "temporal" && (
+        <div className="mb-6">
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-700">Sede</span>
+            <select
+              value={trendSede}
+              onChange={(e) => setTrendSede(e.target.value)}
+              className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              {visibleSedes.map((sede) => (
+                <option key={sede.id} value={sede.id}>
+                  {sede.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       {viewType === "por-sede" && (
         <div className="mb-6">
@@ -1504,9 +1576,14 @@ const LineTrends = ({
                 <div>
                   <p className="text-sm text-slate-700">Promedio del periodo</p>
                   <p className="text-2xl font-semibold text-slate-900">
-                    {metricType === "hours"
-                      ? `${avgValue.toFixed(1)}h`
-                      : formatCOP(avgValue)}
+                    {formatCOP(avgValue)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {(
+                      trendData.reduce((a, d) => a + d.hours, 0) /
+                      (trendData.length || 1)
+                    ).toFixed(1)}
+                    h promedio/dia
                   </p>
                 </div>
               </div>
@@ -1534,9 +1611,10 @@ const LineTrends = ({
                             Vta/Hr: {salesPerHour.toFixed(3)}
                           </span>
                           <span className="text-[11px] font-semibold text-slate-700">
-                            {metricType === "hours"
-                              ? `${point.value.toFixed(1)}h`
-                              : formatCOP(point.value)}
+                            {formatCOP(point.value)}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {point.hours.toFixed(1)}h
                           </span>
                         </div>
                       </div>
@@ -1644,9 +1722,8 @@ const LineTrends = ({
                                 >
                                   <span className="ml-auto shrink-0 rounded-full bg-white/85 px-2 py-0.5 text-[12px] font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
                                     Vta/Hr: {salesPerHour.toFixed(3)} |{" "}
-                                    {metricType === "hours"
-                                      ? `${sede.value.toFixed(1)}h`
-                                      : formatCOP(sede.value)}
+                                    {formatCOP(sede.value)} |{" "}
+                                    {sede.hours.toFixed(1)}h
                                   </span>
                                 </div>
                               </div>
