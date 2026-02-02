@@ -1256,6 +1256,9 @@ const LineTrends = ({
   const [comparisonSedeIds, setComparisonSedeIds] = useState<string[]>([]);
   const [trendSede, setTrendSede] = useState<string>("");
   const [heatBaseline, setHeatBaseline] = useState<"sede" | "todas">("sede");
+  const [comparisonBaseline, setComparisonBaseline] = useState<
+    "seleccionadas" | "todas"
+  >("seleccionadas");
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1433,6 +1436,47 @@ const LineTrends = ({
     return map;
   }, [selectedLine, temporalDates, dailyDataSet, baselineSedeIdSet]);
 
+  const comparisonBaselineIds = useMemo(
+    () =>
+      comparisonBaseline === "todas"
+        ? visibleSedes.map((s) => s.id)
+        : comparisonSedeIds,
+    [comparisonBaseline, visibleSedes, comparisonSedeIds],
+  );
+
+  const dailyComparisonBaseline = useMemo(() => {
+    if (!selectedLine || availableDates.length === 0) return new Map<string, number>();
+    const map = new Map<string, number>();
+    const rangeDates = availableDates.filter(
+      (d) => d >= dateRange.start && d <= dateRange.end,
+    );
+
+    rangeDates.forEach((date) => {
+      let sales = 0;
+      let hours = 0;
+      const dayData = dailyDataSet.filter(
+        (item) => comparisonBaselineIds.includes(item.sede) && item.date === date,
+      );
+      for (const item of dayData) {
+        const lineData = item.lines.find((l) => l.id === selectedLine);
+        if (!lineData) continue;
+        const hasLaborData = hasLaborDataForLine(lineData.id);
+        sales += lineData.sales;
+        hours += hasLaborData ? lineData.hours : 0;
+      }
+      map.set(date, hours > 0 ? sales / 1_000_000 / hours : 0);
+    });
+
+    return map;
+  }, [
+    selectedLine,
+    availableDates,
+    dateRange.start,
+    dateRange.end,
+    dailyDataSet,
+    comparisonBaselineIds,
+  ]);
+
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
 
@@ -1599,7 +1643,7 @@ const LineTrends = ({
 
       {viewType === "por-sede" && (
         <div className="mb-6">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs font-semibold text-slate-700">
               Sedes a comparar
             </span>
@@ -1612,6 +1656,35 @@ const LineTrends = ({
                 ? "Deseleccionar todas"
                 : "Seleccionar todas"}
             </button>
+          </div>
+          <div className="mb-4">
+            <span className="mb-3 block text-xs font-semibold text-slate-700">
+              Mapa de calor
+            </span>
+            <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setComparisonBaseline("seleccionadas")}
+                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+                  comparisonBaseline === "seleccionadas"
+                    ? "bg-white text-mercamio-700 shadow-sm"
+                    : "text-slate-700 hover:text-slate-800"
+                }`}
+              >
+                Promedio seleccionadas
+              </button>
+              <button
+                type="button"
+                onClick={() => setComparisonBaseline("todas")}
+                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+                  comparisonBaseline === "todas"
+                    ? "bg-white text-mercamio-700 shadow-sm"
+                    : "text-slate-700 hover:text-slate-800"
+                }`}
+              >
+                Promedio total
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {visibleSedes.map((sede) => {
@@ -1753,12 +1826,7 @@ const LineTrends = ({
                             ? Math.max(...sedeSalesPerHour)
                             : 0;
                         const dayAvgSalesPerHour =
-                          sedeSalesPerHour.length > 0
-                            ? sedeSalesPerHour.reduce(
-                                (acc, value) => acc + value,
-                                0,
-                              ) / sedeSalesPerHour.length
-                            : 0;
+                          dailyComparisonBaseline.get(day.date) ?? 0;
 
                         return day.sedes.map((sede) => {
                           const salesPerHour =
@@ -2706,14 +2774,6 @@ export default function Home() {
           />
         ) : (
           <div className="space-y-6">
-            <SearchAndSort
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              sortBy={sortBy}
-              onSortByChange={setSortBy}
-              sortOrder={sortOrder}
-              onSortOrderToggle={handleSortOrderToggle}
-            />
             <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
 
             {viewMode === "comparison" ? (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, DollarSign, ChevronDown } from "lucide-react";
+import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
+import { LineChart } from "@mui/x-charts/LineChart";
 import { formatCOP } from "@/lib/calc";
 import type { Sede } from "@/lib/constants";
 import type { HourlyAnalysisData } from "@/types";
@@ -68,41 +69,43 @@ const HourBar = ({
   const lineTotalForPercent = totalSales || 1;
 
   return (
-    <div>
+    <div className="group rounded-2xl border border-slate-200/60 bg-white/80 p-2 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-all hover:-translate-y-0.5 hover:border-amber-200/70 hover:bg-white">
       <button
         type="button"
         onClick={onToggle}
         disabled={!hasActivity}
-        className="group flex w-full items-center gap-3 text-left transition-opacity disabled:opacity-40"
+        className="flex w-full items-center gap-3 text-left transition-opacity disabled:opacity-40"
       >
-        <span className="w-26 shrink-0 text-right font-mono text-xs text-slate-600">
-          {label}
-        </span>
+        <div className="w-26 shrink-0 text-right">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-700 ring-1 ring-slate-200/60">
+            {label}
+          </span>
+        </div>
 
-        <div className="relative h-9 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className="relative h-9 flex-1 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/70">
           {percentage > 0 && (
             <div
-              className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-mercamio-400 to-mercamio-600 transition-all duration-500"
+              className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-amber-300 via-mercamio-400 to-mercamio-600 transition-all duration-500"
               style={{ width: `${Math.max(percentage, 2)}%` }}
             />
           )}
           {hasActivity && (
-            <div className="absolute inset-0 flex items-center justify-between px-3">
-              <span className="text-xs font-semibold text-slate-900 drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]">
+            <div className="absolute inset-0 flex items-center px-3">
+              <span className="inline-flex h-6 items-center self-center rounded-full bg-white/90 px-2 text-xs font-semibold leading-none text-slate-900 shadow-sm ring-1 ring-slate-200/60">
                 {formatCOP(totalSales)}
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex w-36 shrink-0 items-center justify-end gap-3">
-          <span className="flex items-center gap-1 text-xs text-slate-700">
+        <div className="flex w-40 shrink-0 items-center justify-end gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-200/70">
             <Users className="h-3.5 w-3.5" />
             {employeesPresent}
           </span>
           {hasActivity && (
             <ChevronDown
-              className={`h-3.5 w-3.5 text-slate-400 transition-transform group-hover:text-slate-600 ${
+              className={`h-3.5 w-3.5 text-slate-400 transition-transform group-hover:text-mercamio-600 ${
                 isExpanded ? "rotate-180" : ""
               }`}
             />
@@ -111,32 +114,43 @@ const HourBar = ({
       </button>
 
       {isExpanded && hasActivity && (
-        <div className="mt-2 ml-26 mr-36 rounded-2xl border border-slate-200/70 bg-slate-50 p-3">
-          <div className="grid grid-cols-3 gap-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 pb-2 border-b border-slate-200/50">
-            <span>Linea</span>
-            <span className="text-right">Ventas</span>
-            <span className="text-right">% del total</span>
+        <div className="mt-2 ml-26 mr-40 rounded-2xl border border-slate-200/70 bg-white/90 p-3 shadow-sm">
+          <div className="grid grid-cols-12 gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 ring-1 ring-slate-200/60">
+            <span className="col-span-6">Linea</span>
+            <span className="col-span-3 text-right">Ventas</span>
+            <span className="col-span-3 text-right">% del total</span>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="mt-2 space-y-2">
             {lines
               .filter((l) => l.sales > 0)
               .sort((a, b) => b.sales - a.sales)
-              .map((line) => (
-                <div
-                  key={line.lineId}
-                  className="grid grid-cols-3 gap-1 py-1.5 text-sm"
-                >
-                  <span className="font-medium text-slate-800">
-                    {line.lineName}
-                  </span>
-                  <span className="text-right text-slate-700">
-                    {formatCOP(line.sales)}
-                  </span>
-                  <span className="text-right font-semibold text-mercamio-700">
-                    {((line.sales / lineTotalForPercent) * 100).toFixed(1)}%
-                  </span>
-                </div>
-              ))}
+              .map((line) => {
+                const percent = (line.sales / lineTotalForPercent) * 100;
+                return (
+                  <div
+                    key={line.lineId}
+                    className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200/60 bg-white px-3 py-2 text-sm shadow-[0_6px_20px_-16px_rgba(15,23,42,0.35)]"
+                  >
+                    <div className="col-span-6">
+                      <p className="font-semibold text-slate-900">
+                        {line.lineName}
+                      </p>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-mercamio-500"
+                          style={{ width: `${Math.max(percent, 3)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="col-span-3 text-right font-semibold text-slate-800">
+                      {formatCOP(line.sales)}
+                    </span>
+                    <span className="col-span-3 text-right font-semibold text-mercamio-700">
+                      {percent.toFixed(1)}%
+                    </span>
+                  </div>
+                );
+              })}
           </div>
           {lines.every((l) => l.sales === 0) && (
             <p className="py-2 text-center text-xs text-slate-500">
@@ -215,6 +229,15 @@ export const HourlyAnalysis = ({
     if (activeHours.length === 0) return 1;
     return Math.max(...activeHours.map((h) => h.totalSales), 1);
   }, [activeHours]);
+  const chartLabels = useMemo(() => {
+    if (!hourlyData) return [];
+    return hourlyData.hours.map((h) => String(h.hour).padStart(2, "0"));
+  }, [hourlyData]);
+
+  const chartSeries = useMemo(() => {
+    if (!hourlyData) return [];
+    return hourlyData.hours.map((h) => h.totalSales);
+  }, [hourlyData]);
 
   // Totales del dia
   const dayTotals = useMemo(() => {
@@ -237,20 +260,30 @@ export const HourlyAnalysis = ({
   return (
     <div
       data-animate="hourly-card"
-      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
+      className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-linear-to-br from-white via-slate-50 to-amber-50/40 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.2)]"
     >
+      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-amber-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-mercamio-200/30 blur-3xl" />
+
       {/* Header */}
-      <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
-          Analisis por hora
-        </p>
-        <h3 className="mt-1 text-lg font-semibold text-slate-900">
-          Desglose horario de ventas y empleados
-        </h3>
-        <p className="mt-1 text-xs text-slate-600">
-          Selecciona un dia y sede para ver el detalle hora a hora. Haz clic en
-          una barra para ver el desglose por linea.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-700 shadow-sm">
+            <Sparkles className="h-3.5 w-3.5" />
+            Analisis por hora
+          </div>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">
+            Desglose horario de ventas y empleados
+          </h3>
+          <p className="mt-1 text-xs text-slate-600">
+            Selecciona un dia y sede para ver el detalle hora a hora. Haz clic
+            en una barra para ver el desglose por linea.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+          <Clock className="h-4 w-4 text-mercamio-600" />
+          Vista horaria
+        </div>
       </div>
 
       {/* Controles */}
@@ -260,7 +293,7 @@ export const HourlyAnalysis = ({
           <select
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
             <option value="">Selecciona un dia</option>
             {availableDates.map((date) => (
@@ -276,7 +309,7 @@ export const HourlyAnalysis = ({
           <select
             value={selectedSede}
             onChange={(e) => setSelectedSede(e.target.value)}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
             <option value="">Selecciona una sede</option>
             {availableSedes.map((sede) => (
@@ -310,28 +343,91 @@ export const HourlyAnalysis = ({
         <>
           {/* Day summary chips */}
           <div className="mb-6 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
               {formatDateLabel(hourlyData.date)}
             </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/60">
               {hourlyData.sede}
             </span>
-            <span className="flex items-center gap-1 rounded-full bg-mercamio-50 px-3 py-1 text-xs font-semibold text-mercamio-700">
+            <span className="flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
               <DollarSign className="h-3.5 w-3.5" />
               {formatCOP(dayTotals.sales)}
             </span>
-            <span className="flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+            <span className="flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/70">
               <Users className="h-3.5 w-3.5" />
               Pico: {dayTotals.peakEmployees} empleados
             </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200/60">
               {dayTotals.activeHoursCount} horas con actividad
             </span>
           </div>
 
+          {/* Hourly chart */}
+          <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Diferencias por hora
+                </p>
+                <p className="text-sm font-semibold text-slate-900">
+                  Comportamiento de ventas durante el dia
+                </p>
+              </div>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
+                Max: {formatCOP(maxSales)}
+              </span>
+            </div>
+            <div className="h-28 w-full">
+              <LineChart
+                height={112}
+                series={[
+                  {
+                    data: chartSeries,
+                    label: "Ventas",
+                    color: "#f59e0b",
+                    area: true,
+                    showMark: false,
+                  },
+                ]}
+                xAxis={[
+                  {
+                    data: chartLabels,
+                    scaleType: "point",
+                    valueFormatter: (value) => `${value}:00`,
+                    tickLabelInterval: (_value, index) =>
+                      index % 6 === 0 || index === 23,
+                    tickLabelStyle: {
+                      fontSize: 10,
+                      fill: "#64748b",
+                      fontWeight: 600,
+                    },
+                  },
+                ]}
+                yAxis={[
+                  {
+                    tickLabelStyle: { fontSize: 10, fill: "#94a3b8" },
+                    valueFormatter: (value) =>
+                      new Intl.NumberFormat("es-CO", {
+                        notation: "compact",
+                        maximumFractionDigits: 1,
+                      }).format(value as number),
+                  },
+                ]}
+                margin={{ left: 40, right: 16, top: 8, bottom: 20 }}
+                grid={{ horizontal: true, vertical: false }}
+                sx={{
+                  ".MuiAreaElement-root": { fillOpacity: 0.2 },
+                  ".MuiChartsAxis-line": { stroke: "#e2e8f0" },
+                  ".MuiChartsAxis-tick": { stroke: "#e2e8f0" },
+                  ".MuiChartsGrid-line": { stroke: "#e2e8f0" },
+                }}
+              />
+            </div>
+          </div>
+
           {/* Hourly bars */}
           {activeHours.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {activeHours.map((slot) => (
                 <HourBar
                   key={slot.hour}
