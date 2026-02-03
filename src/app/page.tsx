@@ -10,7 +10,6 @@ import {
 } from "react";
 import { animate, remove } from "animejs";
 import {
-  Download,
   LayoutGrid,
   Table2,
   Sparkles,
@@ -40,7 +39,6 @@ import autoTable from "jspdf-autotable";
 import { HourlyAnalysis } from "@/components/HourlyAnalysis";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
-import { SelectionSummary } from "@/components/SelectionSummary";
 import { TopBar } from "@/components/TopBar";
 import { formatCOP, hasLaborDataForLine } from "@/lib/calc";
 import { formatDateLabel } from "@/lib/utils";
@@ -94,6 +92,23 @@ type ApiResponse = {
 type DateRange = {
   start: string;
   end: string;
+};
+
+type ExportPayload = {
+  pdfLines: LineMetrics[];
+  selectedScopeLabel: string;
+  selectedScopeId: string;
+  dateRange: DateRange;
+  dateRangeLabel: string;
+  lineFilterLabel: string;
+};
+
+const formatRangeLabel = (range: DateRange) => {
+  if (!range.start || !range.end) return "";
+  if (range.start === range.end) {
+    return `${formatDateLabel(range.start, dateLabelOptions)}`;
+  }
+  return `${formatDateLabel(range.start, dateLabelOptions)} al ${formatDateLabel(range.end, dateLabelOptions)}`;
 };
 
 // ============================================================================
@@ -303,21 +318,26 @@ const buildCompanyOptions = (): Sede[] =>
 
 const resolveSelectedSedeIds = (
   selectedSede: string,
-  selectedCompany: string,
+  selectedCompanies: string[],
   availableSedes: Sede[],
 ): string[] => {
   const availableByKey = new Map(
     availableSedes.map((sede) => [normalizeSedeKey(sede.id), sede.id]),
   );
 
-  if (selectedCompany) {
-    const group = SEDE_GROUPS.find(
-      (candidate) => candidate.id === selectedCompany,
-    );
-    if (!group) return [];
-    return group.sedes
-      .map((sedeId) => availableByKey.get(normalizeSedeKey(sedeId)))
-      .filter((sedeId): sedeId is string => Boolean(sedeId));
+  if (selectedCompanies.length > 0) {
+    const resolved = new Set<string>();
+    selectedCompanies.forEach((companyId) => {
+      const group = SEDE_GROUPS.find(
+        (candidate) => candidate.id === companyId,
+      );
+      if (!group) return;
+      group.sedes.forEach((sedeId) => {
+        const resolvedId = availableByKey.get(normalizeSedeKey(sedeId));
+        if (resolvedId) resolved.add(resolvedId);
+      });
+    });
+    return Array.from(resolved);
   }
 
   if (selectedSede) {
@@ -1463,6 +1483,51 @@ const LineTrends = ({
     comparisonBaselineIds,
   ]);
 
+  const comparisonRangeDates = useMemo(
+    () => availableDates.filter((d) => d >= dateRange.start && d <= dateRange.end),
+    [availableDates, dateRange.start, dateRange.end],
+  );
+
+  const computeComparisonStats = useCallback(
+    (sedeIds: string[]) => {
+      if (!selectedLine || sedeIds.length === 0) {
+        return { sales: 0, hours: 0, days: 0, salesPerHour: 0, salesPerDay: 0, hoursPerDay: 0 };
+      }
+
+      const sedeSet = new Set(sedeIds);
+      let sales = 0;
+      let hours = 0;
+
+      dailyDataSet.forEach((item) => {
+        if (!sedeSet.has(item.sede)) return;
+        if (item.date < dateRange.start || item.date > dateRange.end) return;
+        const lineData = item.lines.find((l) => l.id === selectedLine);
+        if (!lineData) return;
+        const hasLaborData = hasLaborDataForLine(lineData.id);
+        sales += lineData.sales;
+        hours += hasLaborData ? lineData.hours : 0;
+      });
+
+      const days = comparisonRangeDates.length;
+      const salesPerHour = hours > 0 ? sales / 1_000_000 / hours : 0;
+      const salesPerDay = days > 0 ? sales / days : 0;
+      const hoursPerDay = days > 0 ? hours / days : 0;
+
+      return { sales, hours, days, salesPerHour, salesPerDay, hoursPerDay };
+    },
+    [comparisonRangeDates.length, dailyDataSet, dateRange.end, dateRange.start, selectedLine],
+  );
+
+  const selectedComparisonStats = useMemo(
+    () => computeComparisonStats(comparisonSedeIds),
+    [comparisonSedeIds, computeComparisonStats],
+  );
+
+  const totalComparisonStats = useMemo(
+    () => computeComparisonStats(visibleSedes.map((s) => s.id)),
+    [computeComparisonStats, visibleSedes],
+  );
+
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
 
@@ -1780,7 +1845,7 @@ const LineTrends = ({
         <>
           {selectedLine && sedeComparisonData.length > 0 && (
             <>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm text-slate-700">Comparativo diario</p>
                   <p className="text-lg font-semibold text-slate-900">
@@ -1789,6 +1854,20 @@ const LineTrends = ({
                     {comparisonSedeIds.length}{" "}
                     {comparisonSedeIds.length === 1 ? "sede" : "sedes"}
                   </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                  <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
+                    Prom. seleccionadas: Vta/Hr{" "}
+                    {selectedComparisonStats.salesPerHour.toFixed(3)} | Ventas{" "}
+                    {formatCOP(selectedComparisonStats.salesPerDay)} | Horas{" "}
+                    {selectedComparisonStats.hoursPerDay.toFixed(1)}h
+                  </span>
+                  <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
+                    Prom. total: Vta/Hr{" "}
+                    {totalComparisonStats.salesPerHour.toFixed(3)} | Ventas{" "}
+                    {formatCOP(totalComparisonStats.salesPerDay)} | Horas{" "}
+                    {totalComparisonStats.hoursPerDay.toFixed(1)}h
+                  </span>
                 </div>
               </div>
 
@@ -1892,7 +1971,7 @@ export default function Home() {
 
   // Estado con persistencia - siempre inicia con valores por defecto
   const [selectedSede, setSelectedSede] = useState("");
-  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({
     start: "2025-11-01",
     end: "2025-11-30",
@@ -1906,14 +1985,25 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
 
+    const savedCompanies = localStorage.getItem("selectedCompanies");
     const savedCompany = localStorage.getItem("selectedCompany");
     const savedSede = localStorage.getItem("selectedSede");
-    if (savedCompany) {
-      setSelectedCompany(savedCompany);
+    if (savedCompanies) {
+      try {
+        const parsed = JSON.parse(savedCompanies) as string[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedCompanies(parsed.slice(0, 2));
+          setSelectedSede("");
+        }
+      } catch {
+        // Mantener valores por defecto si hay error
+      }
+    } else if (savedCompany) {
+      setSelectedCompanies([savedCompany]);
       setSelectedSede("");
     } else if (savedSede) {
       setSelectedSede(savedSede);
-      setSelectedCompany("");
+      setSelectedCompanies([]);
     }
 
     const savedDateRange = localStorage.getItem("dateRange");
@@ -1953,8 +2043,8 @@ export default function Home() {
   }, [selectedSede, mounted]);
   useEffect(() => {
     if (!mounted) return;
-    localStorage.setItem("selectedCompany", selectedCompany);
-  }, [selectedCompany, mounted]);
+    localStorage.setItem("selectedCompanies", JSON.stringify(selectedCompanies));
+  }, [selectedCompanies, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -1999,8 +2089,8 @@ export default function Home() {
 
   const companyOptions = useMemo(() => buildCompanyOptions(), []);
   const selectedSedeIds = useMemo(
-    () => resolveSelectedSedeIds(selectedSede, selectedCompany, orderedSedes),
-    [selectedSede, selectedCompany, orderedSedes],
+    () => resolveSelectedSedeIds(selectedSede, selectedCompanies, orderedSedes),
+    [selectedSede, selectedCompanies, orderedSedes],
   );
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
@@ -2022,11 +2112,28 @@ export default function Home() {
     ).sort((a, b) => a.localeCompare(b));
   }, [dailyDataSet, selectedSedeIdSet]);
 
+  const allAvailableDates = useMemo(() => {
+    return Array.from(new Set(dailyDataSet.map((item) => item.date))).sort(
+      (a, b) => a.localeCompare(b),
+    );
+  }, [dailyDataSet]);
+  const exportMinDate = allAvailableDates[0] ?? "";
+  const exportMaxDate =
+    allAvailableDates[allAvailableDates.length - 1] ?? "";
+
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportSedeIds, setExportSedeIds] = useState<string[]>([]);
+  const [exportDateRange, setExportDateRange] = useState<DateRange>({
+    start: "",
+    end: "",
+  });
+  const [exportError, setExportError] = useState<string | null>(null);
+
   // Sincronizar sede seleccionada
   useEffect(() => {
     if (orderedSedes.length === 0) return;
 
-    if (selectedCompany) return;
+    if (selectedCompanies.length > 0) return;
 
     if (
       selectedSede &&
@@ -2034,7 +2141,7 @@ export default function Home() {
     ) {
       setSelectedSede(orderedSedes[0].id);
     }
-  }, [availableSedesKey, selectedSede, selectedCompany, orderedSedes]);
+  }, [availableSedesKey, selectedSede, selectedCompanies, orderedSedes]);
 
   // Sincronizar fechas
   useEffect(() => {
@@ -2051,20 +2158,26 @@ export default function Home() {
   }, [availableDates]);
 
   // Datos derivados
-  const selectedSedeName =
-    SEDE_GROUPS.find((group) => group.id === selectedCompany)?.name ??
-    orderedSedes.find((sede) => sede.id === selectedSede)?.name ??
-    "Todas las sedes";
-
-  const dateRangeLabel = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return "";
-
-    if (dateRange.start === dateRange.end) {
-      return `el ${formatDateLabel(dateRange.start, dateLabelOptions)}`;
+  const selectedSedeName = (() => {
+    if (selectedCompanies.length > 0) {
+      const names = selectedCompanies
+        .map(
+          (companyId) =>
+            SEDE_GROUPS.find((group) => group.id === companyId)?.name,
+        )
+        .filter((name): name is string => Boolean(name));
+      if (names.length > 0) return names.join(" + ");
     }
+    return (
+      orderedSedes.find((sede) => sede.id === selectedSede)?.name ??
+      "Todas las sedes"
+    );
+  })();
 
-    return `del ${formatDateLabel(dateRange.start, dateLabelOptions)} al ${formatDateLabel(dateRange.end, dateLabelOptions)}`;
-  }, [dateRange]);
+  const dateRangeLabel = useMemo(
+    () => formatRangeLabel(dateRange),
+    [dateRange],
+  );
 
   const rangeDailyData = useMemo(() => {
     return dailyDataSet.filter(
@@ -2125,6 +2238,101 @@ export default function Home() {
 
   const lineFilterLabel = lineFilterLabels[lineFilter] ?? "Todas las líneas";
 
+  const buildExportPayload = useCallback(
+    (options?: { sedeIds?: string[]; dateRange?: DateRange }): ExportPayload => {
+      const resolvedDateRange: DateRange = {
+        start: options?.dateRange?.start || exportMinDate || dateRange.start,
+        end: options?.dateRange?.end || exportMaxDate || dateRange.end,
+      };
+
+      const hasSedeOverride = options?.sedeIds !== undefined;
+      const resolvedSedeIds = hasSedeOverride
+        ? options!.sedeIds!.length > 0
+          ? options!.sedeIds!
+          : orderedSedes.map((sede) => sede.id)
+        : selectedSedeIds.length > 0
+          ? selectedSedeIds
+          : orderedSedes.map((sede) => sede.id);
+
+      const resolvedSedeIdSet = new Set(resolvedSedeIds);
+      const rangeData = dailyDataSet.filter(
+        (item) =>
+          resolvedSedeIdSet.has(item.sede) &&
+          item.date >= resolvedDateRange.start &&
+          item.date <= resolvedDateRange.end,
+      );
+
+      const exportLines = aggregateLines(rangeData);
+      let exportFilteredLines = filterLinesByStatus(exportLines, lineFilter);
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        exportFilteredLines = exportFilteredLines.filter(
+          (line) =>
+            line.name.toLowerCase().includes(query) ||
+            line.id.toLowerCase().includes(query),
+        );
+      }
+
+      exportFilteredLines.sort((a, b) => {
+        let compareValue = 0;
+        switch (sortBy) {
+          case "sales":
+            compareValue = a.sales - b.sales;
+            break;
+          case "hours":
+            compareValue = a.hours - b.hours;
+            break;
+          case "name":
+            compareValue = a.name.localeCompare(b.name);
+            break;
+        }
+        return sortOrder === "asc" ? compareValue : -compareValue;
+      });
+
+      const exportPdfLines = [...exportFilteredLines].sort(
+        (a, b) => b.sales - a.sales,
+      );
+
+      const selectedScopeLabel =
+        resolvedSedeIds.length === 0
+          ? "Todas las sedes"
+          : resolvedSedeIds
+              .map(
+                (sedeId) =>
+                  orderedSedes.find((sede) => sede.id === sedeId)?.name,
+              )
+              .filter((name): name is string => Boolean(name))
+              .join(" + ") || "Todas las sedes";
+
+      const selectedScopeId =
+        resolvedSedeIds.length > 0 ? resolvedSedeIds.join("-") : "todas";
+
+      return {
+        pdfLines: exportPdfLines,
+        selectedScopeLabel,
+        selectedScopeId,
+        dateRange: resolvedDateRange,
+        dateRangeLabel: formatRangeLabel(resolvedDateRange),
+        lineFilterLabel,
+      };
+    },
+    [
+      dailyDataSet,
+      dateRange.end,
+      dateRange.start,
+      exportMaxDate,
+      exportMinDate,
+      lineFilter,
+      lineFilterLabel,
+      orderedSedes,
+      searchQuery,
+      selectedSedeIds,
+      sortBy,
+      sortOrder,
+    ],
+  );
+
   // Handlers
   const handleStartDateChange = useCallback((value: string) => {
     setDateRange((prev) => ({
@@ -2136,13 +2344,14 @@ export default function Home() {
   const handleSedeChange = useCallback((value: string) => {
     setSelectedSede(value);
     if (value) {
-      setSelectedCompany("");
+      setSelectedCompanies([]);
     }
   }, []);
 
-  const handleCompanyChange = useCallback((value: string) => {
-    setSelectedCompany(value);
-    if (value) {
+  const handleCompaniesChange = useCallback((value: string[]) => {
+    const next = value.slice(0, 2);
+    setSelectedCompanies(next);
+    if (next.length > 0) {
       setSelectedSede("");
     }
   }, []);
@@ -2152,6 +2361,38 @@ export default function Home() {
       start: value < prev.start ? value : prev.start,
       end: value,
     }));
+  }, []);
+
+  const openExportModal = useCallback(() => {
+    setExportError(null);
+    setExportSedeIds(selectedSedeIds);
+    setExportDateRange({
+      start: dateRange.start || exportMinDate,
+      end: dateRange.end || exportMaxDate,
+    });
+    setExportModalOpen((prev) => !prev);
+  }, [dateRange.end, dateRange.start, exportMaxDate, exportMinDate, selectedSedeIds]);
+
+  const handleExportStartChange = useCallback((value: string) => {
+    setExportDateRange((prev) => ({
+      start: value,
+      end: value > prev.end ? value : prev.end,
+    }));
+  }, []);
+
+  const handleExportEndChange = useCallback((value: string) => {
+    setExportDateRange((prev) => ({
+      start: value < prev.start ? value : prev.start,
+      end: value,
+    }));
+  }, []);
+
+  const toggleExportSede = useCallback((sedeId: string) => {
+    setExportSedeIds((prev) =>
+      prev.includes(sedeId)
+        ? prev.filter((id) => id !== sedeId)
+        : [...prev, sedeId],
+    );
   }, []);
 
   const handleViewChange = useCallback(
@@ -2165,10 +2406,27 @@ export default function Home() {
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
 
-  const selectedScopeId = selectedCompany || selectedSede || "todas";
+  const selectedScopeId =
+    selectedCompanies.length > 0
+      ? selectedCompanies.join("-")
+      : selectedSede || "todas";
   const selectedScopeLabel = selectedSedeName;
 
-  const handleDownloadCsv = useCallback(() => {
+  const handleDownloadCsv = useCallback((payload?: ExportPayload) => {
+    const {
+      pdfLines: exportLines,
+      selectedScopeLabel: exportScopeLabel,
+      selectedScopeId: exportScopeId,
+      dateRange: exportDateRange,
+      dateRangeLabel: exportDateRangeLabel,
+      lineFilterLabel: exportLineFilterLabel,
+    } = payload ?? buildExportPayload();
+    const pdfLines = exportLines;
+    const selectedScopeLabel = exportScopeLabel;
+    const selectedScopeId = exportScopeId;
+    const dateRange = exportDateRange;
+    const dateRangeLabel = exportDateRangeLabel;
+    const lineFilterLabel = exportLineFilterLabel;
     const escapeCsv = (value: string | number) => {
       const str = String(value);
       if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -2184,8 +2442,8 @@ export default function Home() {
     };
 
     // Calcular totales
-    const totalSales = pdfLines.reduce((acc, line) => acc + line.sales, 0);
-    const totalHours = pdfLines.reduce((acc, line) => {
+    const totalSales = exportLines.reduce((acc, line) => acc + line.sales, 0);
+    const totalHours = exportLines.reduce((acc, line) => {
       const hasLaborData = hasLaborDataForLine(line.id);
       return acc + (hasLaborData ? line.hours : 0);
     }, 0);
@@ -2251,17 +2509,23 @@ export default function Home() {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
-  }, [
-    dateRange.end,
-    dateRange.start,
-    dateRangeLabel,
-    lineFilterLabel,
-    pdfLines,
-    selectedScopeId,
-    selectedScopeLabel,
-  ]);
+  }, [buildExportPayload]);
 
-  const handleDownloadXlsx = useCallback(async () => {
+  const handleDownloadXlsx = useCallback(async (payload?: ExportPayload) => {
+    const {
+      pdfLines: exportLines,
+      selectedScopeLabel: exportScopeLabel,
+      selectedScopeId: exportScopeId,
+      dateRange: exportDateRange,
+      dateRangeLabel: exportDateRangeLabel,
+      lineFilterLabel: exportLineFilterLabel,
+    } = payload ?? buildExportPayload();
+    const pdfLines = exportLines;
+    const selectedScopeLabel = exportScopeLabel;
+    const selectedScopeId = exportScopeId;
+    const dateRange = exportDateRange;
+    const dateRangeLabel = exportDateRangeLabel;
+    const lineFilterLabel = exportLineFilterLabel;
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Visor de Productividad";
     workbook.created = new Date();
@@ -2486,17 +2750,23 @@ export default function Home() {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
-  }, [
-    dateRange.end,
-    dateRange.start,
-    dateRangeLabel,
-    lineFilterLabel,
-    pdfLines,
-    selectedScopeId,
-    selectedScopeLabel,
-  ]);
+  }, [buildExportPayload]);
 
-  const handleDownloadPdf = useCallback(() => {
+  const handleDownloadPdf = useCallback((payload?: ExportPayload) => {
+    const {
+      pdfLines: exportLines,
+      selectedScopeLabel: exportScopeLabel,
+      selectedScopeId: exportScopeId,
+      dateRange: exportDateRange,
+      dateRangeLabel: exportDateRangeLabel,
+      lineFilterLabel: exportLineFilterLabel,
+    } = payload ?? buildExportPayload();
+    const pdfLines = exportLines;
+    const selectedScopeLabel = exportScopeLabel;
+    const selectedScopeId = exportScopeId;
+    const dateRange = exportDateRange;
+    const dateRangeLabel = exportDateRangeLabel;
+    const lineFilterLabel = exportLineFilterLabel;
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "mm",
@@ -2644,15 +2914,40 @@ export default function Home() {
       dateRange.end || "sin-fecha"
     }.pdf`;
     doc.save(fileName);
-  }, [
-    dateRange.end,
-    dateRange.start,
-    dateRangeLabel,
-    lineFilterLabel,
-    pdfLines,
-    selectedScopeId,
-    selectedScopeLabel,
-  ]);
+  }, [buildExportPayload]);
+
+  const handleExport = useCallback(
+    async (format: "pdf" | "csv" | "xlsx") => {
+      const payload = buildExportPayload({
+        sedeIds: exportSedeIds,
+        dateRange: exportDateRange,
+      });
+
+      if (payload.pdfLines.length === 0) {
+        setExportError("No hay datos para el rango y sedes seleccionadas.");
+        return;
+      }
+
+      setExportError(null);
+      if (format === "pdf") {
+        handleDownloadPdf(payload);
+      } else if (format === "csv") {
+        handleDownloadCsv(payload);
+      } else {
+        await handleDownloadXlsx(payload);
+      }
+
+      setExportModalOpen(false);
+    },
+    [
+      buildExportPayload,
+      exportDateRange,
+      exportSedeIds,
+      handleDownloadCsv,
+      handleDownloadPdf,
+      handleDownloadXlsx,
+    ],
+  );
 
   // Atajos de teclado
   useEffect(() => {
@@ -2718,32 +3013,161 @@ export default function Home() {
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
           sedes={orderedSedes}
-          selectedCompany={selectedCompany}
+          selectedCompanies={selectedCompanies}
           companies={companyOptions}
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
           theme={theme}
           onSedeChange={handleSedeChange}
-          onCompanyChange={handleCompanyChange}
+          onCompaniesChange={handleCompaniesChange}
           onStartDateChange={handleStartDateChange}
           onEndDateChange={handleEndDateChange}
           onToggleTheme={handleToggleTheme}
+          onExportClick={openExportModal}
+          isExportDisabled={dailyDataSet.length === 0}
         />
 
-        <SelectionSummary
-          selectedSedeName={selectedSedeName}
-          dateRangeLabel={dateRangeLabel}
-          lineFilterLabel={lineFilterLabel}
-          filteredCount={filteredLines.length}
-          totalCount={lines.length}
-          availableDatesCount={availableDates.length}
-          hasRangeData={hasRangeData}
-          onDownloadPdf={handleDownloadPdf}
-          onDownloadCsv={handleDownloadCsv}
-          onDownloadXlsx={handleDownloadXlsx}
-          isDownloadDisabled={filteredLines.length === 0}
-        />
+        {exportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+            <div className="w-full max-w-3xl rounded-3xl border border-slate-200/70 bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Exportar reporte
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    Selecciona sedes y fechas
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Elige el rango y las sedes para generar el archivo.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExportModalOpen(false)}
+                  className="rounded-full border border-slate-200/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-6 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Sedes
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExportSedeIds(orderedSedes.map((sede) => sede.id))}
+                      className="rounded-full border border-slate-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                      Seleccionar todas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportSedeIds([])}
+                      className="rounded-full border border-slate-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                      Quitar todas
+                    </button>
+                  </div>
+
+                  <div className="mt-3 max-h-56 space-y-2 overflow-auto rounded-2xl border border-slate-200/70 p-3">
+                    {orderedSedes.map((sede) => {
+                      const checked = exportSedeIds.includes(sede.id);
+                      return (
+                        <label
+                          key={sede.id}
+                          className="flex items-center justify-between rounded-xl px-2 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                        >
+                          <span>{sede.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleExportSede(sede.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-mercamio-600 focus:ring-mercamio-200"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Fechas
+                  </p>
+                  <div className="mt-3 grid gap-3">
+                    <label className="flex flex-col gap-1 text-sm text-slate-700">
+                      Desde
+                      <input
+                        type="date"
+                        value={exportDateRange.start}
+                        min={exportMinDate}
+                        max={exportMaxDate}
+                        onChange={(e) => handleExportStartChange(e.target.value)}
+                        className="rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm text-slate-700">
+                      Hasta
+                      <input
+                        type="date"
+                        value={exportDateRange.end}
+                        min={exportMinDate}
+                        max={exportMaxDate}
+                        onChange={(e) => handleExportEndChange(e.target.value)}
+                        className="rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                      />
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Rango disponible: {exportMinDate || "--"} a {exportMaxDate || "--"}
+                  </p>
+                </div>
+              </div>
+
+              {exportError && (
+                <p className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+                  {exportError}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExportModalOpen(false)}
+                  className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport("pdf")}
+                  className="rounded-full border border-mercamio-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-50"
+                >
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport("csv")}
+                  className="rounded-full border border-mercamio-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-all hover:border-mercamio-300 hover:bg-mercamio-50"
+                >
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport("xlsx")}
+                  className="rounded-full border border-slate-900 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-900 transition-all hover:bg-slate-100"
+                >
+                  XLSX
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center">

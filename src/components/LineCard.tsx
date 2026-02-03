@@ -34,6 +34,8 @@ const MetricRow = ({
 export const LineCard = ({ line, hasData = true }: LineCardProps) => {
   const hasLaborData = hasLaborDataForLine(line.id);
   const displayHours = hasLaborData ? line.hours : 0;
+  const salesPerHour =
+    hasData && displayHours > 0 ? line.sales / displayHours : null;
   const emptyLabel = "—";
   const zeroHours = "0h";
 
@@ -60,6 +62,11 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
         <MetricRow
           label="Horas trabajadas"
           value={hasData ? `${formatHours(displayHours)}h` : zeroHours}
+          valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
+        />
+        <MetricRow
+          label="Vta/hr"
+          value={salesPerHour === null ? emptyLabel : formatCOP(salesPerHour)}
           valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
       </div>

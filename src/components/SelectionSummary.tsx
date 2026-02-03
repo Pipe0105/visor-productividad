@@ -46,24 +46,26 @@ export const SelectionSummary = ({
       data-animate="top-bar"
       className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
     >
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-700">
-        <span>
-          <span className="font-semibold text-slate-900">
-            {selectedSedeName}
-          </span>{" "}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-sm font-semibold text-slate-900">
+          {selectedSedeName}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200/70">
           {dateRangeLabel}
         </span>
-        <span className="hidden sm:inline text-slate-300">|</span>
-        <span>{lineFilterLabel}</span>
-        <span className="hidden sm:inline text-slate-300">|</span>
-        <span>
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200/60">
+          {lineFilterLabel}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200/60">
           {filteredCount}/{totalCount} líneas
           {availableDatesCount > 0 && (
-            <> &middot; {availableDatesCount} días</>
+            <span className="text-slate-500">
+              {availableDatesCount} días
+            </span>
           )}
         </span>
         {!hasRangeData && (
-          <span className="text-xs font-semibold text-amber-600">
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
             Sin datos en este rango
           </span>
         )}
