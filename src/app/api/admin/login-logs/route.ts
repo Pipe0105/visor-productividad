@@ -28,3 +28,18 @@ export async function GET(req: Request) {
     client.release();
   }
 }
+
+export async function DELETE() {
+  const admin = await requireAdminUser();
+  if (!admin) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  const client = await (await getDbPool()).connect();
+  try {
+    const result = await client.query("DELETE FROM app_user_login_logs");
+    return NextResponse.json({ deleted: result.rowCount ?? 0 });
+  } finally {
+    client.release();
+  }
+}

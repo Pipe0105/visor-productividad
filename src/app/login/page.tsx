@@ -27,7 +27,7 @@ export default function LoginPage() {
         throw new Error(payload.error ?? "No se pudo iniciar sesiÃ³n.");
       }
 
-      router.push("/admin/usuarios");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -40,7 +40,7 @@ export default function LoginPage() {
       <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
         <h1 className="text-2xl font-semibold text-slate-900">Iniciar sesiÃ³n</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Accede con tu cuenta para administrar usuarios.
+          Accede con tu cuenta para ver el tablero y administrar usuarios.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

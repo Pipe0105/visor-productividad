@@ -16,6 +16,7 @@ export const formatCOP = (value: number) => {
   }).format(inThousands);
 };
 
+
 export const formatHours = (value: number) => {
   return value.toFixed(2);
 };

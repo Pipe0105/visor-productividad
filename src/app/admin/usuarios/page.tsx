@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type UserRow = {
@@ -47,11 +48,18 @@ export default function AdminUsuariosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState<UserFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => a.username.localeCompare(b.username, "es")),
     [users],
   );
+  const stats = useMemo(() => {
+    const total = users.length;
+    const active = users.filter((user) => user.is_active).length;
+    const admins = users.filter((user) => user.role === "admin").length;
+    return { total, active, admins };
+  }, [users]);
 
   const loadData = async () => {
     setLoading(true);
@@ -67,6 +75,7 @@ export default function AdminUsuariosPage() {
         router.replace("/login");
         return;
       }
+      setIsAdmin(true);
 
       const [usersRes, logsRes] = await Promise.all([
         fetch("/api/admin/users"),
@@ -147,7 +156,7 @@ export default function AdminUsuariosPage() {
   };
 
   const handleDelete = async (userId: string) => {
-    if (!confirm("Â¿Seguro que deseas eliminar este usuario?")) return;
+    if (!confirm("¿Seguro que deseas eliminar este usuario?")) return;
     setError(null);
     const response = await fetch(`/api/admin/users/${userId}`, {
       method: "DELETE",
@@ -165,124 +174,248 @@ export default function AdminUsuariosPage() {
     router.replace("/login");
   };
 
+  const handleClearLogs = async () => {
+    if (!confirm("¿Deseas borrar todos los accesos recientes?")) return;
+    setError(null);
+    const response = await fetch("/api/admin/login-logs", { method: "DELETE" });
+    if (!response.ok) {
+      const data = (await response.json()) as { error?: string };
+      setError(data.error ?? "No se pudieron borrar los accesos.");
+      return;
+    }
+    await loadData();
+  };
+
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 px-4 py-10 text-slate-900">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 right-[-6rem] h-72 w-72 rounded-full bg-mercamio-200/40 blur-3xl" />
+        <div className="absolute bottom-[-8rem] left-[-4rem] h-80 w-80 rounded-full bg-sky-200/40 blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-slate-200/50 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_24px_70px_-50px_rgba(15,23,42,0.35)] backdrop-blur">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-              AdministraciÃ³n
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
+              Administración
             </p>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Usuarios de la aplicaciÃ³n
+            <h1 className="mt-2 text-2xl font-semibold text-slate-900 md:text-3xl">
+              Usuarios de la aplicación
             </h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-500">
+              Gestiona roles, accesos y actividad reciente con una vista clara y
+              accionable.
+            </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/"
+              className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
+            >
+              Volver al tablero
+            </Link>
             <button
               type="button"
               onClick={openCreate}
-              className="rounded-full border border-mercamio-200/70 bg-mercamio-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-all hover:bg-mercamio-700"
+              className="rounded-full border border-slate-900/90 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-[0_14px_30px_-16px_rgba(15,23,42,0.6)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
               Nuevo usuario
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-all hover:bg-slate-50"
+              className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
             >
-              Cerrar sesiÃ³n
+              Cerrar sesión
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+          <div className="rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-2 text-sm text-amber-700 shadow-[0_16px_40px_-28px_rgba(217,119,6,0.45)]">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="rounded-3xl border border-slate-200/70 bg-white p-6">
+          <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
             Cargando usuarios...
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Usuarios
-              </h2>
-              <div className="mt-4 overflow-auto">
-                <table className="w-full text-sm text-slate-700">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-[0.2em] text-slate-500">
-                      <th className="py-2">Usuario</th>
-                      <th className="py-2">Rol</th>
-                      <th className="py-2">Estado</th>
-                      <th className="py-2">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedUsers.map((user) => (
-                      <tr key={user.id} className="border-t border-slate-100">
-                        <td className="py-2 font-semibold text-slate-900">
-                          {user.username}
-                        </td>
-                        <td className="py-2">{user.role}</td>
-                        <td className="py-2">
-                          {user.is_active ? "Activo" : "Inactivo"}
-                        </td>
-                        <td className="py-2">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(user)}
-                              className="text-xs font-semibold text-mercamio-700 hover:text-mercamio-800"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(user.id)}
-                              className="text-xs font-semibold text-red-600 hover:text-red-700"
-                            >
-                              Borrar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  Total usuarios
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900">
+                  {stats.total}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  Cuentas registradas
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  Usuarios activos
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900">
+                  {stats.active}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  Con acceso habilitado
+                </p>
+              </div>
+              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  Administradores
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900">
+                  {stats.admins}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  Roles con permisos totales
+                </p>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Accesos recientes
-              </h2>
-              <div className="mt-4 space-y-3 text-sm text-slate-700">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="font-semibold text-slate-900">
-                      {log.username}
+            <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Usuarios
+                  </h2>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                    {sortedUsers.length} registrados
+                  </span>
+                </div>
+                <div className="mt-5 overflow-auto">
+                  <table className="w-full text-sm text-slate-700">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-[0.2em] text-slate-500">
+                        <th className="py-2">Usuario</th>
+                        <th className="py-2">Rol</th>
+                        <th className="py-2">Estado</th>
+                        <th className="py-2">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedUsers.map((user) => (
+                        <tr
+                          key={user.id}
+                          className="border-t border-slate-100 transition-colors hover:bg-slate-50/80"
+                        >
+                          <td className="py-3 font-semibold text-slate-900">
+                            {user.username}
+                          </td>
+                          <td className="py-3">
+                            <span className="inline-flex rounded-full border border-slate-200 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <span
+                              className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${
+                                user.is_active
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-rose-50 text-rose-700"
+                              }`}
+                            >
+                              <span
+                                className={`h-2 w-2 rounded-full ${
+                                  user.is_active
+                                    ? "bg-emerald-500"
+                                    : "bg-rose-500"
+                                }`}
+                              />
+                              {user.is_active ? "Activo" : "Inactivo"}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(user)}
+                                className="rounded-full border border-mercamio-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-colors hover:bg-mercamio-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(user.id)}
+                                className="rounded-full border border-rose-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-700 transition-colors hover:bg-rose-50"
+                              >
+                                Borrar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {sortedUsers.length === 0 && (
+                    <div className="py-10 text-center text-sm text-slate-500">
+                      No hay usuarios registrados todavía.
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {new Date(log.logged_at).toLocaleString("es-CO")} â€¢{" "}
-                      {log.ip ?? "IP desconocida"}
-                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Accesos recientes
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                      Últimos {logs.length}
+                    </span>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={handleClearLogs}
+                        className="rounded-full border border-rose-200/70 bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-700 transition-colors hover:bg-rose-100"
+                      >
+                        Borrar accesos
+                      </button>
+                    )}
                   </div>
-                ))}
-                {logs.length === 0 && (
-                  <p className="text-sm text-slate-500">
-                    Sin accesos registrados.
-                  </p>
-                )}
+                </div>
+                <div className="mt-5 space-y-3 text-sm text-slate-700">
+                  {logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-xs font-semibold uppercase text-slate-600 shadow-sm">
+                          {log.username.slice(0, 2)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {log.username}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {new Date(log.logged_at).toLocaleString("es-CO")} •{" "}
+                            {log.ip ?? "IP desconocida"}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                        Login
+                      </span>
+                    </div>
+                  ))}
+                  {logs.length === 0 && (
+                    <p className="text-sm text-slate-500">
+                      Sin accesos registrados.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -321,7 +454,7 @@ export default function AdminUsuariosPage() {
                 </select>
               </label>
               <label className="block text-sm text-slate-700">
-                ContraseÃ±a {formState.id ? "(opcional)" : "(mÃ­n 8)"}
+                Contraseña {formState.id ? "(opcional)" : "(mín 8)"}
                 <input
                   type="password"
                   value={formState.password}
@@ -353,7 +486,7 @@ export default function AdminUsuariosPage() {
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:bg-slate-50"
+                className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Cancelar
               </button>

@@ -1,8 +1,4 @@
-import {
-  formatCOP,
-  formatHours,
-  hasLaborDataForLine,
-} from "@/lib/calc";
+import { formatCOP, formatHours, hasLaborDataForLine } from "@/lib/calc";
 import { LineMetrics } from "@/types";
 
 interface LineCardProps {
@@ -35,7 +31,9 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
   const hasLaborData = hasLaborDataForLine(line.id);
   const displayHours = hasLaborData ? line.hours : 0;
   const salesPerHour =
-    hasData && displayHours > 0 ? line.sales / displayHours : null;
+    hasData && displayHours > 0
+      ? line.sales / 1_000_000 / displayHours
+      : null;
   const emptyLabel = "—";
   const zeroHours = "0h";
 
@@ -66,7 +64,7 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
         />
         <MetricRow
           label="Vta/hr"
-          value={salesPerHour === null ? emptyLabel : formatCOP(salesPerHour)}
+          value={salesPerHour === null ? emptyLabel : salesPerHour.toFixed(3)}
           valueClassName={hasData ? "text-slate-900" : "text-slate-600"}
         />
       </div>

@@ -8,6 +8,7 @@ import {
   createContext,
   useContext,
 } from "react";
+import Link from "next/link";
 import { animate, remove } from "animejs";
 import {
   LayoutGrid,
@@ -1385,6 +1386,38 @@ const LineTrends = ({
     return sum / trendData.length;
   }, [trendData]);
 
+  const totalPeriodStats = useMemo(() => {
+    if (!selectedLine || temporalDates.length === 0) {
+      return { salesPerDay: 0, hoursPerDay: 0 };
+    }
+    const sedeIdSet = new Set(visibleSedes.map((s) => s.id));
+    let sales = 0;
+    let hours = 0;
+
+    dailyDataSet.forEach((item) => {
+      if (!sedeIdSet.has(item.sede)) return;
+      if (item.date < dateRange.start || item.date > dateRange.end) return;
+      const lineData = item.lines.find((l) => l.id === selectedLine);
+      if (!lineData) return;
+      const hasLaborData = hasLaborDataForLine(lineData.id);
+      sales += lineData.sales;
+      hours += hasLaborData ? lineData.hours : 0;
+    });
+
+    const days = temporalDates.length || 1;
+    return {
+      salesPerDay: sales / days,
+      hoursPerDay: hours / days,
+    };
+  }, [
+    dailyDataSet,
+    dateRange.end,
+    dateRange.start,
+    selectedLine,
+    temporalDates.length,
+    visibleSedes,
+  ]);
+
   // Full-month dates: from the 1st of the start month to the last available
   // date in the end month, so heat map baselines always use the full month.
   const fullMonthDates = useMemo(() => {
@@ -1523,10 +1556,36 @@ const LineTrends = ({
     [comparisonSedeIds, computeComparisonStats],
   );
 
-  const totalComparisonStats = useMemo(
-    () => computeComparisonStats(visibleSedes.map((s) => s.id)),
-    [computeComparisonStats, visibleSedes],
-  );
+  const totalComparisonStats = useMemo(() => {
+    if (!selectedLine) {
+      return { sales: 0, hours: 0, days: 0, salesPerHour: 0, salesPerDay: 0, hoursPerDay: 0 };
+    }
+
+    let sales = 0;
+    let hours = 0;
+
+    dailyDataSet.forEach((item) => {
+      if (item.date < dateRange.start || item.date > dateRange.end) return;
+      const lineData = item.lines.find((l) => l.id === selectedLine);
+      if (!lineData) return;
+      const hasLaborData = hasLaborDataForLine(lineData.id);
+      sales += lineData.sales;
+      hours += hasLaborData ? lineData.hours : 0;
+    });
+
+    const days = comparisonRangeDates.length;
+    const salesPerHour = hours > 0 ? sales / 1_000_000 / hours : 0;
+    const salesPerDay = days > 0 ? sales / days : 0;
+    const hoursPerDay = days > 0 ? hours / days : 0;
+
+    return { sales, hours, days, salesPerHour, salesPerDay, hoursPerDay };
+  }, [
+    comparisonRangeDates.length,
+    dailyDataSet,
+    dateRange.end,
+    dateRange.start,
+    selectedLine,
+  ]);
 
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
@@ -1763,19 +1822,29 @@ const LineTrends = ({
         <>
           {selectedLine && trendData.length > 0 && (
             <>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-sm text-slate-700">Promedio del periodo</p>
                   <p className="text-2xl font-semibold text-slate-900">
                     {formatCOP(avgValue)}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-lg font-semibold text-slate-800">
                     {(
                       trendData.reduce((a, d) => a + d.hours, 0) /
                       (trendData.length || 1)
                     ).toFixed(1)}
-                    h promedio/dia
+                    h
                   </p>
+                  <p className="text-xs text-slate-500">Horas promedio/dia</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.35)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                    Prom. total (todas las sedes)
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-sm font-semibold text-slate-900">
+                    <span>Ventas {formatCOP(totalPeriodStats.salesPerDay)}</span>
+                    <span>Horas {totalPeriodStats.hoursPerDay.toFixed(1)}h</span>
+                  </div>
                 </div>
               </div>
 
@@ -1855,19 +1924,42 @@ const LineTrends = ({
                     {comparisonSedeIds.length === 1 ? "sede" : "sedes"}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                  <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
-                    Prom. seleccionadas: Vta/Hr{" "}
-                    {selectedComparisonStats.salesPerHour.toFixed(3)} | Ventas{" "}
-                    {formatCOP(selectedComparisonStats.salesPerDay)} | Horas{" "}
-                    {selectedComparisonStats.hoursPerDay.toFixed(1)}h
-                  </span>
-                  <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
-                    Prom. total: Vta/Hr{" "}
-                    {totalComparisonStats.salesPerHour.toFixed(3)} | Ventas{" "}
-                    {formatCOP(totalComparisonStats.salesPerDay)} | Horas{" "}
-                    {totalComparisonStats.hoursPerDay.toFixed(1)}h
-                  </span>
+                <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+                  <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.35)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      Prom. seleccionadas
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-3 text-sm font-semibold text-slate-900">
+                      <span>
+                        Vta/Hr{" "}
+                        {comparisonSedeIds.length > 0
+                          ? selectedComparisonStats.salesPerHour.toFixed(3)
+                          : "—"}
+                      </span>
+                      <span>
+                        Ventas{" "}
+                        {comparisonSedeIds.length > 0
+                          ? formatCOP(selectedComparisonStats.salesPerDay)
+                          : "—"}
+                      </span>
+                      <span>
+                        Horas{" "}
+                        {comparisonSedeIds.length > 0
+                          ? `${selectedComparisonStats.hoursPerDay.toFixed(1)}h`
+                          : "—"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.35)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      Prom. total
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-3 text-sm font-semibold text-slate-900">
+                      <span>Vta/Hr {totalComparisonStats.salesPerHour.toFixed(3)}</span>
+                      <span>Ventas {formatCOP(totalComparisonStats.salesPerDay)}</span>
+                      <span>Horas {totalComparisonStats.hoursPerDay.toFixed(1)}h</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1968,6 +2060,7 @@ export default function Home() {
   // Estado para controlar hidratación
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Estado con persistencia - siempre inicia con valores por defecto
   const [selectedSede, setSelectedSede] = useState("");
@@ -2346,6 +2439,36 @@ export default function Home() {
     if (value) {
       setSelectedCompanies([]);
     }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const loadUser = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          user?: { role?: string };
+        };
+        if (!isMounted) return;
+        setIsAdmin(payload.user?.role === "admin");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+      }
+    };
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, []);
 
   const handleCompaniesChange = useCallback((value: string[]) => {
@@ -3009,6 +3132,16 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background px-3 pb-8 pt-4 text-foreground sm:px-4 sm:pb-12 sm:pt-6 md:px-8 md:pb-16 md:pt-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6 md:gap-10">
+        {isAdmin && (
+          <div className="flex justify-end">
+            <Link
+              href="/admin/usuarios"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-900/90 bg-slate-900 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-white shadow-[0_14px_30px_-16px_rgba(15,23,42,0.6)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+            >
+              Administrar usuarios
+            </Link>
+          </div>
+        )}
         <TopBar
           title="Tablero de Productividad por Línea"
           selectedSede={selectedSede}
