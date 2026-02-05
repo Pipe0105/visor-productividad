@@ -1833,15 +1833,6 @@ const LineTrends = ({
               <option value="between_2000_3000">Entre 2000 y 3000 m2</option>
             </select>
           </label>
-          <button
-            type="button"
-            onClick={toggleAllComparisonSedes}
-            className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
-          >
-            {comparisonSedeIds.length === filteredVisibleSedes.length
-              ? "Deseleccionar todas"
-              : "Seleccionar todas"}
-          </button>
         </div>
       </div>
       <div>
@@ -1873,27 +1864,39 @@ const LineTrends = ({
           </button>
         </div>
       </div>
-      {compact && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {orderedVisibleSedes.map((sede) => {
-            const isSelected = comparisonSedeIds.includes(sede.id);
-            return (
-              <button
-                key={sede.id}
-                type="button"
-                onClick={() => toggleComparisonSede(sede.id)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
-                  isSelected
-                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
-                    : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                }`}
-              >
-                {sede.name}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold text-slate-700">
+          Seleccion de sedes
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {orderedVisibleSedes.map((sede) => {
+          const isSelected = comparisonSedeIds.includes(sede.id);
+          return (
+            <button
+              key={sede.id}
+              type="button"
+              onClick={() => toggleComparisonSede(sede.id)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                isSelected
+                  ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                  : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              {sede.name}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={toggleAllComparisonSedes}
+          className="rounded-full border border-mercamio-200/70 bg-white px-3 py-1.5 text-xs font-semibold text-mercamio-700 transition-all hover:border-mercamio-300 hover:text-mercamio-800"
+        >
+          {comparisonSedeIds.length === filteredVisibleSedes.length
+            ? "Deseleccionar todas"
+            : "Seleccionar todas"}
+        </button>
+      </div>
     </div>
   );
 
@@ -2013,25 +2016,7 @@ const LineTrends = ({
       {viewType === "por-sede" && (
         <div className="mb-6">
           <div ref={filtersRef}>{renderComparisonFilters()}</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {orderedVisibleSedes.map((sede) => {
-              const isSelected = comparisonSedeIds.includes(sede.id);
-              return (
-                <button
-                  key={sede.id}
-                  type="button"
-                  onClick={() => toggleComparisonSede(sede.id)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
-                    isSelected
-                      ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
-                      : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                  }`}
-                >
-                  {sede.name}
-                </button>
-              );
-            })}
-          </div>
+          <div className="mt-4" />
         </div>
       )}
 
