@@ -2911,28 +2911,17 @@ export default function Home() {
       return acc + (hasLaborData ? line.hours : 0);
     }, 0);
 
-    // Separador visual
-    const separator = "═".repeat(80);
-    const thinSeparator = "─".repeat(80);
-
     const csvLines = [
-      separator,
-      "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
-      separator,
+      "REPORTE DE PRODUCTIVIDAD POR LINEA",
       "",
-      "┌────────────────────────────────────────────────────────────────────────────────┐",
-      "│  INFORMACIÓN DEL REPORTE                                                    │",
-      "├────────────────────────────────────────────────────────────────────────────────┤",
-      `│  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}│`,
-      `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
-      `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
-      `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
-      "└────────────────────────────────────────────────────────────────────────────────┘",
+      "BLOQUE: INFORMACION",
+      "Sede,Valor",
+      `Sede,${escapeCsv(selectedScopeLabel)}`,
+      `Rango,${escapeCsv(dateRangeLabel || "Sin rango definido")}`,
+      `Filtro,${escapeCsv(lineFilterLabel)}`,
+      `Generado,${escapeCsv(formatPdfDate())}`,
       "",
-      "",
-      thinSeparator,
-      "DETALLE POR LÍNEA",
-      thinSeparator,
+      "BLOQUE: DETALLE POR LINEA",
       "",
       "#,Línea,Código,Ventas ($),Horas",
       ...pdfLines.map((line, index) => {
@@ -2947,15 +2936,12 @@ export default function Home() {
         ].join(",");
       }),
       "",
-      thinSeparator,
-      "TOTALES",
-      thinSeparator,
+      "BLOQUE: TOTALES",
+      "Etiqueta,Valor",
       `,TOTAL,,${formatNumber(Math.round(totalSales))},${totalHours.toFixed(2)}`,
       "",
       "",
-      separator,
-      "Generado automáticamente por Visor de Productividad",
-      separator,
+      "FIN REPORTE",
     ];
 
     const csvContent = csvLines.join("\n");

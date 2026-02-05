@@ -340,119 +340,126 @@ export default function MargenesPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.18),_transparent_55%),linear-gradient(180deg,_#f8fafc,_#eef2f7)] px-4 py-10 text-foreground">
-      <div className="mx-auto w-full max-w-5xl rounded-[28px] border border-slate-200/70 bg-white p-7 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
-              Tablero margenes
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-              Margenes por sede y linea
-            </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%) para
-              el dia, acumulado del rango y acumulado del mes.
-            </p>
+      <div className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.45)]">
+        <div className="rounded-3xl border border-slate-200/70 bg-slate-50/70 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
+                Tablero margenes
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+                Margenes por sede y linea
+              </h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%) para
+                el dia, acumulado del rango y acumulado del mes.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Rango de fechas
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <label className="text-xs font-semibold text-slate-600">
+                  Desde
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    min={availableDates[0]}
+                    max={availableDates.at(-1)}
+                    onChange={(e) =>
+                      setDateRange((prev) => ({
+                        start: e.target.value,
+                        end: e.target.value > prev.end ? e.target.value : prev.end,
+                      }))
+                    }
+                    className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Hasta
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    min={availableDates[0]}
+                    max={availableDates.at(-1)}
+                    onChange={(e) =>
+                      setDateRange((prev) => ({
+                        start: e.target.value < prev.start ? e.target.value : prev.start,
+                        end: e.target.value,
+                      }))
+                    }
+                    className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-slate-600">
-              Desde
-              <input
-                type="date"
-                value={dateRange.start}
-                min={availableDates[0]}
-                max={availableDates.at(-1)}
-                onChange={(e) =>
-                  setDateRange((prev) => ({
-                    start: e.target.value,
-                    end: e.target.value > prev.end ? e.target.value : prev.end,
-                  }))
-                }
-                className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-600">
-              Hasta
-              <input
-                type="date"
-                value={dateRange.end}
-                min={availableDates[0]}
-                max={availableDates.at(-1)}
-                onChange={(e) =>
-                  setDateRange((prev) => ({
-                    start: e.target.value < prev.start ? e.target.value : prev.start,
-                    end: e.target.value,
-                  }))
-                }
-                className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              />
-            </label>
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3">
-          <label className="text-xs font-semibold text-slate-600">
-            Empresa (max 2)
-            <select
-              value=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!value) return;
-                setSelectedCompanies((prev) => {
-                  const next = prev.includes(value) ? prev : [...prev, value];
-                  return next.slice(0, 2);
-                });
-                setSelectedSede("");
-              }}
-              className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            >
-              <option value="">Seleccionar empresa</option>
-              {companyOptions.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {selectedCompanies.map((companyId) => {
-              const label =
-                companyOptions.find((c) => c.id === companyId)?.name ??
-                companyId;
-              return (
-                <button
-                  key={companyId}
-                  type="button"
-                  onClick={() =>
-                    setSelectedCompanies((prev) =>
-                      prev.filter((id) => id !== companyId),
-                    )
-                  }
-                  className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300"
-                >
-                  {label} x
-                </button>
-              );
-            })}
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.25)]">
+            <label className="text-xs font-semibold text-slate-600">
+              Empresa (max 2)
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!value) return;
+                  setSelectedCompanies((prev) => {
+                    const next = prev.includes(value) ? prev : [...prev, value];
+                    return next.slice(0, 2);
+                  });
+                  setSelectedSede("");
+                }}
+                className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              >
+                <option value="">Seleccionar empresa</option>
+                {companyOptions.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {selectedCompanies.map((companyId) => {
+                const label =
+                  companyOptions.find((c) => c.id === companyId)?.name ??
+                  companyId;
+                return (
+                  <button
+                    key={companyId}
+                    type="button"
+                    onClick={() =>
+                      setSelectedCompanies((prev) =>
+                        prev.filter((id) => id !== companyId),
+                      )
+                    }
+                    className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300"
+                  >
+                    {label} x
+                  </button>
+                );
+              })}
+            </div>
+            <label className="text-xs font-semibold text-slate-600">
+              Sede
+              <select
+                value={selectedSede}
+                onChange={(e) => {
+                  setSelectedSede(e.target.value);
+                  if (e.target.value) setSelectedCompanies([]);
+                }}
+                className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              >
+                <option value="">Todas las sedes</option>
+                {orderedSedes.map((sede) => (
+                  <option key={sede.id} value={sede.id}>
+                    {sede.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <label className="text-xs font-semibold text-slate-600">
-            Sede
-            <select
-              value={selectedSede}
-              onChange={(e) => {
-                setSelectedSede(e.target.value);
-                if (e.target.value) setSelectedCompanies([]);
-              }}
-              className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            >
-              <option value="">Todas las sedes</option>
-              {orderedSedes.map((sede) => (
-                <option key={sede.id} value={sede.id}>
-                  {sede.name}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         {error && (
@@ -467,7 +474,7 @@ export default function MargenesPage() {
 
         {!isLoading && selectedDay && (
           <>
-            <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200/70">
+            <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.25)]">
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
@@ -483,9 +490,12 @@ export default function MargenesPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredSedes.map((sede) => (
-                    <tr key={sede.id} className="border-t border-slate-100">
+                <tbody className="divide-y divide-slate-100">
+                  {filteredSedes.map((sede, index) => (
+                    <tr
+                      key={sede.id}
+                      className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                    >
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {sede.name}
                       </td>
@@ -500,7 +510,7 @@ export default function MargenesPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="border-t border-slate-200 bg-slate-50">
+                  <tr className="border-t border-slate-200 bg-slate-100/80">
                     <td className="px-4 py-3 font-semibold text-slate-900">
                       Total seleccionadas
                     </td>
@@ -518,7 +528,7 @@ export default function MargenesPage() {
               </table>
             </div>
 
-            <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200/70">
+            <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.25)]">
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
@@ -536,9 +546,12 @@ export default function MargenesPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {lineOptions.map((line) => (
-                    <tr key={line.id} className="border-t border-slate-100">
+                <tbody className="divide-y divide-slate-100">
+                  {lineOptions.map((line, index) => (
+                    <tr
+                      key={line.id}
+                      className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                    >
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {line.name}
                       </td>
@@ -569,7 +582,7 @@ export default function MargenesPage() {
           <button
             type="button"
             onClick={() => router.push("/tableros")}
-            className="w-full rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:text-slate-900"
+            className="w-full rounded-full border border-slate-200/70 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:text-slate-900"
           >
             Volver a tableros
           </button>
