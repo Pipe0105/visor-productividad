@@ -13,7 +13,10 @@ export type AuthUser = {
 };
 
 const SESSION_COOKIE = "vp_session";
-const SESSION_TTL_DAYS = 7;
+const SESSION_IDLE_MINUTES = 60;
+
+const getSessionExpiry = () =>
+  new Date(Date.now() + SESSION_IDLE_MINUTES * 60 * 1000);
 
 const hashToken = (token: string) =>
   crypto.createHash("sha256").update(token).digest("hex");
@@ -39,9 +42,7 @@ export const createSession = async (
 ) => {
   const token = crypto.randomBytes(32).toString("base64url");
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(
-    Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-  );
+  const expiresAt = getSessionExpiry();
 
   const client = await (await getDbPool()).connect();
   try {
@@ -76,6 +77,22 @@ export const revokeSessionByToken = async (token: string) => {
   }
 };
 
+const refreshSession = async (tokenHash: string, expiresAt: Date) => {
+  const client = await (await getDbPool()).connect();
+  try {
+    await client.query(
+      `
+      UPDATE app_user_sessions
+      SET expires_at = $2
+      WHERE token_hash = $1 AND revoked_at IS NULL
+      `,
+      [tokenHash, expiresAt.toISOString()],
+    );
+  } finally {
+    client.release();
+  }
+};
+
 export const getSessionCookieOptions = (expiresAt?: Date) => ({
   httpOnly: true,
   sameSite: "lax" as const,
@@ -97,7 +114,10 @@ export const getSessionToken = async () => {
   return cookieStore.get(SESSION_COOKIE)?.value ?? null;
 };
 
-export const getUserFromSession = async (): Promise<AuthUser | null> => {
+export const getUserSession = async (): Promise<
+  | { user: AuthUser; token: string; expiresAt: Date }
+  | null
+> => {
   const token = await getSessionToken();
   if (!token) return null;
   const tokenHash = hashToken(token);
@@ -106,7 +126,7 @@ export const getUserFromSession = async (): Promise<AuthUser | null> => {
   try {
     const result = await client.query(
       `
-      SELECT u.id, u.username, u.role, u.is_active, u.last_login_at, u.last_login_ip
+      SELECT u.id, u.username, u.role, u.is_active, u.last_login_at, u.last_login_ip, s.expires_at
       FROM app_user_sessions s
       JOIN app_users u ON u.id = s.user_id
       WHERE s.token_hash = $1
@@ -118,10 +138,34 @@ export const getUserFromSession = async (): Promise<AuthUser | null> => {
     );
 
     if (!result.rows || result.rows.length === 0) return null;
-    return result.rows[0] as AuthUser;
+    const user = result.rows[0] as AuthUser;
+    const expiresAt = getSessionExpiry();
+    await refreshSession(tokenHash, expiresAt);
+    return { user, token, expiresAt };
   } finally {
     client.release();
   }
+};
+
+export const getUserFromSession = async (): Promise<AuthUser | null> => {
+  const session = await getUserSession();
+  return session?.user ?? null;
+};
+
+export const requireAuthUser = async () => {
+  const user = await getUserFromSession();
+  if (!user) {
+    return null;
+  }
+  return user;
+};
+
+export const requireAuthSession = async () => {
+  const session = await getUserSession();
+  if (!session) {
+    return null;
+  }
+  return session;
 };
 
 export const requireAdminUser = async () => {
@@ -130,4 +174,12 @@ export const requireAdminUser = async () => {
     return null;
   }
   return user;
+};
+
+export const requireAdminSession = async () => {
+  const session = await getUserSession();
+  if (!session || session.user.role !== "admin") {
+    return null;
+  }
+  return session;
 };

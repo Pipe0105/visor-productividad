@@ -1,4 +1,4 @@
-import { formatCOP, formatHours, hasLaborDataForLine } from "@/lib/calc";
+﻿import { formatCOP, formatHours, hasLaborDataForLine } from "@/lib/calc";
 import { LineMetrics } from "@/types";
 
 interface LineCardProps {
@@ -71,4 +71,5 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
     </article>
   );
 };
+
 

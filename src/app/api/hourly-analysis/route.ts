@@ -1,4 +1,6 @@
+import { NextResponse } from "next/server";
 import { getDbPool, testDbConnection } from "@/lib/db";
+import { getSessionCookieOptions, requireAuthSession } from "@/lib/auth";
 import type { HourlyAnalysisData, HourlyLineSales, HourSlot } from "@/types";
 
 // ============================================================================
@@ -370,7 +372,7 @@ const fetchHourlyData = async (
 
       hours.push({
         hour: h,
-        label: `${String(h).padStart(2, "0")}:00 – ${String((h + 1) % 24).padStart(2, "0")}:00`,
+        label: String(h).padStart(2, "0") + ":00 – " + String((h + 1) % 24).padStart(2, "0") + ":00",
         totalSales,
         employeesPresent: presenceByHour.get(h) ?? 0,
         lines,
@@ -388,18 +390,35 @@ const fetchHourlyData = async (
 // ============================================================================
 
 export async function GET(request: Request) {
+  const session = await requireAuthSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "No autorizado." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
     const retryAfterSeconds = Math.ceil((limitedUntil - Date.now()) / 1000);
-    return Response.json(
-      { error: "Demasiadas solicitudes. Intenta mas tarde." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": retryAfterSeconds.toString(),
-          "Cache-Control": "no-store",
+    return withSession(
+      NextResponse.json(
+        { error: "Demasiadas solicitudes. Intenta mas tarde." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": retryAfterSeconds.toString(),
+            "Cache-Control": "no-store",
+          },
         },
-      },
+      ),
     );
   }
 
@@ -408,16 +427,20 @@ export async function GET(request: Request) {
   const sedeParam = url.searchParams.get("sede");
 
   if (!dateParam || !sedeParam) {
-    return Response.json(
-      { error: "Parametros 'date' y 'sede' son requeridos." },
-      { status: 400 },
+    return withSession(
+      NextResponse.json(
+        { error: "Parametros \"date\" y \"sede\" son requeridos." },
+        { status: 400 },
+      ),
     );
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    return Response.json(
-      { error: "Formato de fecha invalido. Use YYYY-MM-DD." },
-      { status: 400 },
+    return withSession(
+      NextResponse.json(
+        { error: "Formato de fecha invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
     );
   }
 
@@ -425,16 +448,23 @@ export async function GET(request: Request) {
     await testDbConnection();
     const data = await fetchHourlyData(dateParam, sedeParam);
 
-    return Response.json(data, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return withSession(
+      NextResponse.json(data, {
+        headers: { "Cache-Control": "no-store" },
+      }),
+    );
   } catch (error) {
     console.error("[hourly-analysis] Error:", error);
-    return Response.json(
-      {
-        error: `Error de conexion: ${error instanceof Error ? error.message : String(error)}`,
-      },
-      { status: 500 },
+    return withSession(
+      NextResponse.json(
+        {
+          error:
+            "Error de conexion: " +
+            (error instanceof Error ? error.message : String(error)),
+        },
+        { status: 500 },
+      ),
     );
   }
 }
+

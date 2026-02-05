@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Building2,
   CalendarDays,
@@ -187,7 +187,7 @@ const MultiSelectField = ({
               </div>
               {limitReached && (
                 <p className="mt-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600">
-                  MÃ¡ximo {maxSelected} empresas
+                  Máximo {maxSelected} empresas
                 </p>
               )}
             </>
@@ -380,4 +380,5 @@ export const TopBar = ({
     </header>
   );
 };
+
 

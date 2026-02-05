@@ -1,4 +1,6 @@
+import { NextResponse } from "next/server";
 import { DailyProductivity } from "@/types";
+import { getSessionCookieOptions, requireAuthSession } from "@/lib/auth";
 import { getDbPool, testDbConnection } from "@/lib/db";
 import { promises as fs } from "fs";
 import path from "path";
@@ -72,7 +74,7 @@ const readCache = async (): Promise<DailyProductivity[] | null> => {
 };
 
 const buildCacheResponse = (dailyData: DailyProductivity[]) =>
-  Response.json(
+  NextResponse.json(
     { dailyData, sedes: buildSedes(dailyData) },
     {
       headers: {
@@ -83,7 +85,7 @@ const buildCacheResponse = (dailyData: DailyProductivity[]) =>
   );
 
 const buildFallbackResponse = (message: string) =>
-  Response.json(
+  NextResponse.json(
     {
       dailyData: [],
       sedes: [],
@@ -519,32 +521,66 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
 };
 
 export async function GET(request: Request) {
+  const session = await requireAuthSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "No autorizado." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
     const retryAfterSeconds = Math.ceil((limitedUntil - Date.now()) / 1000);
-    return Response.json(
-      { error: "Demasiadas solicitudes. Intenta más tarde." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": retryAfterSeconds.toString(),
-          "Cache-Control": "no-store",
+    return withSession(
+      NextResponse.json(
+        { error: "Demasiadas solicitudes. Intenta más tarde." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": retryAfterSeconds.toString(),
+            "Cache-Control": "no-store",
+          },
         },
-      },
+      ),
     );
   }
   const cached = await readCache();
   if (cached && cached.length > 0) {
-    return buildCacheResponse(cached);
+    return withSession(buildCacheResponse(cached));
   }
   try {
     await testDbConnection();
     const dailyData = await fetchAllProductivityData();
     if (dailyData.length > 0) {
-      return Response.json(
+      return withSession(
+        NextResponse.json(
+          {
+            dailyData,
+            sedes: buildSedes(dailyData),
+          },
+          {
+            headers: {
+              "Cache-Control": "no-store",
+              "X-Data-Source": "database",
+            },
+          },
+        ),
+      );
+    }
+    return withSession(
+      NextResponse.json(
         {
-          dailyData,
-          sedes: buildSedes(dailyData),
+          dailyData: [],
+          sedes: [],
+          message: "Conexión a base de datos establecida. Sin datos aún.",
         },
         {
           headers: {
@@ -552,25 +588,15 @@ export async function GET(request: Request) {
             "X-Data-Source": "database",
           },
         },
-      );
-    }
-    return Response.json(
-      {
-        dailyData: [],
-        sedes: [],
-        message: "Conexión a base de datos establecida. Sin datos aún.",
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-          "X-Data-Source": "database",
-        },
-      },
+      ),
     );
   } catch (error) {
     console.error("Error en endpoint de productividad:", error);
-    return buildFallbackResponse(
-      `Error de conexión: ${error instanceof Error ? error.message : String(error)}`,
+    return withSession(
+      buildFallbackResponse(
+        "Error de conexión: " + (error instanceof Error ? error.message : String(error)),
+      ),
     );
   }
 }
+

@@ -1,4 +1,4 @@
-const dbConfig = {
+﻿const dbConfig = {
   host: process.env.DB_HOST ?? "192.168.35.232",
   port: Number(process.env.DB_PORT ?? 5432),
   database: process.env.DB_NAME ?? "produXdia",
@@ -48,3 +48,4 @@ export const testDbConnection = async () => {
     client.release();
   }
 };
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useCallback } from "react";
 import { GripVertical } from "lucide-react";
@@ -271,4 +271,5 @@ export const LineComparisonTable = ({
     </section>
   );
 };
+
 

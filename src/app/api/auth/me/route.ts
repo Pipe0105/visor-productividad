@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { getUserFromSession } from "@/lib/auth";
+import { getSessionCookieOptions, getUserSession } from "@/lib/auth";
 
 export async function GET() {
-  const user = await getUserFromSession();
-  if (!user) {
+  const session = await getUserSession();
+  if (!session) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
-  return NextResponse.json({ user });
+  const response = NextResponse.json({ user: session.user });
+  response.cookies.set(
+    "vp_session",
+    session.token,
+    getSessionCookieOptions(session.expiresAt),
+  );
+  return response;
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -8,6 +8,7 @@ import {
   createContext,
   useContext,
 } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { animate, remove } from "animejs";
 import {
@@ -41,7 +42,12 @@ import { HourlyAnalysis } from "@/components/HourlyAnalysis";
 import { LineCard } from "@/components/LineCard";
 import { LineComparisonTable } from "@/components/LineComparisonTable";
 import { TopBar } from "@/components/TopBar";
-import { formatCOP, hasLaborDataForLine } from "@/lib/calc";
+import {
+  calcLineMargin,
+  formatCOP,
+  getSedeM2,
+  hasLaborDataForLine,
+} from "@/lib/calc";
 import { formatDateLabel } from "@/lib/utils";
 import {
   DEFAULT_LINES,
@@ -139,6 +145,13 @@ const useProductivityData = () => {
 
         if (!isMounted) return;
 
+        if (response.status === 401) {
+          setError("No autorizado.");
+          setDailyDataSet([]);
+          setAvailableSedes([]);
+          return;
+        }
+
         const resolvedDailyData = payload.dailyData ?? [];
         const resolvedSedes =
           payload.sedes && payload.sedes.length > 0
@@ -184,7 +197,7 @@ const useProductivityData = () => {
 const useAnimations = (
   isLoading: boolean,
   filteredLinesCount: number,
-  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly",
+  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2",
 ) => {
   useEffect(() => {
     if (
@@ -521,8 +534,10 @@ const ViewToggle = ({
   viewMode,
   onChange,
 }: {
-  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly";
-  onChange: (value: "cards" | "comparison" | "chart" | "trends" | "hourly") => void;
+  viewMode: "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2";
+  onChange: (
+    value: "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2",
+  ) => void;
 }) => {
   const getModeLabel = () => {
     switch (viewMode) {
@@ -536,6 +551,8 @@ const ViewToggle = ({
         return "Análisis de tendencias";
       case "hourly":
         return "Análisis por hora";
+      case "m2":
+        return "Indicadores por m2";
     }
   };
 
@@ -615,6 +632,19 @@ const ViewToggle = ({
         >
           <Clock className="h-4 w-4" />
           Por hora
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("m2")}
+          aria-pressed={viewMode === "m2"}
+          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
+            viewMode === "m2"
+              ? "bg-white text-mercamio-700 shadow-sm"
+              : "text-slate-700 hover:text-slate-800"
+          }`}
+        >
+          <Sparkles className="h-4 w-4" />
+          M2
         </button>
       </div>
     </div>
@@ -1258,6 +1288,17 @@ const LineTrends = ({
   const [comparisonBaseline, setComparisonBaseline] = useState<
     "seleccionadas" | "todas"
   >("seleccionadas");
+  const [comparisonSort, setComparisonSort] = useState<
+    "none" | "m2_desc" | "m2_asc"
+  >("none");
+  const [comparisonSizeFilter, setComparisonSizeFilter] = useState<
+    | "all"
+    | "gte_1000"
+    | "gte_2000"
+    | "gte_3000"
+    | "between_1000_2000"
+    | "between_2000_3000"
+  >("all");
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1285,12 +1326,6 @@ const LineTrends = ({
     );
   }, []);
 
-  const toggleAllComparisonSedes = useCallback(() => {
-    setComparisonSedeIds((prev) =>
-      prev.length === visibleSedes.length ? [] : visibleSedes.map((s) => s.id),
-    );
-  }, [visibleSedes]);
-
   // Temporal view: use single local sede, fall back to global selection
   const effectiveTrendSedeIds = useMemo(
     () => (trendSede ? [trendSede] : selectedSedeIds),
@@ -1317,6 +1352,85 @@ const LineTrends = ({
     sedes.forEach((s) => map.set(s.id, s.name));
     return map;
   }, [sedes]);
+  const getSedeM2Value = useCallback(
+    (sede: Sede) => getSedeM2(sede.name) ?? getSedeM2(sede.id),
+    [],
+  );
+  const filteredVisibleSedes = useMemo(() => {
+    if (comparisonSizeFilter === "all") return visibleSedes;
+    return visibleSedes.filter((sede) => {
+      const m2 = getSedeM2Value(sede);
+      if (m2 == null) return false;
+      switch (comparisonSizeFilter) {
+        case "gte_1000":
+          return m2 >= 1000;
+        case "gte_2000":
+          return m2 >= 2000;
+        case "gte_3000":
+          return m2 >= 3000;
+        case "between_1000_2000":
+          return m2 >= 1000 && m2 < 2000;
+        case "between_2000_3000":
+          return m2 >= 2000 && m2 < 3000;
+        default:
+          return true;
+      }
+    });
+  }, [comparisonSizeFilter, getSedeM2Value, visibleSedes]);
+
+  useEffect(() => {
+    const available = new Set(filteredVisibleSedes.map((s) => s.id));
+    setComparisonSedeIds((prev) => prev.filter((id) => available.has(id)));
+  }, [filteredVisibleSedes]);
+
+  const toggleAllComparisonSedes = useCallback(() => {
+    setComparisonSedeIds((prev) =>
+      prev.length === filteredVisibleSedes.length
+        ? []
+        : filteredVisibleSedes.map((s) => s.id),
+    );
+  }, [filteredVisibleSedes]);
+  const orderedVisibleSedes = useMemo(() => {
+    if (comparisonSort === "none") return filteredVisibleSedes;
+    const sorted = [...filteredVisibleSedes].sort((a, b) => {
+      const aM2 = getSedeM2Value(a);
+      const bM2 = getSedeM2Value(b);
+      const aUnknown = aM2 == null;
+      const bUnknown = bM2 == null;
+      if (aUnknown && bUnknown) {
+        return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+      }
+      if (aUnknown) return 1;
+      if (bUnknown) return -1;
+      return comparisonSort === "m2_desc" ? bM2 - aM2 : aM2 - bM2;
+    });
+    return sorted;
+  }, [comparisonSort, getSedeM2Value, filteredVisibleSedes]);
+  const orderedComparisonSedeIds = useMemo(() => {
+    if (comparisonSort === "none") return comparisonSedeIds;
+    const m2ById = new Map<string, number | null>();
+    orderedVisibleSedes.forEach((s) => m2ById.set(s.id, getSedeM2Value(s)));
+    return [...comparisonSedeIds].sort((a, b) => {
+      const aM2 = m2ById.get(a) ?? getSedeM2(sedeNameMap.get(a) ?? a);
+      const bM2 = m2ById.get(b) ?? getSedeM2(sedeNameMap.get(b) ?? b);
+      const aUnknown = aM2 == null;
+      const bUnknown = bM2 == null;
+      if (aUnknown && bUnknown) {
+        const aName = sedeNameMap.get(a) ?? a;
+        const bName = sedeNameMap.get(b) ?? b;
+        return aName.localeCompare(bName, "es", { sensitivity: "base" });
+      }
+      if (aUnknown) return 1;
+      if (bUnknown) return -1;
+      return comparisonSort === "m2_desc" ? bM2 - aM2 : aM2 - bM2;
+    });
+  }, [
+    comparisonSort,
+    comparisonSedeIds,
+    getSedeM2Value,
+    orderedVisibleSedes,
+    sedeNameMap,
+  ]);
   const temporalDates = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
       return availableDates;
@@ -1478,9 +1592,9 @@ const LineTrends = ({
   const comparisonBaselineIds = useMemo(
     () =>
       comparisonBaseline === "todas"
-        ? visibleSedes.map((s) => s.id)
+        ? filteredVisibleSedes.map((s) => s.id)
         : comparisonSedeIds,
-    [comparisonBaseline, visibleSedes, comparisonSedeIds],
+    [comparisonBaseline, filteredVisibleSedes, comparisonSedeIds],
   );
 
   const dailyComparisonBaseline = useMemo(() => {
@@ -1595,7 +1709,7 @@ const LineTrends = ({
     );
 
     return rangeDates.map((date) => {
-      const sedesForDay = comparisonSedeIds.map((sedeId) => {
+      const sedesForDay = orderedComparisonSedeIds.map((sedeId) => {
         const dayData = dailyDataSet.filter(
           (item) => item.sede === sedeId && item.date === date,
         );
@@ -1630,6 +1744,7 @@ const LineTrends = ({
   }, [
     selectedLine,
     comparisonSedeIds,
+    orderedComparisonSedeIds,
     dailyDataSet,
     availableDates,
     dateRange,
@@ -1757,15 +1872,50 @@ const LineTrends = ({
             <span className="text-xs font-semibold text-slate-700">
               Sedes a comparar
             </span>
-            <button
-              type="button"
-              onClick={toggleAllComparisonSedes}
-              className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
-            >
-              {comparisonSedeIds.length === visibleSedes.length
-                ? "Deseleccionar todas"
-                : "Seleccionar todas"}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                Orden
+                <select
+                  value={comparisonSort}
+                  onChange={(e) =>
+                    setComparisonSort(e.target.value as typeof comparisonSort)
+                  }
+                  className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                >
+                  <option value="none">Por defecto</option>
+                  <option value="m2_desc">M2: mayor a menor</option>
+                  <option value="m2_asc">M2: menor a mayor</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                Tamano m2
+                <select
+                  value={comparisonSizeFilter}
+                  onChange={(e) =>
+                    setComparisonSizeFilter(
+                      e.target.value as typeof comparisonSizeFilter,
+                    )
+                  }
+                  className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                >
+                  <option value="all">Todas</option>
+                  <option value="gte_1000">Mayor o igual a 1000 m2</option>
+                  <option value="gte_2000">Mayor o igual a 2000 m2</option>
+                  <option value="gte_3000">Mayor o igual a 3000 m2</option>
+                  <option value="between_1000_2000">Entre 1000 y 2000 m2</option>
+                  <option value="between_2000_3000">Entre 2000 y 3000 m2</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={toggleAllComparisonSedes}
+                className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
+              >
+                {comparisonSedeIds.length === filteredVisibleSedes.length
+                  ? "Deseleccionar todas"
+                  : "Seleccionar todas"}
+              </button>
+            </div>
           </div>
           <div className="mb-4">
             <span className="mb-3 block text-xs font-semibold text-slate-700">
@@ -1797,7 +1947,7 @@ const LineTrends = ({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {visibleSedes.map((sede) => {
+            {orderedVisibleSedes.map((sede) => {
               const isSelected = comparisonSedeIds.includes(sede.id);
               return (
                 <button
@@ -2052,6 +2202,131 @@ const LineTrends = ({
     </div>
   );
 };
+
+const formatM2Value = (value: number | null) => {
+  if (value == null) return "--";
+  return new Intl.NumberFormat("es-CO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+const M2MetricsSection = ({
+  dailyDataSet,
+  sedes,
+  selectedSedeIds,
+  dateRange,
+}: {
+  dailyDataSet: DailyProductivity[];
+  sedes: Sede[];
+  selectedSedeIds: string[];
+  dateRange: DateRange;
+}) => {
+  const selectedSedeIdSet = useMemo(
+    () => new Set(selectedSedeIds),
+    [selectedSedeIds],
+  );
+  const filteredSedes = useMemo(() => {
+    if (selectedSedeIds.length === 0) return sedes;
+    return sedes.filter((sede) => selectedSedeIdSet.has(sede.id));
+  }, [selectedSedeIds.length, sedes, selectedSedeIdSet]);
+  const metrics = useMemo(() => {
+    const bySede = new Map<
+      string,
+      { sales: number; hours: number; margin: number }
+    >();
+
+    dailyDataSet.forEach((item) => {
+      if (dateRange.start && item.date < dateRange.start) return;
+      if (dateRange.end && item.date > dateRange.end) return;
+      if (selectedSedeIds.length > 0 && !selectedSedeIdSet.has(item.sede)) return;
+
+      const entry = bySede.get(item.sede) ?? { sales: 0, hours: 0, margin: 0 };
+      item.lines.forEach((line) => {
+        const hasLabor = hasLaborDataForLine(line.id);
+        const hours = hasLabor ? line.hours : 0;
+        entry.sales += line.sales;
+        entry.hours += hours;
+        entry.margin += calcLineMargin(line);
+      });
+      bySede.set(item.sede, entry);
+    });
+
+    return filteredSedes.map((sede) => {
+      const totals = bySede.get(sede.id) ?? { sales: 0, hours: 0, margin: 0 };
+      const m2 = getSedeM2(sede.name) ?? getSedeM2(sede.id);
+      const salesPerM2 = m2 ? totals.sales / m2 : null;
+      const hoursPerM2 = m2 ? totals.hours / m2 : null;
+      const marginPerM2 = m2 ? totals.margin / m2 : null;
+
+      return {
+        sedeId: sede.id,
+        sedeName: sede.name,
+        m2,
+        salesPerM2,
+        hoursPerM2,
+        marginPerM2,
+      };
+    });
+  }, [
+    dailyDataSet,
+    dateRange.end,
+    dateRange.start,
+    filteredSedes,
+    selectedSedeIdSet,
+    selectedSedeIds.length,
+  ]);
+
+  if (metrics.length === 0) return null;
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+      <div className="mb-4">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
+          Indicadores por m2
+        </p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-900">
+          Ventas, horas y margen por m2
+        </h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm text-slate-700">
+          <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-semibold">Sede</th>
+              <th className="px-3 py-2 text-right font-semibold">m2</th>
+              <th className="px-3 py-2 text-right font-semibold">Ventas/m2</th>
+              <th className="px-3 py-2 text-right font-semibold">Horas/m2</th>
+              <th className="px-3 py-2 text-right font-semibold">Margen/m2</th>
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((item) => (
+              <tr key={item.sedeId} className="border-t border-slate-100">
+                <td className="px-3 py-2 font-semibold text-slate-900">
+                  {item.sedeName}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {formatM2Value(item.m2)}
+                </td>
+                <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                  {item.salesPerM2 == null ? "--" : formatCOP(item.salesPerM2)}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {item.hoursPerM2 == null ? "--" : item.hoursPerM2.toFixed(2)}
+                </td>
+                <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                  {item.marginPerM2 == null ? "--" : formatCOP(item.marginPerM2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
@@ -2061,6 +2336,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isAdmin, setIsAdmin] = useState(false);
+  const router = useRouter();
 
   // Estado con persistencia - siempre inicia con valores por defecto
   const [selectedSede, setSelectedSede] = useState("");
@@ -2071,7 +2347,7 @@ export default function Home() {
   });
   const [lineFilter, setLineFilter] = useState("all");
   const [viewMode, setViewMode] = useState<
-    "cards" | "comparison" | "chart" | "trends" | "hourly"
+    "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2"
   >("cards");
 
   // Cargar preferencias desde localStorage después de montar
@@ -2113,7 +2389,15 @@ export default function Home() {
 
     const savedViewMode = localStorage.getItem("viewMode");
     if (savedViewMode) {
-      setViewMode(savedViewMode as "cards" | "comparison" | "chart" | "trends" | "hourly");
+      setViewMode(
+        savedViewMode as
+          | "cards"
+          | "comparison"
+          | "chart"
+          | "trends"
+          | "hourly"
+          | "m2",
+      );
     }
 
     const savedTheme = localStorage.getItem("theme");
@@ -2450,6 +2734,10 @@ export default function Home() {
         const response = await fetch("/api/auth/me", {
           signal: controller.signal,
         });
+        if (response.status === 401) {
+          router.replace("/login");
+          return;
+        }
         if (!response.ok) return;
         const payload = (await response.json()) as {
           user?: { role?: string };
@@ -2469,7 +2757,7 @@ export default function Home() {
       isMounted = false;
       controller.abort();
     };
-  }, []);
+  }, [router]);
 
   const handleCompaniesChange = useCallback((value: string[]) => {
     const next = value.slice(0, 2);
@@ -2519,7 +2807,7 @@ export default function Home() {
   }, []);
 
   const handleViewChange = useCallback(
-    (value: "cards" | "comparison" | "chart" | "trends" | "hourly") => {
+    (value: "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2") => {
       setViewMode(value);
     },
     [],
@@ -2580,14 +2868,14 @@ export default function Home() {
       "REPORTE DE PRODUCTIVIDAD POR LÍNEA",
       separator,
       "",
-      "┌─────────────────────────────────────────────────────────────────────────────┐",
+      "┌────────────────────────────────────────────────────────────────────────────────┐",
       "│  INFORMACIÓN DEL REPORTE                                                    │",
-      "├─────────────────────────────────────────────────────────────────────────────┤",
+      "├────────────────────────────────────────────────────────────────────────────────┤",
       `│  Sede:      ${escapeCsv(selectedScopeLabel).padEnd(62)}│`,
       `│  Rango:     ${escapeCsv(dateRangeLabel || "Sin rango definido").padEnd(62)}│`,
       `│  Filtro:    ${escapeCsv(lineFilterLabel).padEnd(62)}│`,
       `│  Generado:  ${escapeCsv(formatPdfDate()).padEnd(62)}│`,
-      "└─────────────────────────────────────────────────────────────────────────────┘",
+      "└────────────────────────────────────────────────────────────────────────────────┘",
       "",
       "",
       thinSeparator,
@@ -3358,6 +3646,13 @@ export default function Home() {
                 defaultDate={dateRange.end}
                 defaultSede={selectedSede || (orderedSedes.length > 0 ? orderedSedes[0].name : "")}
               />
+            ) : viewMode === "m2" ? (
+              <M2MetricsSection
+                dailyDataSet={dailyDataSet}
+                sedes={orderedSedes}
+                selectedSedeIds={selectedSedeIds}
+                dateRange={dateRange}
+              />
             ) : (
               <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredLines.map((line) => (
@@ -3374,9 +3669,11 @@ export default function Home() {
                 onAction={() => setLineFilter("all")}
               />
             )}
+
           </div>
         )}
       </div>
     </div>
   );
 }
+

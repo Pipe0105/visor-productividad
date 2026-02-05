@@ -1,14 +1,26 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import { hashPassword, requireAdminUser } from "@/lib/auth";
+import {
+  getSessionCookieOptions,
+  hashPassword,
+  requireAdminSession,
+} from "@/lib/auth";
 
 type Params = { params: { id: string } };
 
 export async function PATCH(req: Request, { params }: Params) {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
   const body = (await req.json()) as {
     username?: string;
@@ -38,7 +50,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (typeof body.password === "string" && body.password.length > 0) {
     if (body.password.length < 8) {
       return NextResponse.json(
-        { error: "La contraseÃ±a debe tener mÃ­nimo 8 caracteres." },
+        { error: "La contraseña debe tener mínimo 8 caracteres." },
         { status: 400 },
       );
     }
@@ -67,7 +79,7 @@ export async function PATCH(req: Request, { params }: Params) {
       `,
       values,
     );
-    return NextResponse.json({ user: result.rows?.[0] ?? null });
+    return withSession(NextResponse.json({ user: result.rows?.[0] ?? null }));
   } catch (error) {
     return NextResponse.json(
       { error: "No se pudo actualizar el usuario." },
@@ -79,12 +91,20 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
-  if (admin.id === params.id) {
+  if (session.user.id === params.id) {
     return NextResponse.json(
       { error: "No puedes eliminar tu propio usuario." },
       { status: 400 },
@@ -94,7 +114,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   const client = await (await getDbPool()).connect();
   try {
     await client.query(`DELETE FROM app_users WHERE id = $1`, [params.id]);
-    return NextResponse.json({ ok: true });
+    return withSession(NextResponse.json({ ok: true }));
   } finally {
     client.release();
   }

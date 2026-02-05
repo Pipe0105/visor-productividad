@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import {
   createSession,
   getClientIp,
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     if (!username || !password) {
       return NextResponse.json(
-        { error: "Usuario y contraseÃ±a son obligatorios." },
+        { error: "Usuario y contraseña son obligatorios." },
         { status: 400 },
       );
     }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
       if (!result.rows || result.rows.length === 0) {
         return NextResponse.json(
-          { error: "Credenciales invÃ¡lidas." },
+          { error: "Credenciales inválidas." },
           { status: 401 },
         );
       }
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       const ok = await verifyPassword(password, user.password_hash);
       if (!ok) {
         return NextResponse.json(
-          { error: "Credenciales invÃ¡lidas." },
+          { error: "Credenciales inválidas." },
           { status: 401 },
         );
       }
@@ -101,8 +101,9 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     return NextResponse.json(
-      { error: "No se pudo iniciar sesiÃ³n." },
+      { error: "No se pudo iniciar sesión." },
       { status: 500 },
     );
   }
 }
+

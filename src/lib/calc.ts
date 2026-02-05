@@ -1,4 +1,4 @@
-import { LineMetrics } from "../types";
+﻿import { LineMetrics } from "../types";
 
 // Líneas que NO tienen datos de horas en asistencia_horas
 // Todas las líneas principales ahora tienen datos de horas
@@ -45,7 +45,7 @@ export const calcLineMargin = (line: LineMetrics) => {
 
 // m2 por sede (según la lista compartida en este chat)
 const SEDE_M2: Record<string, number> = {
-  "Calle 5": 6300.44,
+  "Calle 5ta": 6300.44,
   Floresta: 5906.38,
   "Calle 39": 2788.32,
   Floralia: 3284.09,
@@ -68,4 +68,5 @@ export const getSedeSizeBucket = (sedeName: string): SedeSizeBucket => {
   if (m2 == null) return "unknown";
   return m2 < 1000 ? "lt_1000" : "gte_1000";
 };
+
 

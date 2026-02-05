@@ -1,12 +1,24 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import { hashPassword, requireAdminUser } from "@/lib/auth";
+import {
+  getSessionCookieOptions,
+  hashPassword,
+  requireAdminSession,
+} from "@/lib/auth";
 
 export async function GET() {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
   const client = await (await getDbPool()).connect();
   try {
@@ -17,17 +29,25 @@ export async function GET() {
       ORDER BY created_at DESC
       `,
     );
-    return NextResponse.json({ users: result.rows ?? [] });
+    return withSession(NextResponse.json({ users: result.rows ?? [] }));
   } finally {
     client.release();
   }
 }
 
 export async function POST(req: Request) {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
   const body = (await req.json()) as {
     username?: string;
@@ -41,7 +61,7 @@ export async function POST(req: Request) {
 
   if (!username || password.length < 8) {
     return NextResponse.json(
-      { error: "Usuario y contraseÃ±a (mÃ­n 8) son obligatorios." },
+      { error: "Usuario y contraseña (mín 8) son obligatorios." },
       { status: 400 },
     );
   }
@@ -57,7 +77,7 @@ export async function POST(req: Request) {
       `,
       [username, passwordHash, role],
     );
-    return NextResponse.json({ user: result.rows?.[0] });
+    return withSession(NextResponse.json({ user: result.rows?.[0] }));
   } catch (error) {
     return NextResponse.json(
       { error: "No se pudo crear el usuario (usuario duplicado?)." },
@@ -67,3 +87,4 @@ export async function POST(req: Request) {
     client.release();
   }
 }
+

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { Download, ChevronDown } from "lucide-react";
 
 interface SelectionSummaryProps {
@@ -123,3 +123,4 @@ export const SelectionSummary = ({
     </div>
   );
 };
+

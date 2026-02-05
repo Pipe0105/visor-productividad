@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import { requireAdminUser } from "@/lib/auth";
+import { getSessionCookieOptions, requireAdminSession } from "@/lib/auth";
 
 export async function GET(req: Request) {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
   const { searchParams } = new URL(req.url);
   const limit = Math.min(Number(searchParams.get("limit") ?? 20), 100);
@@ -23,22 +31,30 @@ export async function GET(req: Request) {
       `,
       [limit],
     );
-    return NextResponse.json({ logs: result.rows ?? [] });
+    return withSession(NextResponse.json({ logs: result.rows ?? [] }));
   } finally {
     client.release();
   }
 }
 
 export async function DELETE() {
-  const admin = await requireAdminUser();
-  if (!admin) {
+  const session = await requireAdminSession();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const withSession = (response: NextResponse) => {
+    response.cookies.set(
+      "vp_session",
+      session.token,
+      getSessionCookieOptions(session.expiresAt),
+    );
+    return response;
+  };
 
   const client = await (await getDbPool()).connect();
   try {
     const result = await client.query("DELETE FROM app_user_login_logs");
-    return NextResponse.json({ deleted: result.rowCount ?? 0 });
+    return withSession(NextResponse.json({ deleted: result.rowCount ?? 0 }));
   } finally {
     client.release();
   }
