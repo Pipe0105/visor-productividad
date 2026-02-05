@@ -210,10 +210,10 @@ export default function AdminUsuariosPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/"
+              href="/tableros"
               className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
             >
-              Volver al tablero
+              Cambiar tablero
             </Link>
             <button
               type="button"

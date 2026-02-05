@@ -106,6 +106,11 @@ const sumMargins = (lines: LineMetrics[]) =>
 export default function MargenesPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [prefsReady, setPrefsReady] = useState(false);
+  const [pendingSedeKey, setPendingSedeKey] = useState<string | null>(null);
+  const [appliedUserDefault, setAppliedUserDefault] = useState(false);
   const [dailyDataSet, setDailyDataSet] = useState<DailyProductivity[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -113,6 +118,18 @@ export default function MargenesPage() {
   const [selectedSede, setSelectedSede] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ start: "", end: "" });
+  const prefsKey = useMemo(
+    () => `vp_margenes_prefs_${username ?? "default"}`,
+    [username],
+  );
+
+  const resolveUsernameSedeKey = (value?: string | null) => {
+    if (!value) return null;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized.startsWith("sede_")) return null;
+    const raw = normalized.replace(/^sede_/, "").replace(/_/g, " ");
+    return normalizeSedeKey(raw);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -128,12 +145,19 @@ export default function MargenesPage() {
           return;
         }
         if (!response.ok) return;
+        const payload = (await response.json()) as {
+          user?: { role?: string; username?: string };
+        };
         if (!isMounted) return;
         setReady(true);
+        setUsername(payload.user?.username ?? null);
+        setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
+      } finally {
+        if (isMounted) setAuthLoaded(true);
       }
     };
 
@@ -234,6 +258,63 @@ export default function MargenesPage() {
       end: prev.end || (availableDates.at(-1) ?? availableDates[0]),
     }));
   }, [availableDates]);
+
+  useEffect(() => {
+    if (!authLoaded) return;
+
+    const rawPrefs = localStorage.getItem(prefsKey);
+    if (rawPrefs) {
+      try {
+        const parsed = JSON.parse(rawPrefs) as {
+          selectedSede?: string;
+          selectedCompanies?: string[];
+          dateRange?: DateRange;
+        };
+        if (Array.isArray(parsed.selectedCompanies)) {
+          setSelectedCompanies(parsed.selectedCompanies.slice(0, 2));
+        }
+        if (typeof parsed.selectedSede === "string") {
+          setSelectedSede(parsed.selectedSede);
+        }
+        if (parsed.dateRange?.start && parsed.dateRange?.end) {
+          setDateRange(parsed.dateRange);
+        }
+        setPrefsReady(true);
+        return;
+      } catch {
+        // ignore
+      }
+    }
+    setPrefsReady(true);
+  }, [authLoaded, prefsKey]);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    const payload = {
+      selectedSede,
+      selectedCompanies,
+      dateRange,
+    };
+    localStorage.setItem(prefsKey, JSON.stringify(payload));
+  }, [dateRange, prefsKey, prefsReady, selectedCompanies, selectedSede]);
+
+  useEffect(() => {
+    if (!prefsReady || appliedUserDefault) return;
+    if (!pendingSedeKey) {
+      setAppliedUserDefault(true);
+      return;
+    }
+    const match = orderedSedes.find((sede) => {
+      const idKey = normalizeSedeKey(sede.id);
+      const nameKey = normalizeSedeKey(sede.name);
+      return idKey === pendingSedeKey || nameKey === pendingSedeKey;
+    });
+    if (match) {
+      setSelectedCompanies([]);
+      setSelectedSede(match.id);
+      setAppliedUserDefault(true);
+    }
+  }, [appliedUserDefault, orderedSedes, pendingSedeKey, prefsReady]);
 
   const selectedDay = dateRange.end || dateRange.start;
 
@@ -394,6 +475,13 @@ export default function MargenesPage() {
                 </label>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => router.push("/tableros")}
+              className="inline-flex h-fit items-center justify-center rounded-full border border-slate-200/70 bg-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100"
+            >
+              Cambiar tablero
+            </button>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.25)]">

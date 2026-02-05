@@ -2388,6 +2388,11 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [prefsReady, setPrefsReady] = useState(false);
+  const [pendingSedeKey, setPendingSedeKey] = useState<string | null>(null);
+  const [appliedUserDefault, setAppliedUserDefault] = useState(false);
   const router = useRouter();
 
   // Estado con persistencia - siempre inicia con valores por defecto
@@ -2402,9 +2407,71 @@ export default function Home() {
     "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2"
   >("cards");
 
+  const prefsKey = useMemo(
+    () => `vp_prefs_${username ?? "default"}`,
+    [username],
+  );
+
+  const resolveUsernameSedeKey = useCallback((value?: string | null) => {
+    if (!value) return null;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized.startsWith("sede_")) return null;
+    const raw = normalized.replace(/^sede_/, "").replace(/_/g, " ");
+    return normalizeSedeKey(raw);
+  }, []);
+
   // Cargar preferencias desde localStorage después de montar
   useEffect(() => {
     setMounted(true);
+
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    } else if (window.matchMedia) {
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      setTheme(prefersDark ? "dark" : "light");
+      document.documentElement.classList.toggle("dark", prefersDark);
+    }
+  }, []);
+
+  // Cargar preferencias por usuario cuando auth esté listo
+  useEffect(() => {
+    if (!mounted || !authLoaded) return;
+
+    const rawPrefs = localStorage.getItem(prefsKey);
+    if (rawPrefs) {
+      try {
+        const parsed = JSON.parse(rawPrefs) as {
+          selectedSede?: string;
+          selectedCompanies?: string[];
+          dateRange?: DateRange;
+          lineFilter?: string;
+          viewMode?: "cards" | "comparison" | "chart" | "trends" | "hourly" | "m2";
+        };
+        if (Array.isArray(parsed.selectedCompanies)) {
+          setSelectedCompanies(parsed.selectedCompanies.slice(0, 2));
+        }
+        if (typeof parsed.selectedSede === "string") {
+          setSelectedSede(parsed.selectedSede);
+        }
+        if (parsed.dateRange?.start && parsed.dateRange?.end) {
+          setDateRange(parsed.dateRange);
+        }
+        if (typeof parsed.lineFilter === "string") {
+          setLineFilter(parsed.lineFilter);
+        }
+        if (parsed.viewMode) {
+          setViewMode(parsed.viewMode);
+        }
+        setPrefsReady(true);
+        return;
+      } catch {
+        // fallback a preferencias antiguas
+      }
+    }
 
     const savedCompanies = localStorage.getItem("selectedCompanies");
     const savedCompany = localStorage.getItem("selectedCompany");
@@ -2452,43 +2519,30 @@ export default function Home() {
       );
     }
 
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light" || savedTheme === "dark") {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle("dark", savedTheme === "dark");
-    } else if (window.matchMedia) {
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)",
-      ).matches;
-      setTheme(prefersDark ? "dark" : "light");
-      document.documentElement.classList.toggle("dark", prefersDark);
-    }
-  }, []);
+    setPrefsReady(true);
+  }, [authLoaded, mounted, prefsKey]);
 
-  // Guardar preferencias en localStorage (solo después de montar)
+  // Guardar preferencias por usuario
   useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("selectedSede", selectedSede);
-  }, [selectedSede, mounted]);
-  useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("selectedCompanies", JSON.stringify(selectedCompanies));
-  }, [selectedCompanies, mounted]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("dateRange", JSON.stringify(dateRange));
-  }, [dateRange, mounted]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("lineFilter", lineFilter);
-  }, [lineFilter, mounted]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    localStorage.setItem("viewMode", viewMode);
-  }, [viewMode, mounted]);
+    if (!mounted || !prefsReady) return;
+    const payload = {
+      selectedSede,
+      selectedCompanies,
+      dateRange,
+      lineFilter,
+      viewMode,
+    };
+    localStorage.setItem(prefsKey, JSON.stringify(payload));
+  }, [
+    dateRange,
+    lineFilter,
+    mounted,
+    prefsKey,
+    prefsReady,
+    selectedCompanies,
+    selectedSede,
+    viewMode,
+  ]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -2571,6 +2625,25 @@ export default function Home() {
       setSelectedSede(orderedSedes[0].id);
     }
   }, [availableSedesKey, selectedSede, selectedCompanies, orderedSedes]);
+
+  // Si el usuario es sede_*, seleccionar su sede por defecto
+  useEffect(() => {
+    if (!prefsReady || appliedUserDefault) return;
+    if (!pendingSedeKey) {
+      setAppliedUserDefault(true);
+      return;
+    }
+    const match = orderedSedes.find((sede) => {
+      const idKey = normalizeSedeKey(sede.id);
+      const nameKey = normalizeSedeKey(sede.name);
+      return idKey === pendingSedeKey || nameKey === pendingSedeKey;
+    });
+    if (match) {
+      setSelectedCompanies([]);
+      setSelectedSede(match.id);
+      setAppliedUserDefault(true);
+    }
+  }, [appliedUserDefault, orderedSedes, pendingSedeKey, prefsReady]);
 
   // Sincronizar fechas
   useEffect(() => {
@@ -2792,14 +2865,18 @@ export default function Home() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { role?: string };
+          user?: { role?: string; username?: string };
         };
         if (!isMounted) return;
         setIsAdmin(payload.user?.role === "admin");
+        setUsername(payload.user?.username ?? null);
+        setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
+      } finally {
+        if (isMounted) setAuthLoaded(true);
       }
     };
 
