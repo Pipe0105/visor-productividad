@@ -237,13 +237,19 @@ export default function MargenesPage() {
 
   const marginsBySede = useMemo(() => {
     const dayMap = new Map<string, number>();
+    const rangeMap = new Map<string, number>();
     const monthMap = new Map<string, number>();
     let totalDay = 0;
+    let totalRange = 0;
     let totalMonth = 0;
 
     if (!selectedDay) {
-      return { dayMap, monthMap, totalDay, totalMonth };
+      return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
     }
+
+    const base = parseDateKey(selectedDay);
+    const monthStart = toDateKey(new Date(base.getFullYear(), base.getMonth(), 1));
+    const monthEnd = toDateKey(new Date(base.getFullYear(), base.getMonth() + 1, 0));
 
     dailyDataSet.forEach((item) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
@@ -255,12 +261,16 @@ export default function MargenesPage() {
         totalDay += margin;
       }
       if (item.date >= dateRange.start && item.date <= dateRange.end) {
+        rangeMap.set(item.sede, (rangeMap.get(item.sede) ?? 0) + margin);
+        totalRange += margin;
+      }
+      if (item.date >= monthStart && item.date <= monthEnd) {
         monthMap.set(item.sede, (monthMap.get(item.sede) ?? 0) + margin);
         totalMonth += margin;
       }
     });
 
-    return { dayMap, monthMap, totalDay, totalMonth };
+    return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
   }, [
     dailyDataSet,
     dateRange.end,
@@ -284,11 +294,16 @@ export default function MargenesPage() {
 
   const marginsByLine = useMemo(() => {
     const dayMap = new Map<string, number>();
+    const rangeMap = new Map<string, number>();
     const monthMap = new Map<string, number>();
 
     if (!selectedDay) {
-      return { dayMap, monthMap };
+      return { dayMap, rangeMap, monthMap };
     }
+
+    const base = parseDateKey(selectedDay);
+    const monthStart = toDateKey(new Date(base.getFullYear(), base.getMonth(), 1));
+    const monthEnd = toDateKey(new Date(base.getFullYear(), base.getMonth() + 1, 0));
 
     dailyDataSet.forEach((item) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
@@ -300,12 +315,15 @@ export default function MargenesPage() {
           dayMap.set(line.id, (dayMap.get(line.id) ?? 0) + margin);
         }
         if (item.date >= dateRange.start && item.date <= dateRange.end) {
+          rangeMap.set(line.id, (rangeMap.get(line.id) ?? 0) + margin);
+        }
+        if (item.date >= monthStart && item.date <= monthEnd) {
           monthMap.set(line.id, (monthMap.get(line.id) ?? 0) + margin);
         }
       });
     });
 
-    return { dayMap, monthMap };
+    return { dayMap, rangeMap, monthMap };
   }, [dailyDataSet, dateRange.end, dateRange.start, selectedDay, selectedSedeIdSet]);
 
   if (!ready) {
@@ -331,7 +349,7 @@ export default function MargenesPage() {
             </h1>
             <p className="mt-1 text-sm text-slate-600">
               Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%) para
-              el dia y acumulado del rango.
+              el dia, acumulado del rango y acumulado del mes.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -458,6 +476,9 @@ export default function MargenesPage() {
                     <th className="px-4 py-3 text-right font-semibold">
                       Acumulado rango
                     </th>
+                    <th className="px-4 py-3 text-right font-semibold">
+                      Acumulado mes
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,6 +491,9 @@ export default function MargenesPage() {
                         {formatCOP(marginsBySede.dayMap.get(sede.id) ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        {formatCOP(marginsBySede.rangeMap.get(sede.id) ?? 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
                         {formatCOP(marginsBySede.monthMap.get(sede.id) ?? 0)}
                       </td>
                     </tr>
@@ -480,6 +504,9 @@ export default function MargenesPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900">
                       {formatCOP(marginsBySede.totalDay)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                      {formatCOP(marginsBySede.totalRange)}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900">
                       {formatCOP(marginsBySede.totalMonth)}
@@ -502,6 +529,9 @@ export default function MargenesPage() {
                     <th className="px-4 py-3 text-right font-semibold">
                       Acumulado rango
                     </th>
+                    <th className="px-4 py-3 text-right font-semibold">
+                      Acumulado mes
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -512,6 +542,9 @@ export default function MargenesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {formatCOP(marginsByLine.dayMap.get(line.id) ?? 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {formatCOP(marginsByLine.rangeMap.get(line.id) ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {formatCOP(marginsByLine.monthMap.get(line.id) ?? 0)}
