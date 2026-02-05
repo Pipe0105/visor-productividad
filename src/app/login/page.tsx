@@ -27,7 +27,7 @@ export default function LoginPage() {
         throw new Error(payload.error ?? "No se pudo iniciar sesión.");
       }
 
-      router.push("/");
+      router.push("/tableros");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
