@@ -28,6 +28,8 @@ const parseDateKey = (dateKey: string): Date => {
   return new Date(year, month - 1, day);
 };
 
+const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
+
 const formatDateLabel = (dateKey: string) =>
   new Intl.DateTimeFormat("es-CO", {
     day: "2-digit",

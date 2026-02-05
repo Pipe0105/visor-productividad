@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   useCallback,
+  useRef,
   createContext,
   useContext,
 } from "react";
@@ -1101,7 +1102,7 @@ const ChartVisualization = ({
   if (lines.length === 0) return null;
 
   return (
-    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <div className="relative overflow-visible rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Grafico de productividad
@@ -1299,6 +1300,9 @@ const LineTrends = ({
     | "between_1000_2000"
     | "between_2000_3000"
   >("all");
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const filtersRef = useRef<HTMLDivElement | null>(null);
+  const [showFloatingFilters, setShowFloatingFilters] = useState(false);
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1597,6 +1601,30 @@ const LineTrends = ({
     [comparisonBaseline, filteredVisibleSedes, comparisonSedeIds],
   );
 
+  useEffect(() => {
+    if (viewType !== "por-sede") {
+      setShowFloatingFilters(false);
+      return;
+    }
+
+    const updateFloating = () => {
+      if (!filtersRef.current || !cardRef.current) return;
+      const filtersRect = filtersRef.current.getBoundingClientRect();
+      const cardRect = cardRef.current.getBoundingClientRect();
+      const cardVisible = cardRect.bottom > 120 && cardRect.top < window.innerHeight;
+      const shouldFloat = filtersRect.bottom < 12;
+      setShowFloatingFilters(cardVisible && shouldFloat);
+    };
+
+    updateFloating();
+    window.addEventListener("scroll", updateFloating, { passive: true });
+    window.addEventListener("resize", updateFloating);
+    return () => {
+      window.removeEventListener("scroll", updateFloating);
+      window.removeEventListener("resize", updateFloating);
+    };
+  }, [viewType]);
+
   const dailyComparisonBaseline = useMemo(() => {
     if (!selectedLine || availableDates.length === 0) return new Map<string, number>();
     const map = new Map<string, number>();
@@ -1761,8 +1789,124 @@ const LineTrends = ({
 
   if (lines.length === 0 || availableDates.length === 0) return null;
 
+  const renderComparisonFilters = (compact = false) => (
+    <div
+      className={`rounded-2xl border border-slate-200/70 bg-white/95 ${
+        compact ? "px-4 py-3" : "p-4"
+      } shadow-[0_18px_40px_-35px_rgba(15,23,42,0.5)] backdrop-blur`}
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs font-semibold text-slate-700">
+          Sedes a comparar
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            Orden
+            <select
+              value={comparisonSort}
+              onChange={(e) =>
+                setComparisonSort(e.target.value as typeof comparisonSort)
+              }
+              className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              <option value="none">Por defecto</option>
+              <option value="m2_desc">M2: mayor a menor</option>
+              <option value="m2_asc">M2: menor a mayor</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            Tamano m2
+            <select
+              value={comparisonSizeFilter}
+              onChange={(e) =>
+                setComparisonSizeFilter(
+                  e.target.value as typeof comparisonSizeFilter,
+                )
+              }
+              className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              <option value="all">Todas</option>
+              <option value="gte_1000">Mayor o igual a 1000 m2</option>
+              <option value="gte_2000">Mayor o igual a 2000 m2</option>
+              <option value="gte_3000">Mayor o igual a 3000 m2</option>
+              <option value="between_1000_2000">Entre 1000 y 2000 m2</option>
+              <option value="between_2000_3000">Entre 2000 y 3000 m2</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={toggleAllComparisonSedes}
+            className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
+          >
+            {comparisonSedeIds.length === filteredVisibleSedes.length
+              ? "Deseleccionar todas"
+              : "Seleccionar todas"}
+          </button>
+        </div>
+      </div>
+      <div>
+        <span className="mb-3 block text-xs font-semibold text-slate-700">
+          Mapa de calor
+        </span>
+        <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setComparisonBaseline("seleccionadas")}
+            className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              comparisonBaseline === "seleccionadas"
+                ? "bg-white text-mercamio-700 shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Promedio seleccionadas
+          </button>
+          <button
+            type="button"
+            onClick={() => setComparisonBaseline("todas")}
+            className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              comparisonBaseline === "todas"
+                ? "bg-white text-mercamio-700 shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Promedio total
+          </button>
+        </div>
+      </div>
+      {compact && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {orderedVisibleSedes.map((sede) => {
+            const isSelected = comparisonSedeIds.includes(sede.id);
+            return (
+              <button
+                key={sede.id}
+                type="button"
+                onClick={() => toggleComparisonSede(sede.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                    : "border-slate-200/70 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                }`}
+              >
+                {sede.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <div
+      ref={cardRef}
+      className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
+    >
+      {viewType === "por-sede" && showFloatingFilters && (
+        <div className="fixed left-1/2 top-3 z-30 w-[min(960px,92vw)] -translate-x-1/2">
+          {renderComparisonFilters(true)}
+        </div>
+      )}
       <div className="mb-4">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
           Analisis de tendencias
@@ -1868,85 +2012,8 @@ const LineTrends = ({
 
       {viewType === "por-sede" && (
         <div className="mb-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs font-semibold text-slate-700">
-              Sedes a comparar
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                Orden
-                <select
-                  value={comparisonSort}
-                  onChange={(e) =>
-                    setComparisonSort(e.target.value as typeof comparisonSort)
-                  }
-                  className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-                >
-                  <option value="none">Por defecto</option>
-                  <option value="m2_desc">M2: mayor a menor</option>
-                  <option value="m2_asc">M2: menor a mayor</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                Tamano m2
-                <select
-                  value={comparisonSizeFilter}
-                  onChange={(e) =>
-                    setComparisonSizeFilter(
-                      e.target.value as typeof comparisonSizeFilter,
-                    )
-                  }
-                  className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-                >
-                  <option value="all">Todas</option>
-                  <option value="gte_1000">Mayor o igual a 1000 m2</option>
-                  <option value="gte_2000">Mayor o igual a 2000 m2</option>
-                  <option value="gte_3000">Mayor o igual a 3000 m2</option>
-                  <option value="between_1000_2000">Entre 1000 y 2000 m2</option>
-                  <option value="between_2000_3000">Entre 2000 y 3000 m2</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={toggleAllComparisonSedes}
-                className="text-xs font-semibold text-mercamio-700 transition-colors hover:text-mercamio-800"
-              >
-                {comparisonSedeIds.length === filteredVisibleSedes.length
-                  ? "Deseleccionar todas"
-                  : "Seleccionar todas"}
-              </button>
-            </div>
-          </div>
-          <div className="mb-4">
-            <span className="mb-3 block text-xs font-semibold text-slate-700">
-              Mapa de calor
-            </span>
-            <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
-              <button
-                type="button"
-                onClick={() => setComparisonBaseline("seleccionadas")}
-                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
-                  comparisonBaseline === "seleccionadas"
-                    ? "bg-white text-mercamio-700 shadow-sm"
-                    : "text-slate-700 hover:text-slate-800"
-                }`}
-              >
-                Promedio seleccionadas
-              </button>
-              <button
-                type="button"
-                onClick={() => setComparisonBaseline("todas")}
-                className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
-                  comparisonBaseline === "todas"
-                    ? "bg-white text-mercamio-700 shadow-sm"
-                    : "text-slate-700 hover:text-slate-800"
-                }`}
-              >
-                Promedio total
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <div ref={filtersRef}>{renderComparisonFilters()}</div>
+          <div className="mt-4 flex flex-wrap gap-2">
             {orderedVisibleSedes.map((sede) => {
               const isSelected = comparisonSedeIds.includes(sede.id);
               return (
