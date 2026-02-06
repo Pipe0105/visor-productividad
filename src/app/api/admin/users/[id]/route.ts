@@ -6,13 +6,14 @@ import {
   requireAdminSession,
 } from "@/lib/auth";
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Params) {
   const session = await requireAdminSession();
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { id } = await params;
   const withSession = (response: NextResponse) => {
     response.cookies.set(
       "vp_session",
@@ -66,7 +67,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   updates.push("updated_at = now()");
-  values.push(params.id);
+  values.push(id);
 
   const client = await (await getDbPool()).connect();
   try {
@@ -95,6 +96,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { id } = await params;
   const withSession = (response: NextResponse) => {
     response.cookies.set(
       "vp_session",
@@ -104,7 +106,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     return response;
   };
 
-  if (session.user.id === params.id) {
+  if (session.user.id === id) {
     return NextResponse.json(
       { error: "No puedes eliminar tu propio usuario." },
       { status: 400 },
@@ -113,7 +115,7 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const client = await (await getDbPool()).connect();
   try {
-    await client.query(`DELETE FROM app_users WHERE id = $1`, [params.id]);
+    await client.query(`DELETE FROM app_users WHERE id = $1`, [id]);
     return withSession(NextResponse.json({ ok: true }));
   } finally {
     client.release();
