@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+const enableUpgradeInsecure =
+  process.env.UPGRADE_INSECURE_REQUESTS === "true";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   isDev
@@ -15,8 +18,8 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  // Solo aplicar upgrade-insecure-requests en producción
-  ...(isDev ? [] : ["upgrade-insecure-requests"]),
+  // Solo aplicar upgrade-insecure-requests cuando hay HTTPS real
+  ...(enableUpgradeInsecure ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [
@@ -69,3 +72,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
