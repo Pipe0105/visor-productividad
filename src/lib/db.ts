@@ -8,6 +8,7 @@
 };
 type DbQueryResult = {
   rows?: Array<{ total?: number | string | null }>;
+  rowCount?: number | null;
 };
 
 type DbClient = {
