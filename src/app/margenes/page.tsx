@@ -76,9 +76,7 @@ const resolveSelectedSedeIds = (
   if (selectedCompanies.length > 0) {
     const resolved = new Set<string>();
     selectedCompanies.forEach((companyId) => {
-      const group = SEDE_GROUPS.find(
-        (candidate) => candidate.id === companyId,
-      );
+      const group = SEDE_GROUPS.find((candidate) => candidate.id === companyId);
       if (!group) return;
       group.sedes.forEach((sedeId) => {
         const resolvedId = availableByKey.get(normalizeSedeKey(sedeId));
@@ -245,8 +243,8 @@ export default function MargenesPage() {
   }, [orderedSedes, selectedSedeIdSet, selectedSedeIds.length]);
   const availableDates = useMemo(
     () =>
-      Array.from(new Set(dailyDataSet.map((item) => item.date))).sort(
-        (a, b) => a.localeCompare(b),
+      Array.from(new Set(dailyDataSet.map((item) => item.date))).sort((a, b) =>
+        a.localeCompare(b),
       ),
     [dailyDataSet],
   );
@@ -331,8 +329,12 @@ export default function MargenesPage() {
     }
 
     const base = parseDateKey(selectedDay);
-    const monthStart = toDateKey(new Date(base.getFullYear(), base.getMonth(), 1));
-    const monthEnd = toDateKey(new Date(base.getFullYear(), base.getMonth() + 1, 0));
+    const monthStart = toDateKey(
+      new Date(base.getFullYear(), base.getMonth(), 1),
+    );
+    const monthEnd = toDateKey(
+      new Date(base.getFullYear(), base.getMonth() + 1, 0),
+    );
 
     dailyDataSet.forEach((item) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
@@ -385,8 +387,12 @@ export default function MargenesPage() {
     }
 
     const base = parseDateKey(selectedDay);
-    const monthStart = toDateKey(new Date(base.getFullYear(), base.getMonth(), 1));
-    const monthEnd = toDateKey(new Date(base.getFullYear(), base.getMonth() + 1, 0));
+    const monthStart = toDateKey(
+      new Date(base.getFullYear(), base.getMonth(), 1),
+    );
+    const monthEnd = toDateKey(
+      new Date(base.getFullYear(), base.getMonth() + 1, 0),
+    );
 
     dailyDataSet.forEach((item) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
@@ -407,7 +413,13 @@ export default function MargenesPage() {
     });
 
     return { dayMap, rangeMap, monthMap };
-  }, [dailyDataSet, dateRange.end, dateRange.start, selectedDay, selectedSedeIdSet]);
+  }, [
+    dailyDataSet,
+    dateRange.end,
+    dateRange.start,
+    selectedDay,
+    selectedSedeIdSet,
+  ]);
 
   if (!ready) {
     return (
@@ -420,7 +432,7 @@ export default function MargenesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.18),_transparent_55%),linear-gradient(180deg,_#f8fafc,_#eef2f7)] px-4 py-10 text-foreground">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18),transparent_55%),linear-gradient(180deg,#f8fafc,#eef2f7)] px-4 py-10 text-foreground">
       <div className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.45)]">
         <div className="rounded-3xl border border-slate-200/70 bg-slate-50/70 p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
@@ -432,8 +444,8 @@ export default function MargenesPage() {
                 Margenes por sede y linea
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%) para
-                el dia, acumulado del rango y acumulado del mes.
+                Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%)
+                para el dia, acumulado del rango y acumulado del mes.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]">
@@ -451,7 +463,8 @@ export default function MargenesPage() {
                     onChange={(e) =>
                       setDateRange((prev) => ({
                         start: e.target.value,
-                        end: e.target.value > prev.end ? e.target.value : prev.end,
+                        end:
+                          e.target.value > prev.end ? e.target.value : prev.end,
                       }))
                     }
                     className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -466,7 +479,10 @@ export default function MargenesPage() {
                     max={availableDates.at(-1)}
                     onChange={(e) =>
                       setDateRange((prev) => ({
-                        start: e.target.value < prev.start ? e.target.value : prev.start,
+                        start:
+                          e.target.value < prev.start
+                            ? e.target.value
+                            : prev.start,
                         end: e.target.value,
                       }))
                     }
@@ -582,7 +598,9 @@ export default function MargenesPage() {
                   {filteredSedes.map((sede, index) => (
                     <tr
                       key={sede.id}
-                      className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                      className={
+                        index % 2 === 0 ? "bg-white" : "bg-slate-50/60"
+                      }
                     >
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {sede.name}
@@ -620,9 +638,7 @@ export default function MargenesPage() {
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Linea
-                    </th>
+                    <th className="px-4 py-3 text-left font-semibold">Linea</th>
                     <th className="px-4 py-3 text-right font-semibold">
                       Margen {formatDateLabel(selectedDay)}
                     </th>
@@ -638,7 +654,9 @@ export default function MargenesPage() {
                   {lineOptions.map((line, index) => (
                     <tr
                       key={line.id}
-                      className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                      className={
+                        index % 2 === 0 ? "bg-white" : "bg-slate-50/60"
+                      }
                     >
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {line.name}

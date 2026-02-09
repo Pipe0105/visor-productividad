@@ -189,8 +189,8 @@ export default function AdminUsuariosPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 px-4 py-10 text-slate-900">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 right-[-6rem] h-72 w-72 rounded-full bg-mercamio-200/40 blur-3xl" />
-        <div className="absolute bottom-[-8rem] left-[-4rem] h-80 w-80 rounded-full bg-sky-200/40 blur-3xl" />
+        <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-mercamio-200/40 blur-3xl" />
+        <div className="absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="absolute top-1/3 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-slate-200/50 blur-3xl" />
       </div>
 
@@ -432,7 +432,10 @@ export default function AdminUsuariosPage() {
                 <input
                   value={formState.username}
                   onChange={(e) =>
-                    setFormState((prev) => ({ ...prev, username: e.target.value }))
+                    setFormState((prev) => ({
+                      ...prev,
+                      username: e.target.value,
+                    }))
                   }
                   className="mt-1 w-full rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
                 />
@@ -505,4 +508,3 @@ export default function AdminUsuariosPage() {
     </div>
   );
 }
-

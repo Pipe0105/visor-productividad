@@ -52,7 +52,7 @@ export default function TablerosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.18),_transparent_55%),linear-gradient(180deg,_#f8fafc,_#eef2f7)] px-4 py-12 text-foreground">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18),transparent_55%),linear-gradient(180deg,#f8fafc,#eef2f7)] px-4 py-12 text-foreground">
       <div className="mx-auto w-full max-w-lg rounded-[28px] border border-slate-200/70 bg-white p-7 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
           Acceso rapido
