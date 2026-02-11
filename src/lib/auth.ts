@@ -21,6 +21,13 @@ const getSessionExpiry = () =>
 const hashToken = (token: string) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
+const shouldUseSecureCookies = () => {
+  const envValue = process.env.SESSION_COOKIE_SECURE;
+  if (envValue === "true") return true;
+  if (envValue === "false") return false;
+  return process.env.NODE_ENV === "production";
+};
+
 export const hashPassword = async (password: string) =>
   bcrypt.hash(password, 12);
 
@@ -96,7 +103,7 @@ const refreshSession = async (tokenHash: string, expiresAt: Date) => {
 export const getSessionCookieOptions = (expiresAt?: Date) => ({
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  secure: shouldUseSecureCookies(),
   path: "/",
   ...(expiresAt ? { expires: expiresAt } : {}),
 });
@@ -104,7 +111,7 @@ export const getSessionCookieOptions = (expiresAt?: Date) => ({
 export const getExpiredSessionCookieOptions = () => ({
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  secure: shouldUseSecureCookies(),
   path: "/",
   expires: new Date(0),
 });

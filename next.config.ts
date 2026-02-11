@@ -4,12 +4,11 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const enableUpgradeInsecure =
   process.env.UPGRADE_INSECURE_REQUESTS === "true";
+const allowUnsafeEval = process.env.CSP_UNSAFE_EVAL === "true";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev || allowUnsafeEval ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
