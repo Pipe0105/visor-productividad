@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   DEFAULT_SEDES,
   SEDE_GROUPS,
   SEDE_ORDER,
   Sede,
 } from "@/lib/constants";
+import { formatCOP } from "@/lib/calc";
 
 type DateRange = {
   start: string;
@@ -47,12 +49,6 @@ type Totals = {
   salesWithVat: number;
 };
 
-const currencyFormatter = new Intl.NumberFormat("es-CO", {
-  style: "currency",
-  currency: "COP",
-  maximumFractionDigits: 0,
-});
-
 const percentFormatter = new Intl.NumberFormat("es-CO", {
   style: "percent",
   minimumFractionDigits: 1,
@@ -69,10 +65,20 @@ const EMPTY_TOTALS: Totals = {
 
 const cloneTotals = (): Totals => ({ ...EMPTY_TOTALS });
 
-const formatCurrency = (value: number) => currencyFormatter.format(value);
+const formatCurrency = (value: number) => formatCOP(value);
 
 const formatMarginPct = (totals: Totals) =>
   percentFormatter.format(totals.sales === 0 ? 0 : totals.profit / totals.sales);
+
+const getMarginRatio = (totals: Totals) =>
+  totals.sales === 0 ? 0 : totals.profit / totals.sales;
+
+const getMarginToneClass = (ratio: number) => {
+  if (ratio >= 0.22) return "text-emerald-700";
+  if (ratio >= 0.16) return "text-teal-700";
+  if (ratio >= 0.1) return "text-sky-700";
+  return "text-slate-600";
+};
 
 const parseDateKey = (dateKey: string) => {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -94,17 +100,21 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]/g, "");
 
-const sortSedesByOrder = (sedes: Sede[]) =>
-  [...sedes].sort((a, b) => {
-    const indexA = SEDE_ORDER.indexOf(a.name);
-    const indexB = SEDE_ORDER.indexOf(b.name);
-    if (indexA === -1 && indexB === -1) {
-      return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
-    }
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
+const SEDE_ORDER_MAP = new Map(
+  SEDE_ORDER.map((name, index) => [normalizeSedeKey(name), index]),
+);
+
+const sortSedesByOrder = (sedes: Sede[]) => {
+  return [...sedes].sort((a, b) => {
+    const aKey = normalizeSedeKey(a.id || a.name);
+    const bKey = normalizeSedeKey(b.id || b.name);
+    const aOrder = SEDE_ORDER_MAP.get(aKey) ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = SEDE_ORDER_MAP.get(bKey) ?? Number.MAX_SAFE_INTEGER;
+
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.name.localeCompare(b.name, "es");
   });
+};
 
 const buildCompanyOptions = (): Sede[] =>
   SEDE_GROUPS.filter((group) => group.id !== "all").map((group) => ({
@@ -180,6 +190,9 @@ export default function MargenesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSede, setSelectedSede] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+  const [lineSortBy, setLineSortBy] = useState<"day" | "month">("day");
+  const [lineSortOrder, setLineSortOrder] = useState<"desc" | "asc">("desc");
   const [dateRange, setDateRange] = useState<DateRange>({ start: "", end: "" });
 
   const prefsKey = useMemo(
@@ -334,10 +347,14 @@ export default function MargenesPage() {
         const parsed = JSON.parse(rawPrefs) as {
           selectedSede?: string;
           selectedCompanies?: string[];
+          selectedLineIds?: string[];
           dateRange?: DateRange;
         };
         if (Array.isArray(parsed.selectedCompanies)) {
           setSelectedCompanies(parsed.selectedCompanies.slice(0, 2));
+        }
+        if (Array.isArray(parsed.selectedLineIds)) {
+          setSelectedLineIds(parsed.selectedLineIds);
         }
         if (typeof parsed.selectedSede === "string") {
           setSelectedSede(parsed.selectedSede);
@@ -356,10 +373,11 @@ export default function MargenesPage() {
       JSON.stringify({
         selectedSede,
         selectedCompanies,
+        selectedLineIds,
         dateRange,
       }),
     );
-  }, [dateRange, prefsKey, prefsReady, selectedCompanies, selectedSede]);
+  }, [dateRange, prefsKey, prefsReady, selectedCompanies, selectedLineIds, selectedSede]);
 
   useEffect(() => {
     if (!prefsReady || appliedUserDefault) return;
@@ -380,6 +398,10 @@ export default function MargenesPage() {
   }, [appliedUserDefault, orderedSedes, pendingSedeKey, prefsReady]);
 
   const selectedDay = dateRange.end || dateRange.start;
+  const selectedLineIdSet = useMemo(
+    () => new Set(selectedLineIds),
+    [selectedLineIds],
+  );
 
   const marginsBySede = useMemo(() => {
     const dayMap = new Map<string, Totals>();
@@ -401,6 +423,7 @@ export default function MargenesPage() {
 
     rows.forEach((row) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
+      if (selectedLineIdSet.size > 0 && !selectedLineIdSet.has(row.lineaId)) return;
 
       if (row.date === selectedDay) {
         const current = dayMap.get(row.sede) ?? cloneTotals();
@@ -425,7 +448,7 @@ export default function MargenesPage() {
     });
 
     return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
-  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedSedeIdSet]);
+  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
 
   const marginsByLine = useMemo(() => {
     const dayMap = new Map<string, Totals>();
@@ -442,6 +465,7 @@ export default function MargenesPage() {
 
     rows.forEach((row) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
+      if (selectedLineIdSet.size > 0 && !selectedLineIdSet.has(row.lineaId)) return;
 
       if (row.date === selectedDay) {
         const current = dayMap.get(row.lineaId) ?? cloneTotals();
@@ -463,7 +487,7 @@ export default function MargenesPage() {
     });
 
     return { dayMap, rangeMap, monthMap };
-  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedSedeIdSet]);
+  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
 
   const rangeTotals = useMemo(() => {
     const totals = cloneTotals();
@@ -481,12 +505,46 @@ export default function MargenesPage() {
     return Array.from(byId.entries())
       .map(([id, name]) => ({
         id,
-        name,
+        name: (name || id).trim(),
       }))
       .sort((a, b) =>
+        a.name.localeCompare(b.name, "es", {
+          numeric: true,
+          sensitivity: "base",
+        }) ||
         a.id.localeCompare(b.id, "es", { numeric: true, sensitivity: "base" }),
       );
   }, [lineOptions, rows]);
+
+  const visibleLineItems = useMemo(() => {
+    if (selectedLineIds.length === 0) return orderedLineItems;
+    const selectedSet = new Set(selectedLineIds);
+    return orderedLineItems.filter((line) => selectedSet.has(line.id));
+  }, [orderedLineItems, selectedLineIds]);
+
+  const sortedVisibleLineItems = useMemo(() => {
+    return [...visibleLineItems].sort((a, b) => {
+      const aDayTotals = marginsByLine.dayMap.get(a.id) ?? EMPTY_TOTALS;
+      const bDayTotals = marginsByLine.dayMap.get(b.id) ?? EMPTY_TOTALS;
+      const aMonthTotals = marginsByLine.monthMap.get(a.id) ?? EMPTY_TOTALS;
+      const bMonthTotals = marginsByLine.monthMap.get(b.id) ?? EMPTY_TOTALS;
+
+      const aRatio =
+        lineSortBy === "day" ? getMarginRatio(aDayTotals) : getMarginRatio(aMonthTotals);
+      const bRatio =
+        lineSortBy === "day" ? getMarginRatio(bDayTotals) : getMarginRatio(bMonthTotals);
+
+      const ratioDiff = aRatio - bRatio;
+      if (ratioDiff !== 0) {
+        return lineSortOrder === "desc" ? -ratioDiff : ratioDiff;
+      }
+
+      return a.name.localeCompare(b.name, "es", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+  }, [lineSortBy, lineSortOrder, marginsByLine.dayMap, marginsByLine.monthMap, visibleLineItems]);
 
   if (!ready) {
     return (
@@ -507,12 +565,33 @@ export default function MargenesPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
                 Tablero margenes
               </p>
-              <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+              <h1 className="mt-2 bg-linear-to-r from-blue-700 via-indigo-700 to-amber-700 bg-clip-text text-2xl font-semibold text-transparent">
                 Margenes por sede y linea
               </h1>
               <p className="mt-1 text-sm text-slate-600">
                 Datos reales de venta, costo, utilidad y porcentaje de margen.
               </p>
+            </div>
+
+            <div className="w-full max-w-md rounded-2xl border border-blue-100/80 bg-linear-to-r from-blue-50/65 via-white to-sky-50/65 px-4 py-3 shadow-[0_16px_34px_-28px_rgba(37,99,235,0.35)]">
+              <div className="flex items-center justify-center gap-4 sm:gap-5">
+                <Image
+                  src="/logos/mercamio.jpeg"
+                  alt="Logo MercaMio"
+                  width={220}
+                  height={70}
+                  className="h-12 w-auto sm:h-14"
+                  priority
+                />
+                <Image
+                  src="/logos/mercatodo.jpeg"
+                  alt="Logo MercaTodo"
+                  width={220}
+                  height={70}
+                  className="h-12 w-auto sm:h-14"
+                  priority
+                />
+              </div>
             </div>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]">
               <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
@@ -623,6 +702,56 @@ export default function MargenesPage() {
                 ))}
               </select>
             </label>
+
+            <label className="text-xs font-semibold text-slate-600">
+              Linea
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!value) return;
+                  setSelectedLineIds((prev) =>
+                    prev.includes(value) ? prev : [...prev, value],
+                  );
+                }}
+                className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              >
+                <option value="">Todas las lineas</option>
+                {orderedLineItems.map((line) => (
+                  <option key={line.id} value={line.id}>
+                    {line.name} ({line.id})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              {selectedLineIds.map((lineId) => {
+                const label =
+                  orderedLineItems.find((line) => line.id === lineId)?.name ?? lineId;
+                return (
+                  <button
+                    key={lineId}
+                    type="button"
+                    onClick={() =>
+                      setSelectedLineIds((prev) => prev.filter((id) => id !== lineId))
+                    }
+                    className="rounded-full border border-sky-200/80 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 transition-all hover:border-sky-300"
+                  >
+                    {label} ({lineId}) x
+                  </button>
+                );
+              })}
+              {selectedLineIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLineIds([])}
+                  className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition-all hover:border-slate-300"
+                >
+                  Limpiar lineas
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -667,7 +796,9 @@ export default function MargenesPage() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                   Margen rango
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <p
+                  className={`mt-2 text-lg font-semibold ${getMarginToneClass(getMarginRatio(rangeTotals))}`}
+                >
                   {formatMarginPct(rangeTotals)}
                 </p>
               </div>
@@ -694,8 +825,16 @@ export default function MargenesPage() {
                         <td className="px-4 py-3 font-semibold text-slate-900">
                           {sede.name}
                         </td>
-                        <td className="px-4 py-3 text-right">{formatMarginPct(dayTotals)}</td>
-                        <td className="px-4 py-3 text-right">{formatMarginPct(monthTotals)}</td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(dayTotals))}`}
+                        >
+                          {formatMarginPct(dayTotals)}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(monthTotals))}`}
+                        >
+                          {formatMarginPct(monthTotals)}
+                        </td>
                       </tr>
                     );
                   })}
@@ -703,10 +842,14 @@ export default function MargenesPage() {
                     <td className="px-4 py-3 font-semibold text-slate-900">
                       Total seleccionadas
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(marginsBySede.totalDay))}`}
+                    >
                       {formatMarginPct(marginsBySede.totalDay)}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(marginsBySede.totalMonth))}`}
+                    >
                       {formatMarginPct(marginsBySede.totalMonth)}
                     </td>
                   </tr>
@@ -715,17 +858,45 @@ export default function MargenesPage() {
             </div>
 
             <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.25)]">
+              <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200/70 px-4 py-3">
+                <label className="text-xs font-semibold text-slate-600">
+                  Ordenar por
+                  <select
+                    value={lineSortBy}
+                    onChange={(e) => setLineSortBy(e.target.value as "day" | "month")}
+                    className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  >
+                    <option value="day">% dia</option>
+                    <option value="month">% mes</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLineSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))
+                  }
+                  className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300"
+                >
+                  {lineSortOrder === "desc" ? "Mayor a menor" : "Menor a mayor"}
+                </button>
+              </div>
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">ID linea</th>
                     <th className="px-4 py-3 text-left font-semibold">Linea</th>
                     <th className="px-4 py-3 text-right font-semibold">% dia</th>
                     <th className="px-4 py-3 text-right font-semibold">% mes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {orderedLineItems.map((line, index) => {
+                  {sortedVisibleLineItems.length === 0 && (
+                    <tr>
+                      <td className="px-4 py-5 text-center text-sm text-slate-500" colSpan={3}>
+                        No hay lineas para el filtro seleccionado.
+                      </td>
+                    </tr>
+                  )}
+                  {sortedVisibleLineItems.map((line, index) => {
                     const dayTotals = marginsByLine.dayMap.get(line.id) ?? EMPTY_TOTALS;
                     const monthTotals = marginsByLine.monthMap.get(line.id) ?? EMPTY_TOTALS;
                     return (
@@ -733,14 +904,24 @@ export default function MargenesPage() {
                         key={line.id}
                         className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
                       >
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                          {line.id}
-                        </td>
                         <td className="px-4 py-3 font-semibold text-slate-900">
-                          {line.name}
+                          <div className="flex flex-col">
+                            <span>{line.name}</span>
+                            <span className="font-mono text-sm font-semibold text-slate-600">
+                              {line.id}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-right">{formatMarginPct(dayTotals)}</td>
-                        <td className="px-4 py-3 text-right">{formatMarginPct(monthTotals)}</td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(dayTotals))}`}
+                        >
+                          {formatMarginPct(dayTotals)}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold ${getMarginToneClass(getMarginRatio(monthTotals))}`}
+                        >
+                          {formatMarginPct(monthTotals)}
+                        </td>
                       </tr>
                     );
                   })}

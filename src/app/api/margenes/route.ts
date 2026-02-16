@@ -38,14 +38,14 @@ const SEDE_NAMES: Record<string, string> = {
   "001|mercamio": "Calle 5ta",
   "002|mercamio": "La 39",
   "003|mercamio": "Plaza Norte",
-  "004|mercamio": "Ciudad Jardin",
+  "004|mercamio": "Ciudad Jardín",
   "005|mercamio": "Centro Sur",
   "006|mercamio": "Palmira",
   "001|mtodo": "Floresta",
   "002|mtodo": "Floralia",
   "003|mtodo": "Guaduales",
-  "001|bogota": "Bogota",
-  "002|bogota": "Chia",
+  "001|bogota": "Bogotá",
+  "002|bogota": "Chía",
 };
 
 const getClientIp = (request: Request) => {
@@ -84,8 +84,19 @@ const normalizeKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, "")
     .trim();
 
-const normalizeEmpresa = (value: string) =>
-  value.toLowerCase().replace(/\s+/g, "").trim();
+const EMPRESA_ALIASES: Record<string, string> = {
+  mercamio: "mercamio",
+  mcamio: "mercamio",
+  mercatodo: "mtodo",
+  mtodo: "mtodo",
+  merkmios: "bogota",
+  bogota: "bogota",
+};
+
+const normalizeEmpresa = (value: string) => {
+  const normalized = value.toLowerCase().replace(/\s+/g, "").trim();
+  return EMPRESA_ALIASES[normalized] ?? normalized;
+};
 
 const toNumber = (value: string | number | null | undefined) =>
   Number(value ?? 0) || 0;
