@@ -29,14 +29,20 @@ export interface HourlyLineSales {
 
 export interface HourSlot {
   hour: number;
+  slotStartMinute: number;
+  slotEndMinute: number;
   label: string;
   totalSales: number;
   employeesPresent: number;
+  employeesByLine?: Record<string, number>;
   lines: HourlyLineSales[];
 }
 
 export interface HourlyAnalysisData {
   date: string;
-  sede: string;
+  scopeLabel: string;
+  attendanceDateUsed?: string | null;
+  salesDateUsed?: string | null;
+  bucketMinutes?: number;
   hours: HourSlot[];
 }

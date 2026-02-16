@@ -6,6 +6,18 @@ interface LineCardProps {
   hasData?: boolean;
 }
 
+const getLineAccentClass = (lineId: string) => {
+  const accents: Record<string, string> = {
+    cajas: "bg-blue-500",
+    fruver: "bg-emerald-500",
+    carnes: "bg-rose-500",
+    industria: "bg-amber-500",
+    "pollo y pescado": "bg-cyan-500",
+    asadero: "bg-violet-500",
+  };
+  return accents[lineId] ?? "bg-slate-500";
+};
+
 // Componente extraído para mejor legibilidad
 const MetricRow = ({
   label,
@@ -40,10 +52,13 @@ export const LineCard = ({ line, hasData = true }: LineCardProps) => {
   return (
     <article
       data-animate="line-card"
-      className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-linear-to-br from-white via-slate-50 to-transparent p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all duration-200 hover:border-mercamio-300/40 hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)]"
+      className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-50/60 p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] transition-all duration-200 hover:border-slate-300 hover:shadow-[0_20px_70px_-35px_rgba(15,23,42,0.2)]"
     >
       {/* Header */}
       <header>
+        <span
+          className={`mb-3 block h-1.5 w-14 rounded-full ${getLineAccentClass(line.id)}`}
+        />
         <p className="text-sm uppercase tracking-[0.2em] text-slate-800">
           Línea
         </p>

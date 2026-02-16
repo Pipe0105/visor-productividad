@@ -3,6 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  Clock3,
+  LayoutGrid,
+  LogOut,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
 type UserRow = {
   id: string;
@@ -37,6 +48,23 @@ const emptyForm: UserFormState = {
   role: "user",
   password: "",
   is_active: true,
+};
+
+const formatRelativeTime = (isoDate: string) => {
+  const eventTime = new Date(isoDate).getTime();
+  const now = Date.now();
+  const diffMs = eventTime - now;
+  const absMinutes = Math.round(Math.abs(diffMs) / 60000);
+  const rtf = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
+
+  if (absMinutes < 1) return "ahora";
+  if (absMinutes < 60) return rtf.format(Math.round(diffMs / 60000), "minute");
+
+  const absHours = Math.round(absMinutes / 60);
+  if (absHours < 24) return rtf.format(Math.round(diffMs / 3600000), "hour");
+
+  const absDays = Math.round(absHours / 24);
+  return rtf.format(Math.round(diffMs / 86400000), "day");
 };
 
 export default function AdminUsuariosPage() {
@@ -211,22 +239,25 @@ export default function AdminUsuariosPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/tableros"
-              className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
             >
+              <LayoutGrid className="h-3.5 w-3.5" />
               Cambiar tablero
             </Link>
             <button
               type="button"
               onClick={openCreate}
-              className="rounded-full border border-slate-900/90 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-[0_14px_30px_-16px_rgba(15,23,42,0.6)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-900/90 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_-16px_rgba(15,23,42,0.6)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
+              <UserPlus className="h-3.5 w-3.5" />
               Nuevo usuario
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
             >
+              <LogOut className="h-3.5 w-3.5" />
               Cerrar sesión
             </button>
           </div>
@@ -245,36 +276,45 @@ export default function AdminUsuariosPage() {
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  Total usuarios
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-slate-900">
+              <div className="rounded-3xl border border-blue-200/70 bg-linear-to-br from-blue-50 via-white to-cyan-50 p-5 shadow-[0_18px_60px_-40px_rgba(37,99,235,0.45)] backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
+                    Total usuarios
+                  </p>
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+                <p className="mt-3 text-4xl font-bold text-slate-900">
                   {stats.total}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-600">
                   Cuentas registradas
                 </p>
               </div>
-              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  Usuarios activos
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-slate-900">
+              <div className="rounded-3xl border border-emerald-200/70 bg-linear-to-br from-emerald-50 via-white to-lime-50 p-5 shadow-[0_18px_60px_-40px_rgba(5,150,105,0.45)] backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                    Usuarios activos
+                  </p>
+                  <UserCheck className="h-5 w-5 text-emerald-600" />
+                </div>
+                <p className="mt-3 text-4xl font-bold text-slate-900">
                   {stats.active}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-600">
                   Con acceso habilitado
                 </p>
               </div>
-              <div className="rounded-3xl border border-white/70 bg-white/90 p-5 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.3)] backdrop-blur">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  Administradores
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-slate-900">
+              <div className="rounded-3xl border border-violet-200/70 bg-linear-to-br from-violet-50 via-white to-indigo-50 p-5 shadow-[0_18px_60px_-40px_rgba(109,40,217,0.4)] backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-700">
+                    Administradores
+                  </p>
+                  <ShieldCheck className="h-5 w-5 text-violet-600" />
+                </div>
+                <p className="mt-3 text-4xl font-bold text-slate-900">
                   {stats.admins}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-600">
                   Roles con permisos totales
                 </p>
               </div>
@@ -292,29 +332,37 @@ export default function AdminUsuariosPage() {
                 </div>
                 <div className="mt-5 overflow-auto">
                   <table className="w-full text-sm text-slate-700">
-                    <thead>
-                      <tr className="text-left text-xs uppercase tracking-[0.2em] text-slate-500">
-                        <th className="py-2">Usuario</th>
-                        <th className="py-2">Rol</th>
-                        <th className="py-2">Estado</th>
+                    <thead className="sticky top-0 z-10 bg-white">
+                      <tr className="text-left text-xs uppercase tracking-[0.14em] text-slate-500">
+                        <th className="py-2 pr-3">Usuario</th>
+                        <th className="py-2 pr-3">Rol</th>
+                        <th className="py-2 pr-3">Estado</th>
                         <th className="py-2">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedUsers.map((user) => (
+                      {sortedUsers.map((user, index) => (
                         <tr
                           key={user.id}
-                          className="border-t border-slate-100 transition-colors hover:bg-slate-50/80"
+                          className={`border-t border-slate-100 transition-colors hover:bg-slate-50/80 ${
+                            index % 2 === 0 ? "bg-white" : "bg-slate-50/35"
+                          }`}
                         >
-                          <td className="py-3 font-semibold text-slate-900">
+                          <td className="py-3 pr-3 font-semibold text-slate-900">
                             {user.username}
                           </td>
-                          <td className="py-3">
-                            <span className="inline-flex rounded-full border border-slate-200 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          <td className="py-3 pr-3">
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold uppercase tracking-[0.15em] ${
+                                user.role === "admin"
+                                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                                  : "border-slate-200 bg-white text-slate-600"
+                              }`}
+                            >
                               {user.role}
                             </span>
                           </td>
-                          <td className="py-3">
+                          <td className="py-3 pr-3">
                             <span
                               className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${
                                 user.is_active
@@ -337,15 +385,17 @@ export default function AdminUsuariosPage() {
                               <button
                                 type="button"
                                 onClick={() => openEdit(user)}
-                                className="rounded-full border border-mercamio-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-mercamio-700 transition-colors hover:bg-mercamio-50"
+                                className="inline-flex items-center gap-1 rounded-full border border-mercamio-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-mercamio-700 transition-colors hover:bg-mercamio-50"
                               >
+                                <Pencil className="h-3.5 w-3.5" />
                                 Editar
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleDelete(user.id)}
-                                className="rounded-full border border-rose-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-700 transition-colors hover:bg-rose-50"
+                                className="inline-flex items-center gap-1 rounded-full border border-rose-200/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-rose-700 transition-colors hover:bg-rose-50"
                               >
+                                <Trash2 className="h-3.5 w-3.5" />
                                 Borrar
                               </button>
                             </div>
@@ -364,7 +414,8 @@ export default function AdminUsuariosPage() {
 
               <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    <Clock3 className="h-4 w-4" />
                     Accesos recientes
                   </h2>
                   <div className="flex flex-wrap items-center gap-2">
@@ -386,7 +437,7 @@ export default function AdminUsuariosPage() {
                   {logs.map((log) => (
                     <div
                       key={log.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3"
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/85 px-3 py-3 transition-all hover:border-slate-200 hover:bg-white"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-xs font-semibold uppercase text-slate-600 shadow-sm">
@@ -396,9 +447,11 @@ export default function AdminUsuariosPage() {
                           <div className="font-semibold text-slate-900">
                             {log.username}
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {new Date(log.logged_at).toLocaleString("es-CO")} •{" "}
-                            {log.ip ?? "IP desconocida"}
+                          <div
+                            className="text-xs text-slate-500"
+                            title={new Date(log.logged_at).toLocaleString("es-CO")}
+                          >
+                            {formatRelativeTime(log.logged_at)} • {log.ip ?? "IP desconocida"}
                           </div>
                         </div>
                       </div>
@@ -420,14 +473,19 @@ export default function AdminUsuariosPage() {
       </div>
 
       {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-900">
-              {formState.id ? "Editar usuario" : "Nuevo usuario"}
-            </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.6)]">
+            <div className="border-b border-slate-200/70 bg-linear-to-r from-slate-50 to-blue-50/45 px-6 py-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                Administración
+              </p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900">
+                {formState.id ? "Editar usuario" : "Nuevo usuario"}
+              </h2>
+            </div>
 
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm text-slate-700">
+            <div className="space-y-4 p-6">
+              <label className="block text-sm font-medium text-slate-700">
                 Usuario
                 <input
                   value={formState.username}
@@ -437,40 +495,45 @@ export default function AdminUsuariosPage() {
                       username: e.target.value,
                     }))
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </label>
-              <label className="block text-sm text-slate-700">
-                Rol
-                <select
-                  value={formState.role}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      role: e.target.value as "admin" | "user",
-                    }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-                >
-                  <option value="user">Usuario</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </label>
-              <label className="block text-sm text-slate-700">
-                Contraseña {formState.id ? "(opcional)" : "(mín 8)"}
-                <input
-                  type="password"
-                  value={formState.password}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      password: e.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-slate-700">
+                  Rol
+                  <select
+                    value={formState.role}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        role: e.target.value as "admin" | "user",
+                      }))
+                    }
+                    className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="user">Usuario</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700">
+                  Contraseña {formState.id ? "(opcional)" : "(mín 8)"}
+                  <input
+                    type="password"
+                    value={formState.password}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        password: e.target.value,
+                      }))
+                    }
+                    className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+              </div>
+
+              <label className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
                 <input
                   type="checkbox"
                   checked={formState.is_active}
@@ -480,16 +543,17 @@ export default function AdminUsuariosPage() {
                       is_active: e.target.checked,
                     }))
                   }
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-200"
                 />
                 Cuenta activa
               </label>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t border-slate-200/70 bg-slate-50/60 px-6 py-4">
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-colors hover:bg-slate-50"
+                className="rounded-full border border-slate-300/80 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 transition-colors hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -497,7 +561,7 @@ export default function AdminUsuariosPage() {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-full border border-mercamio-200/70 bg-mercamio-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-all hover:bg-mercamio-700 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full border border-blue-300/80 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_-14px_rgba(37,99,235,0.65)] transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? "Guardando..." : "Guardar"}
               </button>

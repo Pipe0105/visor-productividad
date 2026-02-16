@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 export default function TablerosPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -25,6 +26,7 @@ export default function TablerosPage() {
           user?: { role?: string };
         };
         if (!isMounted) return;
+        setIsAdmin(payload.user?.role === "admin");
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -52,14 +54,25 @@ export default function TablerosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18),transparent_55%),linear-gradient(180deg,#f8fafc,#eef2f7)] px-4 py-12 text-foreground">
-      <div className="mx-auto w-full max-w-lg rounded-[28px] border border-slate-200/70 bg-white p-7 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
+    <div className="min-h-screen bg-slate-100 px-4 py-12 text-foreground">
+      <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-slate-200/70 bg-white p-7 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
           Acceso rapido
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-          Elige un tablero
-        </h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="bg-linear-to-r from-blue-700 via-indigo-700 to-amber-700 bg-clip-text text-2xl font-bold text-transparent">
+            Elige un tablero
+          </h1>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => router.push("/admin/usuarios")}
+            className="inline-flex items-center rounded-full border border-slate-900/90 bg-linear-to-r from-slate-900 to-slate-700 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white transition-all hover:brightness-110"
+            >
+              Usuarios
+            </button>
+          )}
+        </div>
         <p className="mt-1 text-sm text-slate-600">
           Selecciona a donde quieres ingresar.
         </p>
@@ -68,9 +81,12 @@ export default function TablerosPage() {
           <button
             type="button"
             onClick={() => router.push("/")}
-            className="group w-full rounded-2xl border border-slate-200/80 bg-white px-5 py-4 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.25)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_20px_40px_-30px_rgba(15,23,42,0.35)]"
+            className="group w-full rounded-2xl border border-blue-300/80 bg-linear-to-br from-blue-100 via-white to-cyan-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(37,99,235,0.45)] transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-[0_22px_44px_-26px_rgba(37,99,235,0.55)]"
           >
-            <span className="block text-sm font-semibold tracking-wide">
+            <span className="inline-flex rounded-full border border-blue-300/80 bg-blue-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
+              Productividad
+            </span>
+            <span className="mt-3 block text-sm font-semibold tracking-wide">
               Tablero productividad
             </span>
             <span className="mt-1 block text-xs text-slate-600">
@@ -80,9 +96,12 @@ export default function TablerosPage() {
           <button
             type="button"
             onClick={() => router.push("/margenes")}
-            className="group w-full rounded-2xl border border-slate-200/80 bg-white px-5 py-4 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.25)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_20px_40px_-30px_rgba(15,23,42,0.35)]"
+            className="group w-full rounded-2xl border border-amber-300/80 bg-linear-to-br from-amber-100 via-white to-orange-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(245,158,11,0.45)] transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-[0_22px_44px_-26px_rgba(245,158,11,0.55)]"
           >
-            <span className="block text-sm font-semibold tracking-wide">
+            <span className="inline-flex rounded-full border border-amber-300/80 bg-amber-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-800">
+              Margenes
+            </span>
+            <span className="mt-3 block text-sm font-semibold tracking-wide">
               Tablero margenes
             </span>
             <span className="mt-1 block text-xs text-slate-600">

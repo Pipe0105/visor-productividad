@@ -2,40 +2,89 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatCOP } from "@/lib/calc";
 import {
-  DEFAULT_LINES,
   DEFAULT_SEDES,
   SEDE_GROUPS,
   SEDE_ORDER,
   Sede,
 } from "@/lib/constants";
-import { DailyProductivity, LineMetrics } from "@/types";
-
-type ApiResponse = {
-  dailyData: DailyProductivity[];
-  sedes: Array<{ id: string; name: string }>;
-  error?: string;
-};
 
 type DateRange = {
   start: string;
   end: string;
 };
 
-const parseDateKey = (dateKey: string): Date => {
+type MarginRow = {
+  date: string;
+  empresa: string;
+  sede: string;
+  lineaId: string;
+  lineaName: string;
+  ventaSinIva: number;
+  iva: number;
+  ventaConIva: number;
+  costoTotal: number;
+  utilidadBruta: number;
+};
+
+type LineOption = {
+  id: string;
+  name: string;
+};
+
+type ApiResponse = {
+  rows: MarginRow[];
+  sedes: Array<{ id: string; name: string }>;
+  lineas: LineOption[];
+  error?: string;
+};
+
+type Totals = {
+  sales: number;
+  cost: number;
+  profit: number;
+  iva: number;
+  salesWithVat: number;
+};
+
+const currencyFormatter = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+});
+
+const percentFormatter = new Intl.NumberFormat("es-CO", {
+  style: "percent",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+const EMPTY_TOTALS: Totals = {
+  sales: 0,
+  cost: 0,
+  profit: 0,
+  iva: 0,
+  salesWithVat: 0,
+};
+
+const cloneTotals = (): Totals => ({ ...EMPTY_TOTALS });
+
+const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+const formatMarginPct = (totals: Totals) =>
+  percentFormatter.format(totals.sales === 0 ? 0 : totals.profit / totals.sales);
+
+const parseDateKey = (dateKey: string) => {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Date(year, month - 1, day);
 };
 
-const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
-
-const formatDateLabel = (dateKey: string) =>
-  new Intl.DateTimeFormat("es-CO", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parseDateKey(dateKey));
+const toDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const normalizeSedeKey = (value: string) =>
   value
@@ -45,8 +94,8 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]/g, "");
 
-const sortSedesByOrder = (sedes: Sede[]) => {
-  return [...sedes].sort((a, b) => {
+const sortSedesByOrder = (sedes: Sede[]) =>
+  [...sedes].sort((a, b) => {
     const indexA = SEDE_ORDER.indexOf(a.name);
     const indexB = SEDE_ORDER.indexOf(b.name);
     if (indexA === -1 && indexB === -1) {
@@ -56,7 +105,6 @@ const sortSedesByOrder = (sedes: Sede[]) => {
     if (indexB === -1) return -1;
     return indexA - indexB;
   });
-};
 
 const buildCompanyOptions = (): Sede[] =>
   SEDE_GROUPS.filter((group) => group.id !== "all").map((group) => ({
@@ -68,7 +116,7 @@ const resolveSelectedSedeIds = (
   selectedSede: string,
   selectedCompanies: string[],
   availableSedes: Sede[],
-): string[] => {
+) => {
   const availableByKey = new Map(
     availableSedes.map((sede) => [normalizeSedeKey(sede.id), sede.id]),
   );
@@ -94,12 +142,28 @@ const resolveSelectedSedeIds = (
   return availableSedes.map((sede) => sede.id);
 };
 
-const GROSS_MARGIN_PCT = 0.2;
+const addRowToTotals = (target: Totals, row: MarginRow) => {
+  target.sales += row.ventaSinIva;
+  target.cost += row.costoTotal;
+  target.profit += row.utilidadBruta;
+  target.iva += row.iva;
+  target.salesWithVat += row.ventaConIva;
+};
 
-const calcGrossMargin = (line: LineMetrics) => line.sales * GROSS_MARGIN_PCT;
+const addTotals = (target: Totals, input: Totals) => {
+  target.sales += input.sales;
+  target.cost += input.cost;
+  target.profit += input.profit;
+  target.iva += input.iva;
+  target.salesWithVat += input.salesWithVat;
+};
 
-const sumMargins = (lines: LineMetrics[]) =>
-  lines.reduce((acc, line) => acc + calcGrossMargin(line), 0);
+const toMonthBounds = (dateKey: string) => {
+  const base = parseDateKey(dateKey);
+  const start = toDateKey(new Date(base.getFullYear(), base.getMonth(), 1));
+  const end = toDateKey(new Date(base.getFullYear(), base.getMonth() + 1, 0));
+  return { start, end };
+};
 
 export default function MargenesPage() {
   const router = useRouter();
@@ -109,13 +173,15 @@ export default function MargenesPage() {
   const [prefsReady, setPrefsReady] = useState(false);
   const [pendingSedeKey, setPendingSedeKey] = useState<string | null>(null);
   const [appliedUserDefault, setAppliedUserDefault] = useState(false);
-  const [dailyDataSet, setDailyDataSet] = useState<DailyProductivity[]>([]);
+  const [rows, setRows] = useState<MarginRow[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
+  const [lineOptions, setLineOptions] = useState<LineOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSede, setSelectedSede] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ start: "", end: "" });
+
   const prefsKey = useMemo(
     () => `vp_margenes_prefs_${username ?? "default"}`,
     [username],
@@ -144,18 +210,18 @@ export default function MargenesPage() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { role?: string; username?: string };
+          user?: { username?: string };
         };
         if (!isMounted) return;
-        setReady(true);
         setUsername(payload.user?.username ?? null);
         setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          return;
-        }
+        if (err instanceof DOMException && err.name === "AbortError") return;
       } finally {
-        if (isMounted) setAuthLoaded(true);
+        if (isMounted) {
+          setReady(true);
+          setAuthLoaded(true);
+        }
       }
     };
 
@@ -176,9 +242,8 @@ export default function MargenesPage() {
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-
       try {
-        const response = await fetch("/api/productivity", {
+        const response = await fetch("/api/margenes", {
           signal: controller.signal,
         });
         const payload = (await response.json()) as ApiResponse;
@@ -186,34 +251,31 @@ export default function MargenesPage() {
         if (!isMounted) return;
 
         if (response.status === 401) {
-          setError("No autorizado.");
-          setDailyDataSet([]);
-          setSedes([]);
+          router.replace("/login");
           return;
         }
 
-        const resolvedDailyData = payload.dailyData ?? [];
+        const resolvedRows = payload.rows ?? [];
         const resolvedSedes =
-          payload.sedes && payload.sedes.length > 0
-            ? payload.sedes
-            : DEFAULT_SEDES;
+          payload.sedes && payload.sedes.length > 0 ? payload.sedes : DEFAULT_SEDES;
 
         if (!response.ok) {
           setError(payload.error ?? "No se pudieron cargar los datos.");
-          setDailyDataSet(resolvedDailyData);
+          setRows(resolvedRows);
           setSedes(resolvedSedes);
+          setLineOptions(payload.lineas ?? []);
           return;
         }
 
-        setDailyDataSet(resolvedDailyData);
+        setRows(resolvedRows);
         setSedes(resolvedSedes);
+        setLineOptions(payload.lineas ?? []);
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          return;
-        }
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError("No se pudieron cargar los datos.");
-        setDailyDataSet([]);
+        setRows([]);
         setSedes([]);
+        setLineOptions([]);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -225,41 +287,47 @@ export default function MargenesPage() {
       isMounted = false;
       controller.abort();
     };
-  }, [ready]);
+  }, [ready, router]);
 
   const orderedSedes = useMemo(() => sortSedesByOrder(sedes), [sedes]);
   const companyOptions = useMemo(() => buildCompanyOptions(), []);
+
   const selectedSedeIds = useMemo(
     () => resolveSelectedSedeIds(selectedSede, selectedCompanies, orderedSedes),
-    [selectedCompanies, selectedSede, orderedSedes],
+    [orderedSedes, selectedCompanies, selectedSede],
   );
+
   const selectedSedeIdSet = useMemo(
     () => new Set(selectedSedeIds),
     [selectedSedeIds],
   );
+
   const filteredSedes = useMemo(() => {
     if (selectedSedeIds.length === 0) return orderedSedes;
     return orderedSedes.filter((sede) => selectedSedeIdSet.has(sede.id));
   }, [orderedSedes, selectedSedeIdSet, selectedSedeIds.length]);
+
   const availableDates = useMemo(
-    () =>
-      Array.from(new Set(dailyDataSet.map((item) => item.date))).sort((a, b) =>
-        a.localeCompare(b),
-      ),
-    [dailyDataSet],
+    () => Array.from(new Set(rows.map((item) => item.date))).sort((a, b) => a.localeCompare(b)),
+    [rows],
   );
 
   useEffect(() => {
     if (availableDates.length === 0) return;
-    setDateRange((prev) => ({
-      start: prev.start || availableDates[0],
-      end: prev.end || (availableDates.at(-1) ?? availableDates[0]),
-    }));
+
+    const yesterday = new Date();
+    yesterday.setHours(0, 0, 0, 0);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = toDateKey(yesterday);
+
+    setDateRange({
+      start: yesterdayKey,
+      end: yesterdayKey,
+    });
   }, [availableDates]);
 
   useEffect(() => {
     if (!authLoaded) return;
-
     const rawPrefs = localStorage.getItem(prefsKey);
     if (rawPrefs) {
       try {
@@ -274,13 +342,8 @@ export default function MargenesPage() {
         if (typeof parsed.selectedSede === "string") {
           setSelectedSede(parsed.selectedSede);
         }
-        if (parsed.dateRange?.start && parsed.dateRange?.end) {
-          setDateRange(parsed.dateRange);
-        }
-        setPrefsReady(true);
-        return;
       } catch {
-        // ignore
+        // ignore malformed local storage content
       }
     }
     setPrefsReady(true);
@@ -288,12 +351,14 @@ export default function MargenesPage() {
 
   useEffect(() => {
     if (!prefsReady) return;
-    const payload = {
-      selectedSede,
-      selectedCompanies,
-      dateRange,
-    };
-    localStorage.setItem(prefsKey, JSON.stringify(payload));
+    localStorage.setItem(
+      prefsKey,
+      JSON.stringify({
+        selectedSede,
+        selectedCompanies,
+        dateRange,
+      }),
+    );
   }, [dateRange, prefsKey, prefsReady, selectedCompanies, selectedSede]);
 
   useEffect(() => {
@@ -310,116 +375,118 @@ export default function MargenesPage() {
     if (match) {
       setSelectedCompanies([]);
       setSelectedSede(match.id);
-      setAppliedUserDefault(true);
     }
+    setAppliedUserDefault(true);
   }, [appliedUserDefault, orderedSedes, pendingSedeKey, prefsReady]);
 
   const selectedDay = dateRange.end || dateRange.start;
 
   const marginsBySede = useMemo(() => {
-    const dayMap = new Map<string, number>();
-    const rangeMap = new Map<string, number>();
-    const monthMap = new Map<string, number>();
-    let totalDay = 0;
-    let totalRange = 0;
-    let totalMonth = 0;
+    const dayMap = new Map<string, Totals>();
+    const rangeMap = new Map<string, Totals>();
+    const monthMap = new Map<string, Totals>();
+    const totalDay = cloneTotals();
+    const totalRange = cloneTotals();
+    const totalMonth = cloneTotals();
 
     if (!selectedDay) {
       return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
     }
 
-    const base = parseDateKey(selectedDay);
-    const monthStart = toDateKey(
-      new Date(base.getFullYear(), base.getMonth(), 1),
-    );
-    const monthEnd = toDateKey(
-      new Date(base.getFullYear(), base.getMonth() + 1, 0),
-    );
+    const monthBounds = toMonthBounds(selectedDay);
+    const withinRange = (date: string) =>
+      dateRange.start && dateRange.end
+        ? date >= dateRange.start && date <= dateRange.end
+        : false;
 
-    dailyDataSet.forEach((item) => {
-      if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
-        return;
+    rows.forEach((row) => {
+      if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
+
+      if (row.date === selectedDay) {
+        const current = dayMap.get(row.sede) ?? cloneTotals();
+        addRowToTotals(current, row);
+        dayMap.set(row.sede, current);
+        addRowToTotals(totalDay, row);
       }
-      const margin = sumMargins(item.lines);
-      if (item.date === selectedDay) {
-        dayMap.set(item.sede, (dayMap.get(item.sede) ?? 0) + margin);
-        totalDay += margin;
+
+      if (withinRange(row.date)) {
+        const current = rangeMap.get(row.sede) ?? cloneTotals();
+        addRowToTotals(current, row);
+        rangeMap.set(row.sede, current);
+        addRowToTotals(totalRange, row);
       }
-      if (item.date >= dateRange.start && item.date <= dateRange.end) {
-        rangeMap.set(item.sede, (rangeMap.get(item.sede) ?? 0) + margin);
-        totalRange += margin;
-      }
-      if (item.date >= monthStart && item.date <= monthEnd) {
-        monthMap.set(item.sede, (monthMap.get(item.sede) ?? 0) + margin);
-        totalMonth += margin;
+
+      if (row.date >= monthBounds.start && row.date <= monthBounds.end) {
+        const current = monthMap.get(row.sede) ?? cloneTotals();
+        addRowToTotals(current, row);
+        monthMap.set(row.sede, current);
+        addRowToTotals(totalMonth, row);
       }
     });
 
     return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
-  }, [
-    dailyDataSet,
-    dateRange.end,
-    dateRange.start,
-    selectedDay,
-    selectedSedeIdSet,
-  ]);
-
-  const lineOptions = useMemo(() => {
-    const nameMap = new Map<string, string>();
-    DEFAULT_LINES.forEach((line) => nameMap.set(line.id, line.name));
-    dailyDataSet.forEach((item) => {
-      item.lines.forEach((line) => {
-        if (!nameMap.has(line.id)) {
-          nameMap.set(line.id, line.name ?? line.id);
-        }
-      });
-    });
-    return Array.from(nameMap.entries()).map(([id, name]) => ({ id, name }));
-  }, [dailyDataSet]);
+  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedSedeIdSet]);
 
   const marginsByLine = useMemo(() => {
-    const dayMap = new Map<string, number>();
-    const rangeMap = new Map<string, number>();
-    const monthMap = new Map<string, number>();
+    const dayMap = new Map<string, Totals>();
+    const rangeMap = new Map<string, Totals>();
+    const monthMap = new Map<string, Totals>();
 
-    if (!selectedDay) {
-      return { dayMap, rangeMap, monthMap };
-    }
+    if (!selectedDay) return { dayMap, rangeMap, monthMap };
 
-    const base = parseDateKey(selectedDay);
-    const monthStart = toDateKey(
-      new Date(base.getFullYear(), base.getMonth(), 1),
-    );
-    const monthEnd = toDateKey(
-      new Date(base.getFullYear(), base.getMonth() + 1, 0),
-    );
+    const monthBounds = toMonthBounds(selectedDay);
+    const withinRange = (date: string) =>
+      dateRange.start && dateRange.end
+        ? date >= dateRange.start && date <= dateRange.end
+        : false;
 
-    dailyDataSet.forEach((item) => {
-      if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(item.sede)) {
-        return;
+    rows.forEach((row) => {
+      if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
+
+      if (row.date === selectedDay) {
+        const current = dayMap.get(row.lineaId) ?? cloneTotals();
+        addRowToTotals(current, row);
+        dayMap.set(row.lineaId, current);
       }
-      item.lines.forEach((line) => {
-        const margin = calcGrossMargin(line);
-        if (item.date === selectedDay) {
-          dayMap.set(line.id, (dayMap.get(line.id) ?? 0) + margin);
-        }
-        if (item.date >= dateRange.start && item.date <= dateRange.end) {
-          rangeMap.set(line.id, (rangeMap.get(line.id) ?? 0) + margin);
-        }
-        if (item.date >= monthStart && item.date <= monthEnd) {
-          monthMap.set(line.id, (monthMap.get(line.id) ?? 0) + margin);
-        }
-      });
+
+      if (withinRange(row.date)) {
+        const current = rangeMap.get(row.lineaId) ?? cloneTotals();
+        addRowToTotals(current, row);
+        rangeMap.set(row.lineaId, current);
+      }
+
+      if (row.date >= monthBounds.start && row.date <= monthBounds.end) {
+        const current = monthMap.get(row.lineaId) ?? cloneTotals();
+        addRowToTotals(current, row);
+        monthMap.set(row.lineaId, current);
+      }
     });
 
     return { dayMap, rangeMap, monthMap };
-  }, [
-    dailyDataSet,
-    dateRange.end,
-    dateRange.start,
-    selectedDay,
-    selectedSedeIdSet,
-  ]);
+  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedSedeIdSet]);
+
+  const rangeTotals = useMemo(() => {
+    const totals = cloneTotals();
+    marginsBySede.rangeMap.forEach((value) => addTotals(totals, value));
+    return totals;
+  }, [marginsBySede.rangeMap]);
+
+  const orderedLineItems = useMemo(() => {
+    const byId = new Map(lineOptions.map((line) => [line.id, line.name]));
+    rows.forEach((row) => {
+      if (!byId.has(row.lineaId)) {
+        byId.set(row.lineaId, row.lineaName || row.lineaId);
+      }
+    });
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({
+        id,
+        name,
+      }))
+      .sort((a, b) =>
+        a.id.localeCompare(b.id, "es", { numeric: true, sensitivity: "base" }),
+      );
+  }, [lineOptions, rows]);
 
   if (!ready) {
     return (
@@ -433,7 +500,7 @@ export default function MargenesPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18),transparent_55%),linear-gradient(180deg,#f8fafc,#eef2f7)] px-4 py-10 text-foreground">
-      <div className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.45)]">
+      <div className="mx-auto w-full max-w-7xl rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.45)]">
         <div className="rounded-3xl border border-slate-200/70 bg-slate-50/70 p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
@@ -444,8 +511,7 @@ export default function MargenesPage() {
                 Margenes por sede y linea
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Margen bruto estimado ({Math.round(GROSS_MARGIN_PCT * 100)}%)
-                para el dia, acumulado del rango y acumulado del mes.
+                Datos reales de venta, costo, utilidad y porcentaje de margen.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]">
@@ -458,13 +524,10 @@ export default function MargenesPage() {
                   <input
                     type="date"
                     value={dateRange.start}
-                    min={availableDates[0]}
-                    max={availableDates.at(-1)}
                     onChange={(e) =>
                       setDateRange((prev) => ({
                         start: e.target.value,
-                        end:
-                          e.target.value > prev.end ? e.target.value : prev.end,
+                        end: e.target.value > prev.end ? e.target.value : prev.end,
                       }))
                     }
                     className="ml-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -475,14 +538,9 @@ export default function MargenesPage() {
                   <input
                     type="date"
                     value={dateRange.end}
-                    min={availableDates[0]}
-                    max={availableDates.at(-1)}
                     onChange={(e) =>
                       setDateRange((prev) => ({
-                        start:
-                          e.target.value < prev.start
-                            ? e.target.value
-                            : prev.start,
+                        start: e.target.value < prev.start ? e.target.value : prev.start,
                         end: e.target.value,
                       }))
                     }
@@ -524,10 +582,11 @@ export default function MargenesPage() {
                 ))}
               </select>
             </label>
+
             <div className="flex flex-wrap gap-2">
               {selectedCompanies.map((companyId) => {
                 const label =
-                  companyOptions.find((c) => c.id === companyId)?.name ??
+                  companyOptions.find((company) => company.id === companyId)?.name ??
                   companyId;
                 return (
                   <button
@@ -545,6 +604,7 @@ export default function MargenesPage() {
                 );
               })}
             </div>
+
             <label className="text-xs font-semibold text-slate-600">
               Sede
               <select
@@ -578,56 +638,76 @@ export default function MargenesPage() {
 
         {!isLoading && selectedDay && (
           <>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Venta rango
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatCurrency(rangeTotals.sales)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Costo rango
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatCurrency(rangeTotals.cost)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Utilidad rango
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatCurrency(rangeTotals.profit)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Margen rango
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatMarginPct(rangeTotals)}
+                </p>
+              </div>
+            </div>
+
             <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.25)]">
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Sede</th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Margen {formatDateLabel(selectedDay)}
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Acumulado rango
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Acumulado mes
-                    </th>
+                    <th className="px-4 py-3 text-right font-semibold">% dia</th>
+                    <th className="px-4 py-3 text-right font-semibold">% mes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSedes.map((sede, index) => (
-                    <tr
-                      key={sede.id}
-                      className={
-                        index % 2 === 0 ? "bg-white" : "bg-slate-50/60"
-                      }
-                    >
-                      <td className="px-4 py-3 font-semibold text-slate-900">
-                        {sede.name}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsBySede.dayMap.get(sede.id) ?? 0)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsBySede.rangeMap.get(sede.id) ?? 0)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsBySede.monthMap.get(sede.id) ?? 0)}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredSedes.map((sede, index) => {
+                    const dayTotals = marginsBySede.dayMap.get(sede.id) ?? EMPTY_TOTALS;
+                    const monthTotals = marginsBySede.monthMap.get(sede.id) ?? EMPTY_TOTALS;
+                    return (
+                      <tr
+                        key={sede.id}
+                        className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                      >
+                        <td className="px-4 py-3 font-semibold text-slate-900">
+                          {sede.name}
+                        </td>
+                        <td className="px-4 py-3 text-right">{formatMarginPct(dayTotals)}</td>
+                        <td className="px-4 py-3 text-right">{formatMarginPct(monthTotals)}</td>
+                      </tr>
+                    );
+                  })}
                   <tr className="border-t border-slate-200 bg-slate-100/80">
                     <td className="px-4 py-3 font-semibold text-slate-900">
                       Total seleccionadas
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      {formatCOP(marginsBySede.totalDay)}
+                      {formatMarginPct(marginsBySede.totalDay)}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      {formatCOP(marginsBySede.totalRange)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      {formatCOP(marginsBySede.totalMonth)}
+                      {formatMarginPct(marginsBySede.totalMonth)}
                     </td>
                   </tr>
                 </tbody>
@@ -638,40 +718,32 @@ export default function MargenesPage() {
               <table className="min-w-full text-sm text-slate-700">
                 <thead className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   <tr>
+                    <th className="px-4 py-3 text-left font-semibold">ID linea</th>
                     <th className="px-4 py-3 text-left font-semibold">Linea</th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Margen {formatDateLabel(selectedDay)}
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Acumulado rango
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      Acumulado mes
-                    </th>
+                    <th className="px-4 py-3 text-right font-semibold">% dia</th>
+                    <th className="px-4 py-3 text-right font-semibold">% mes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {lineOptions.map((line, index) => (
-                    <tr
-                      key={line.id}
-                      className={
-                        index % 2 === 0 ? "bg-white" : "bg-slate-50/60"
-                      }
-                    >
-                      <td className="px-4 py-3 font-semibold text-slate-900">
-                        {line.name}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsByLine.dayMap.get(line.id) ?? 0)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsByLine.rangeMap.get(line.id) ?? 0)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatCOP(marginsByLine.monthMap.get(line.id) ?? 0)}
-                      </td>
-                    </tr>
-                  ))}
+                  {orderedLineItems.map((line, index) => {
+                    const dayTotals = marginsByLine.dayMap.get(line.id) ?? EMPTY_TOTALS;
+                    const monthTotals = marginsByLine.monthMap.get(line.id) ?? EMPTY_TOTALS;
+                    return (
+                      <tr
+                        key={line.id}
+                        className={index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
+                      >
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {line.id}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">
+                          {line.name}
+                        </td>
+                        <td className="px-4 py-3 text-right">{formatMarginPct(dayTotals)}</td>
+                        <td className="px-4 py-3 text-right">{formatMarginPct(monthTotals)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -679,9 +751,7 @@ export default function MargenesPage() {
         )}
 
         {!isLoading && !selectedDay && (
-          <p className="mt-6 text-sm text-slate-600">
-            No hay datos disponibles.
-          </p>
+          <p className="mt-6 text-sm text-slate-600">No hay datos disponibles.</p>
         )}
 
         <div className="mt-8">

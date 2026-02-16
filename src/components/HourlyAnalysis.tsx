@@ -2,15 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
-import { BarChart } from "@mui/x-charts/BarChart";
-import { formatCOP } from "@/lib/calc";
 import { formatDateLabel } from "@/lib/utils";
+import { DEFAULT_LINES } from "@/lib/constants";
 import type { Sede } from "@/lib/constants";
 import type { HourlyAnalysisData } from "@/types";
-
-// ============================================================================
-// TIPOS
-// ============================================================================
 
 interface HourlyAnalysisProps {
   availableDates: string[];
@@ -19,10 +14,6 @@ interface HourlyAnalysisProps {
   defaultSede?: string;
 }
 
-// ============================================================================
-// UTILIDADES
-// ============================================================================
-
 const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
   weekday: "long",
   day: "2-digit",
@@ -30,9 +21,40 @@ const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
   year: "numeric",
 };
 
-// ============================================================================
-// SUBCOMPONENTES
-// ============================================================================
+const getHeatColor = (ratioPercent: number) => {
+  if (ratioPercent >= 110) return "#16a34a";
+  if (ratioPercent >= 100) return "#facc15";
+  if (ratioPercent >= 90) return "#f97316";
+  return "#dc2626";
+};
+
+const formatProductivity = (value: number) =>
+  value.toFixed(3);
+
+const calcVtaHr = (sales: number, laborHours: number) =>
+  laborHours > 0 ? sales / 1_000_000 / laborHours : 0;
+
+const parseTimeToMinute = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return 0;
+  }
+  return hours * 60 + minutes;
+};
+
+const minuteToTime = (value: number) => {
+  const safe = Math.max(0, Math.min(1439, value));
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
 
 const HourlyLoadingSkeleton = () => (
   <div className="space-y-3 animate-pulse">
@@ -48,25 +70,31 @@ const HourlyLoadingSkeleton = () => (
 
 const HourBar = ({
   label,
+  productivity,
   totalSales,
   employeesPresent,
-  maxSales,
+  maxProductivity,
   isExpanded,
   onToggle,
   lines,
+  employeesByLine,
+  heatColor,
+  bucketMinutes,
 }: {
   label: string;
+  productivity: number;
   totalSales: number;
   employeesPresent: number;
-  maxSales: number;
+  maxProductivity: number;
   isExpanded: boolean;
   onToggle: () => void;
   lines: HourlyAnalysisData["hours"][number]["lines"];
+  employeesByLine?: Record<string, number>;
+  heatColor: string;
+  bucketMinutes: number;
 }) => {
-  const percentage = maxSales > 0 ? (totalSales / maxSales) * 100 : 0;
+  const percentage = maxProductivity > 0 ? (productivity / maxProductivity) * 100 : 0;
   const hasActivity = totalSales > 0 || employeesPresent > 0;
-
-  const lineTotalForPercent = totalSales || 1;
 
   return (
     <div className="group rounded-2xl border border-slate-200/60 bg-white/80 p-2 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-all hover:-translate-y-0.5 hover:border-amber-200/70 hover:bg-white">
@@ -85,14 +113,17 @@ const HourBar = ({
         <div className="relative h-9 flex-1 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/70">
           {percentage > 0 && (
             <div
-              className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-amber-300 via-mercamio-400 to-mercamio-600 transition-all duration-500"
-              style={{ width: `${Math.max(percentage, 2)}%` }}
+              className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.max(percentage, 2)}%`,
+                backgroundColor: heatColor,
+              }}
             />
           )}
           {hasActivity && (
             <div className="absolute inset-0 flex items-center justify-between px-3">
               <span className="inline-flex items-center rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
-                {formatCOP(totalSales)}
+                Vta/Hr: {formatProductivity(productivity)}
               </span>
             </div>
           )}
@@ -116,37 +147,36 @@ const HourBar = ({
       {isExpanded && hasActivity && (
         <div className="mt-2 ml-26 mr-40 rounded-2xl border border-slate-200/70 bg-white/90 p-3 shadow-sm">
           <div className="grid grid-cols-12 gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 ring-1 ring-slate-200/60">
-            <span className="col-span-6">Linea</span>
-            <span className="col-span-3 text-right">Ventas</span>
-            <span className="col-span-3 text-right">% del total</span>
+            <span className="col-span-8">Linea</span>
+            <span className="col-span-4 text-right">Vta/Hr</span>
           </div>
           <div className="mt-2 space-y-2">
             {lines
               .filter((l) => l.sales > 0)
               .sort((a, b) => b.sales - a.sales)
               .map((line) => {
-                const percent = (line.sales / lineTotalForPercent) * 100;
+                const lineEmployees = employeesByLine?.[line.lineId] ?? 0;
+                const lineLaborHours = lineEmployees * (bucketMinutes / 60);
+                const lineProductivity = calcVtaHr(line.sales, lineLaborHours);
                 return (
                   <div
                     key={line.lineId}
                     className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200/60 bg-white px-3 py-2 text-sm shadow-[0_6px_20px_-16px_rgba(15,23,42,0.35)]"
                   >
-                    <div className="col-span-6">
-                      <p className="font-semibold text-slate-900">
-                        {line.lineName}
-                      </p>
+                    <div className="col-span-8">
+                      <p className="font-semibold text-slate-900">{line.lineName}</p>
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-full rounded-full bg-mercamio-500"
-                          style={{ width: `${Math.max(percent, 3)}%` }}
+                          className="h-full rounded-full"
+                          style={{
+                            width: "100%",
+                            backgroundColor: heatColor,
+                          }}
                         />
                       </div>
                     </div>
-                    <span className="col-span-3 text-right font-semibold text-slate-800">
-                      {formatCOP(line.sales)}
-                    </span>
-                    <span className="col-span-3 text-right font-semibold text-mercamio-700">
-                      {percent.toFixed(1)}%
+                    <span className="col-span-4 text-right font-semibold text-slate-800">
+                      {formatProductivity(lineProductivity)}
                     </span>
                   </div>
                 );
@@ -163,10 +193,6 @@ const HourBar = ({
   );
 };
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
-
 export const HourlyAnalysis = ({
   availableDates,
   availableSedes,
@@ -174,21 +200,96 @@ export const HourlyAnalysis = ({
   defaultSede,
 }: HourlyAnalysisProps) => {
   const [selectedDate, setSelectedDate] = useState(defaultDate ?? "");
-  const [selectedSede, setSelectedSede] = useState(defaultSede ?? "");
+  const [selectedLine, setSelectedLine] = useState("");
+  const [selectedSedes, setSelectedSedes] = useState<string[]>(
+    defaultSede ? [defaultSede] : [],
+  );
+  const [bucketMinutes, setBucketMinutes] = useState(60);
+  const [minuteRangeStart, setMinuteRangeStart] = useState(6 * 60);
+  const [minuteRangeEnd, setMinuteRangeEnd] = useState(21 * 60 + 50);
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [compareDate, setCompareDate] = useState("");
-  const [compareSede, setCompareSede] = useState("");
   const [hourlyData, setHourlyData] = useState<HourlyAnalysisData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [compareData, setCompareData] = useState<HourlyAnalysisData | null>(null);
-  const [isCompareLoading, setIsCompareLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
-  const [expandedHour, setExpandedHour] = useState<number | null>(null);
+  const [expandedSlotStart, setExpandedSlotStart] = useState<number | null>(null);
 
-  // Fetch data when date and sede change
+  const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
+  const bucketOptions = useMemo(
+    () => [60, 30, 20, 15, 10],
+    [],
+  );
+
+  const availableDateRange = useMemo(() => {
+    if (availableDates.length === 0) return { min: "", max: "" };
+    const sorted = [...availableDates].sort();
+    return { min: sorted[0], max: sorted[sorted.length - 1] };
+  }, [availableDates]);
+
+  const lineOptions = useMemo(() => {
+    const fallback = DEFAULT_LINES.map((line) => ({ id: line.id, name: line.name }));
+    if (!hourlyData) return fallback;
+
+    const map = new Map<string, string>();
+    fallback.forEach((line) => map.set(line.id, line.name));
+    hourlyData.hours.forEach((slot) => {
+      slot.lines.forEach((line) => {
+        if (!map.has(line.lineId)) {
+          map.set(line.lineId, line.lineName);
+        }
+      });
+    });
+
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [hourlyData]);
+
   useEffect(() => {
-    if (!selectedDate || !selectedSede) {
+    const available = new Set(availableSedes.map((s) => s.name));
+    setSelectedSedes((prev) => prev.filter((name) => available.has(name)));
+  }, [availableSedes]);
+
+  const toggleSede = (sedeName: string) => {
+    setSelectedSedes((prev) =>
+      prev.includes(sedeName)
+        ? prev.filter((name) => name !== sedeName)
+        : [...prev, sedeName],
+    );
+  };
+
+  const toggleAllSedes = () => {
+    setSelectedSedes((prev) =>
+      prev.length === availableSedes.length
+        ? []
+        : availableSedes.map((sede) => sede.name),
+    );
+  };
+
+  const fetchHourly = async (
+    date: string,
+    lineId: string,
+    currentBucketMinutes: number,
+    sedeNames: string[],
+    signal?: AbortSignal,
+  ) => {
+    const params = new URLSearchParams({ date });
+    if (lineId) params.set("line", lineId);
+    params.set("bucketMinutes", String(currentBucketMinutes));
+    sedeNames.forEach((sede) => params.append("sede", sede));
+
+    const res = await fetch(`/api/hourly-analysis?${params.toString()}`, { signal });
+    const json = (await res.json()) as HourlyAnalysisData | { error?: string };
+
+    if (!res.ok) {
+      throw new Error((json as { error?: string }).error ?? "Error al obtener datos");
+    }
+
+    return json as HourlyAnalysisData;
+  };
+
+  useEffect(() => {
+    if (!selectedDate) {
       setHourlyData(null);
       return;
     }
@@ -196,19 +297,15 @@ export const HourlyAnalysis = ({
     const controller = new AbortController();
     setIsLoading(true);
     setError(null);
-    setExpandedHour(null);
+    setExpandedSlotStart(null);
 
-    fetch(
-      `/api/hourly-analysis?date=${selectedDate}&sede=${encodeURIComponent(selectedSede)}`,
-      { signal: controller.signal },
+    fetchHourly(
+      selectedDate,
+      selectedLine,
+      bucketMinutes,
+      selectedSedes,
+      controller.signal,
     )
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error ?? "Error al obtener datos");
-        }
-        return json as HourlyAnalysisData;
-      })
       .then((data) => {
         setHourlyData(data);
         setIsLoading(false);
@@ -221,120 +318,225 @@ export const HourlyAnalysis = ({
       });
 
     return () => controller.abort();
-  }, [selectedDate, selectedSede]);
+  }, [selectedDate, selectedLine, bucketMinutes, selectedSedes]);
 
-  // Fetch compare data when enabled
   useEffect(() => {
-    if (!compareEnabled || !compareDate || !compareSede) {
+    if (!compareEnabled || !compareDate) {
       setCompareData(null);
       setCompareError(null);
       return;
     }
 
     const controller = new AbortController();
-    setIsCompareLoading(true);
     setCompareError(null);
 
-    fetch(
-      `/api/hourly-analysis?date=${compareDate}&sede=${encodeURIComponent(compareSede)}`,
-      { signal: controller.signal },
+    fetchHourly(
+      compareDate,
+      selectedLine,
+      bucketMinutes,
+      selectedSedes,
+      controller.signal,
     )
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error ?? "Error al obtener datos");
-        }
-        return json as HourlyAnalysisData;
-      })
       .then((data) => {
         setCompareData(data);
-        setIsCompareLoading(false);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setCompareError(err instanceof Error ? err.message : "Error desconocido");
         setCompareData(null);
-        setIsCompareLoading(false);
       });
 
     return () => controller.abort();
-  }, [compareEnabled, compareDate, compareSede]);
+  }, [compareEnabled, compareDate, selectedLine, bucketMinutes, selectedSedes]);
 
-  // Filtrar solo las horas con actividad para el resumen
-  const activeHours = useMemo(() => {
+  const rangedHours = useMemo(() => {
     if (!hourlyData) return [];
     return hourlyData.hours.filter(
-      (h) => h.totalSales > 0 || h.employeesPresent > 0,
+      (h) =>
+        h.slotStartMinute >= minuteRangeStart &&
+        h.slotStartMinute <= minuteRangeEnd,
     );
-  }, [hourlyData]);
+  }, [hourlyData, minuteRangeEnd, minuteRangeStart]);
 
-  const availableDateRange = useMemo(() => {
-    if (availableDates.length === 0) return { min: "", max: "" };
-    const sorted = [...availableDates].sort();
-    return { min: sorted[0], max: sorted[sorted.length - 1] };
-  }, [availableDates]);
+  const activeHours = useMemo(() => {
+    if (!hourlyData) return [];
+    return rangedHours.filter((h) => h.totalSales > 0 || h.employeesPresent > 0);
+  }, [hourlyData, rangedHours]);
 
-  const maxSales = useMemo(() => {
+  const mainBaselineSalesPerEmployee = useMemo(() => {
+    if (!hourlyData) return 0;
+    const totals = rangedHours.reduce(
+      (acc, h) => {
+        acc.sales += h.totalSales;
+        acc.hours += h.employeesPresent * (bucketMinutes / 60);
+        return acc;
+      },
+      { sales: 0, hours: 0 },
+    );
+    return calcVtaHr(totals.sales, totals.hours);
+  }, [rangedHours, hourlyData, bucketMinutes]);
+
+  const compareBaselineSalesPerEmployee = useMemo(() => {
+    if (!compareData) return 0;
+    const compareRangeHours = compareData.hours.filter(
+      (h) =>
+        h.slotStartMinute >= minuteRangeStart &&
+        h.slotStartMinute <= minuteRangeEnd,
+    );
+    const totals = compareRangeHours.reduce(
+      (acc, h) => {
+        acc.sales += h.totalSales;
+        acc.hours += h.employeesPresent * (bucketMinutes / 60);
+        return acc;
+      },
+      { sales: 0, hours: 0 },
+    );
+    return calcVtaHr(totals.sales, totals.hours);
+  }, [compareData, minuteRangeEnd, minuteRangeStart, bucketMinutes]);
+
+  const computeHeatRatio = (
+    sales: number,
+    employees: number,
+    baselineSalesPerEmployee: number,
+  ) => {
+    const laborHours = employees * (bucketMinutes / 60);
+    const vtaHr = calcVtaHr(sales, laborHours);
+    if (baselineSalesPerEmployee > 0) {
+      return (vtaHr / baselineSalesPerEmployee) * 100;
+    }
+    return 0;
+  };
+
+  const maxProductivity = useMemo(() => {
     if (activeHours.length === 0) return 1;
-    return Math.max(...activeHours.map((h) => h.totalSales), 1);
-  }, [activeHours]);
+    return Math.max(
+      ...activeHours.map((h) => {
+        const laborHours = h.employeesPresent * (bucketMinutes / 60);
+        return calcVtaHr(h.totalSales, laborHours);
+      }),
+      1,
+    );
+  }, [activeHours, bucketMinutes]);
 
   const chartHours = useMemo(() => {
     if (!hourlyData) return [];
-    if (!compareEnabled || !compareData) {
-      return hourlyData.hours.filter((h) => h.totalSales > 0);
-    }
 
     const compareByHour = new Map(
-      compareData.hours.map((h) => [h.hour, h.totalSales]),
+      compareData?.hours
+        .filter(
+          (h) =>
+            h.slotStartMinute >= minuteRangeStart &&
+            h.slotStartMinute <= minuteRangeEnd,
+        )
+        .map((h) => [h.slotStartMinute, h]) ?? [],
     );
-    return hourlyData.hours.filter((h) => {
-      const compareSales = compareByHour.get(h.hour) ?? 0;
-      return h.totalSales > 0 || compareSales > 0;
-    });
-  }, [hourlyData, compareEnabled, compareData]);
 
-  const chartLabels = useMemo(
-    () => chartHours.map((h) => String(h.hour).padStart(2, "0")),
-    [chartHours],
-  );
+    return rangedHours
+      .map((h) => {
+        const compareSlot = compareByHour.get(h.slotStartMinute);
 
-  const chartSeries = useMemo(
-    () => chartHours.map((h) => h.totalSales),
-    [chartHours],
-  );
+        const mainHeatRatio = computeHeatRatio(
+          h.totalSales,
+          h.employeesPresent,
+          mainBaselineSalesPerEmployee,
+        );
 
-  const chartCompareSeries = useMemo(() => {
-    if (!compareEnabled || !compareData) return [];
-    const compareByHour = new Map(
-      compareData.hours.map((h) => [h.hour, h.totalSales]),
-    );
-    return chartHours.map((h) => compareByHour.get(h.hour) ?? 0);
-  }, [compareEnabled, compareData, chartHours]);
+        const compareSales = compareSlot?.totalSales ?? 0;
+        const compareEmployees = compareSlot?.employeesPresent ?? 0;
+        const compareHeatRatio = computeHeatRatio(
+          compareSales,
+          compareEmployees,
+          compareBaselineSalesPerEmployee,
+        );
+        const mainProductivity = calcVtaHr(
+          h.totalSales,
+          h.employeesPresent * (bucketMinutes / 60),
+        );
+        const compareProductivity = calcVtaHr(
+          compareSales,
+          compareEmployees * (bucketMinutes / 60),
+        );
+
+        return {
+          slotStartMinute: h.slotStartMinute,
+          label: h.label.slice(0, 5),
+          mainSales: h.totalSales,
+          mainProductivity,
+          mainHeatRatio,
+          mainHeatColor: getHeatColor(mainHeatRatio),
+          compareSales,
+          compareProductivity,
+          compareHeatRatio,
+          compareHeatColor: getHeatColor(compareHeatRatio),
+        };
+      })
+      .filter((h) => {
+        if (compareEnabled && compareData) {
+          return h.mainSales > 0 || h.compareSales > 0;
+        }
+        return h.mainSales > 0;
+      });
+  }, [
+    compareBaselineSalesPerEmployee,
+    compareData,
+    compareEnabled,
+    bucketMinutes,
+    minuteRangeEnd,
+    minuteRangeStart,
+    hourlyData,
+    mainBaselineSalesPerEmployee,
+    rangedHours,
+  ]);
 
   const chartTickEvery = useMemo(() => {
-    const count = chartLabels.length;
+    const count = chartHours.length;
     if (count <= 6) return 1;
     return Math.ceil(count / 6);
-  }, [chartLabels]);
+  }, [chartHours]);
 
-  // Totales del dia
-  const dayTotals = useMemo(() => {
-    if (!hourlyData) return { sales: 0, peakEmployees: 0, activeHoursCount: 0 };
-    const sales = hourlyData.hours.reduce((sum, h) => sum + h.totalSales, 0);
-    const peakEmployees = Math.max(
-      ...hourlyData.hours.map((h) => h.employeesPresent),
-      0,
+  const chartColumnWidth = useMemo(() => {
+    if (chartHours.length <= 8) return 56;
+    if (chartHours.length <= 16) return 42;
+    return 26;
+  }, [chartHours.length]);
+
+  const chartMaxProductivity = useMemo(() => {
+    if (chartHours.length === 0) return 1;
+    return Math.max(
+      ...chartHours.map((h) =>
+        Math.max(h.mainProductivity, h.compareProductivity),
+      ),
+      1,
     );
-    const activeHoursCount = hourlyData.hours.filter(
+  }, [chartHours]);
+
+  const dayTotals = useMemo(() => {
+    if (!hourlyData)
+      return { sales: 0, avgProductivity: 0, peakEmployees: 0, activeHoursCount: 0 };
+    const sales = rangedHours.reduce((sum, h) => sum + h.totalSales, 0);
+    const productivityValues = rangedHours
+      .reduce(
+        (acc, h) => {
+          acc.sales += h.totalSales;
+          acc.hours += h.employeesPresent * (bucketMinutes / 60);
+          return acc;
+        },
+        { sales: 0, hours: 0 },
+      );
+    const avgProductivity = calcVtaHr(productivityValues.sales, productivityValues.hours);
+    const peakEmployees = Math.max(...rangedHours.map((h) => h.employeesPresent), 0);
+    const activeHoursCount = rangedHours.filter(
       (h) => h.totalSales > 0 || h.employeesPresent > 0,
     ).length;
-    return { sales, peakEmployees, activeHoursCount };
-  }, [hourlyData]);
+    return { sales, avgProductivity, peakEmployees, activeHoursCount };
+  }, [hourlyData, rangedHours, bucketMinutes]);
 
   const handleToggleHour = (hour: number) => {
-    setExpandedHour((prev) => (prev === hour ? null : hour));
+    setExpandedSlotStart((prev) => (prev === hour ? null : hour));
   };
+
+  const selectedLineLabel =
+    selectedLine && lineOptions.find((line) => line.id === selectedLine)?.name;
 
   return (
     <div
@@ -344,7 +546,6 @@ export const HourlyAnalysis = ({
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-amber-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-mercamio-200/30 blur-3xl" />
 
-      {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-700 shadow-sm">
@@ -352,11 +553,10 @@ export const HourlyAnalysis = ({
             Analisis por hora
           </div>
           <h3 className="mt-1 text-lg font-semibold text-slate-900">
-            Desglose horario de ventas y empleados
+            Desglose horario con color de mapa de calor
           </h3>
           <p className="mt-1 text-xs text-slate-600">
-            Selecciona un dia y sede para ver el detalle hora a hora. Haz clic
-            en una barra para ver el desglose por linea.
+            Filtra por linea para enfocar el comportamiento horario en todas las sedes.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
@@ -365,8 +565,7 @@ export const HourlyAnalysis = ({
         </div>
       </div>
 
-      {/* Controles */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="block">
           <span className="text-xs font-semibold text-slate-700">Fecha</span>
           <input
@@ -380,20 +579,106 @@ export const HourlyAnalysis = ({
         </label>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Sede</span>
+          <span className="text-xs font-semibold text-slate-700">Linea</span>
           <select
-            value={selectedSede}
-            onChange={(e) => setSelectedSede(e.target.value)}
+            value={selectedLine}
+            onChange={(e) => setSelectedLine(e.target.value)}
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >
-            <option value="">Selecciona una sede</option>
-            {availableSedes.map((sede) => (
-              <option key={sede.id} value={sede.name}>
-                {sede.name}
+            <option value="">Todas las lineas</option>
+            {lineOptions.map((line) => (
+              <option key={line.id} value={line.id}>
+                {line.name}
               </option>
             ))}
           </select>
         </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-700">Intervalo</span>
+          <select
+            value={bucketMinutes}
+            onChange={(e) => setBucketMinutes(Number(e.target.value))}
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          >
+            {bucketOptions.map((minutes) => (
+              <option key={`bucket-${minutes}`} value={minutes}>
+                {minutes} minutos
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-700">Desde (HH:mm)</span>
+          <input
+            type="time"
+            step={minuteRangeStepSeconds}
+            value={minuteToTime(minuteRangeStart)}
+            onChange={(e) => {
+              const nextStart = parseTimeToMinute(e.target.value);
+              setMinuteRangeStart(nextStart);
+              setMinuteRangeEnd((prev) => (prev < nextStart ? nextStart : prev));
+            }}
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-700">Hasta (HH:mm)</span>
+          <input
+            type="time"
+            step={minuteRangeStepSeconds}
+            value={minuteToTime(minuteRangeEnd)}
+            onChange={(e) => {
+              const nextEnd = parseTimeToMinute(e.target.value);
+              setMinuteRangeEnd(nextEnd);
+              setMinuteRangeStart((prev) => (prev > nextEnd ? nextEnd : prev));
+            }}
+            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+          />
+        </label>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Sedes
+          </span>
+          <button
+            type="button"
+            onClick={toggleAllSedes}
+            className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700 transition-all hover:border-slate-300"
+          >
+            {selectedSedes.length === availableSedes.length
+              ? "Quitar todas"
+              : "Seleccionar todas"}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {availableSedes.map((sede) => {
+            const selected = selectedSedes.includes(sede.name);
+            return (
+              <button
+                key={sede.id}
+                type="button"
+                onClick={() => toggleSede(sede.name)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                  selected
+                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                    : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {sede.name}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[11px] text-slate-500">
+          {selectedSedes.length === 0
+            ? "Sin selección manual: se usan todas las sedes."
+            : `${selectedSedes.length} sede(s) seleccionada(s).`}
+        </p>
       </div>
 
       <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
@@ -402,9 +687,7 @@ export const HourlyAnalysis = ({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Comparar
             </p>
-            <p className="text-sm font-semibold text-slate-900">
-              Compara dos dias (misma o diferente sede)
-            </p>
+            <p className="text-sm font-semibold text-slate-900">Compara dos dias</p>
           </div>
           <button
             type="button"
@@ -422,9 +705,7 @@ export const HourlyAnalysis = ({
         {compareEnabled && (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold text-slate-700">
-                Fecha a comparar
-              </span>
+              <span className="text-xs font-semibold text-slate-700">Fecha a comparar</span>
               <input
                 type="date"
                 value={compareDate}
@@ -434,29 +715,10 @@ export const HourlyAnalysis = ({
                 className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
               />
             </label>
-
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-700">
-                Sede a comparar
-              </span>
-              <select
-                value={compareSede}
-                onChange={(e) => setCompareSede(e.target.value)}
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              >
-                <option value="">Selecciona una sede</option>
-                {availableSedes.map((sede) => (
-                  <option key={sede.id} value={sede.name}>
-                    {sede.name}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
         )}
       </div>
 
-      {/* Error */}
       {error && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-800">
           {error}
@@ -468,30 +730,49 @@ export const HourlyAnalysis = ({
         </div>
       )}
 
-      {/* Loading */}
       {isLoading && <HourlyLoadingSkeleton />}
 
-      {/* No selection */}
-      {!isLoading && (!selectedDate || !selectedSede) && (
+      {!isLoading && !selectedDate && (
         <p className="py-10 text-center text-sm text-slate-600">
-          Selecciona una fecha y una sede para ver el analisis horario.
+          Selecciona una fecha para ver el analisis horario.
         </p>
       )}
 
-      {/* Data */}
       {!isLoading && hourlyData && (
         <>
-          {/* Day summary chips */}
           <div className="mb-6 flex flex-wrap items-center gap-3">
             <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
               {formatDateLabel(hourlyData.date, hourlyDateLabelOptions)}
             </span>
             <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/60">
-              {hourlyData.sede}
+              {hourlyData.scopeLabel}
             </span>
+            <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200/70">
+              Rango: {minuteToTime(minuteRangeStart)} - {minuteToTime(minuteRangeEnd)}
+            </span>
+            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200/70">
+              Intervalo: {bucketMinutes} min
+            </span>
+            {hourlyData.attendanceDateUsed &&
+              hourlyData.attendanceDateUsed !== hourlyData.date && (
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
+                  Asistencia usada: {hourlyData.attendanceDateUsed}
+                </span>
+              )}
+            {hourlyData.salesDateUsed &&
+              hourlyData.salesDateUsed !== hourlyData.date && (
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
+                  Ventas usadas: {hourlyData.salesDateUsed}
+                </span>
+              )}
+            {selectedLineLabel && (
+              <span className="rounded-full bg-mercamio-50 px-3 py-1 text-xs font-semibold text-mercamio-700 ring-1 ring-mercamio-200/70">
+                Linea: {selectedLineLabel}
+              </span>
+            )}
             <span className="flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
               <DollarSign className="h-3.5 w-3.5" />
-              {formatCOP(dayTotals.sales)}
+              Vta/Hr prom: {formatProductivity(dayTotals.avgProductivity)}
             </span>
             <span className="flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/70">
               <Users className="h-3.5 w-3.5" />
@@ -502,7 +783,6 @@ export const HourlyAnalysis = ({
             </span>
           </div>
 
-          {/* Hourly chart */}
           <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -510,94 +790,129 @@ export const HourlyAnalysis = ({
                   Diferencias por hora
                 </p>
                 <p className="text-sm font-semibold text-slate-900">
-                  Comportamiento de ventas durante el dia
+                  Colores por rendimiento (formula de mapa de calor)
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {compareEnabled && compareDate && compareSede && (
+                {compareEnabled && compareDate && (
                   <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/70">
-                    {compareDate} - {compareSede}
+                    Comparado: {compareDate}
                   </span>
                 )}
                 <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
-                  Max: {formatCOP(maxSales)}
+                  Max Vta/Hr: {formatProductivity(maxProductivity)}
                 </span>
               </div>
             </div>
-            <div className="h-32 w-full">
-              <BarChart
-                height={128}
-                series={[
-                  {
-                    data: chartSeries,
-                    color: "#f59e0b",
-                    label: "Dia principal",
-                  },
-                  ...(compareEnabled && compareData
-                    ? [
-                        {
-                          data: chartCompareSeries,
-                          color: "#38bdf8",
-                          label: "Dia comparado",
-                        },
-                      ]
-                    : []),
-                ]}
-                xAxis={[
-                  {
-                    data: chartLabels,
-                    scaleType: "band",
-                    valueFormatter: (value: string | number) => `${value}:00`,
-                    tickLabelInterval: (_value, index) =>
-                      index % chartTickEvery === 0 ||
-                      index === chartLabels.length - 1,
-                    tickLabelStyle: {
-                      fontSize: 10,
-                      fill: "#64748b",
-                      fontWeight: 600,
-                    },
-                  },
-                ]}
-                yAxis={[
-                  {
-                    tickLabelStyle: { fontSize: 9, fill: "#94a3b8" },
-                    valueFormatter: (value: number) =>
-                      new Intl.NumberFormat("es-CO", {
-                        notation: "compact",
-                        maximumFractionDigits: 1,
-                      }).format(value as number),
-                  },
-                ]}
-                grid={{ horizontal: true, vertical: false }}
-                margin={{ left: 36, right: 8, top: 6, bottom: 16 }}
-                sx={{
-                  ".MuiChartsAxis-line": { stroke: "#e2e8f0" },
-                  ".MuiChartsAxis-tick": { stroke: "#e2e8f0" },
-                  ".MuiChartsGrid-line": { stroke: "#eef2f7" },
-                }}
-              />
+
+            <div className="w-full rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3">
+              {chartHours.length === 0 ? (
+                <p className="py-10 text-center text-xs text-slate-500">Sin horas con ventas para graficar.</p>
+              ) : (
+                <div className="overflow-x-auto pb-2">
+                  <div
+                    className="relative h-52"
+                    style={{
+                      width: `${Math.max(chartHours.length * chartColumnWidth, 920)}px`,
+                    }}
+                  >
+                    <div className="pointer-events-none absolute inset-x-0 top-[20%] border-t border-dashed border-slate-300/70" />
+                    <div className="pointer-events-none absolute inset-x-0 top-[40%] border-t border-dashed border-slate-300/70" />
+                    <div className="pointer-events-none absolute inset-x-0 top-[60%] border-t border-dashed border-slate-300/70" />
+                    <div className="pointer-events-none absolute inset-x-0 top-[80%] border-t border-dashed border-slate-300/70" />
+                    <div className="absolute inset-x-0 bottom-5 border-t border-slate-300/80" />
+
+                    <div className="relative flex h-full items-end gap-1">
+                      {chartHours.map((slot, index) => {
+                        const mainHeight =
+                          (slot.mainProductivity / chartMaxProductivity) * 100;
+                        const compareHeight =
+                          (slot.compareProductivity / chartMaxProductivity) * 100;
+                        const showTick =
+                          index % chartTickEvery === 0 || index === chartHours.length - 1;
+
+                        return (
+                          <div
+                            key={slot.slotStartMinute}
+                            className="group flex shrink-0 flex-col items-center justify-end gap-1"
+                            style={{ width: `${chartColumnWidth}px` }}
+                          >
+                            <div className="flex h-44 w-full items-end justify-center gap-[3px]">
+                              <div
+                                className="w-[46%] min-h-[3px] rounded-t-md shadow-[0_8px_18px_-14px_rgba(15,23,42,0.6)] transition-all duration-200 group-hover:brightness-110"
+                                style={{
+                                  height: `${Math.max(mainHeight, slot.mainProductivity > 0 ? 2.5 : 0)}%`,
+                                  backgroundColor: slot.mainHeatColor,
+                                }}
+                                title={`${slot.label} | Vta/Hr ${formatProductivity(slot.mainProductivity)} | ${slot.mainHeatRatio.toFixed(0)}%`}
+                              />
+                              {compareEnabled && compareData && (
+                                <div
+                                  className="w-[34%] min-h-[3px] rounded-t-md bg-sky-400/85 shadow-[0_8px_18px_-14px_rgba(14,165,233,0.8)]"
+                                  style={{
+                                    height: `${Math.max(compareHeight, slot.compareProductivity > 0 ? 2.5 : 0)}%`,
+                                  }}
+                                  title={`${slot.label} comparado | Vta/Hr ${formatProductivity(slot.compareProductivity)} | ${slot.compareHeatRatio.toFixed(0)}%`}
+                                />
+                              )}
+                            </div>
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              {showTick ? slot.label : ""}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {compareEnabled && compareData && (
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+                <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700 ring-1 ring-sky-200">
+                  Barra azul: dia comparado
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Hourly bars */}
           {activeHours.length > 0 ? (
             <div className="space-y-3">
-              {activeHours.map((slot) => (
-                <HourBar
-                  key={slot.hour}
-                  label={slot.label}
-                  totalSales={slot.totalSales}
-                  employeesPresent={slot.employeesPresent}
-                  maxSales={maxSales}
-                  isExpanded={expandedHour === slot.hour}
-                  onToggle={() => handleToggleHour(slot.hour)}
-                  lines={slot.lines}
-                />
-              ))}
+              {activeHours.map((slot) => {
+                const heatRatio = computeHeatRatio(
+                  slot.totalSales,
+                  slot.employeesPresent,
+                  mainBaselineSalesPerEmployee,
+                );
+                const heatColor = getHeatColor(heatRatio);
+
+                return (
+                  <HourBar
+                    key={slot.slotStartMinute}
+                    label={slot.label}
+                    productivity={
+                      calcVtaHr(
+                        slot.totalSales,
+                        slot.employeesPresent * (bucketMinutes / 60),
+                      )
+                    }
+                    totalSales={slot.totalSales}
+                    employeesPresent={slot.employeesPresent}
+                    maxProductivity={maxProductivity}
+                    isExpanded={expandedSlotStart === slot.slotStartMinute}
+                    onToggle={() => handleToggleHour(slot.slotStartMinute)}
+                    lines={slot.lines}
+                    employeesByLine={slot.employeesByLine}
+                    heatColor={heatColor}
+                    bucketMinutes={bucketMinutes}
+                  />
+                );
+              })}
             </div>
           ) : (
             <p className="py-10 text-center text-sm text-slate-600">
-              No hay actividad registrada para este dia y sede.
+              No hay actividad registrada para este filtro.
             </p>
           )}
         </>

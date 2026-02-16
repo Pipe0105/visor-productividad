@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,9 +37,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
-        <h1 className="text-2xl font-semibold text-slate-900">Iniciar sesión</h1>
+    <div className="min-h-screen bg-linear-to-br from-sky-50 via-blue-50 to-lime-50 px-4 py-10 text-foreground">
+      <div className="mx-auto w-full max-w-xl rounded-3xl border border-blue-200/70 bg-white/90 p-8 shadow-[0_25px_80px_-38px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="mb-6 flex items-center justify-center gap-3 rounded-2xl border border-slate-200/70 bg-white/90 p-3">
+          <Image
+            src="/logos/mercamio.jpeg"
+            alt="Logo MercaMio"
+            width={190}
+            height={60}
+            className="h-12 w-auto sm:h-14"
+            priority
+          />
+          <Image
+            src="/logos/mercatodo.jpeg"
+            alt="Logo MercaTodo"
+            width={190}
+            height={60}
+            className="h-12 w-auto sm:h-14"
+            priority
+          />
+        </div>
+
+        <h1 className="text-2xl font-bold text-slate-900">Iniciar sesión</h1>
         <p className="mt-1 text-sm text-slate-600">
           Accede con tu cuenta para ver el tablero y administrar usuarios.
         </p>
@@ -51,7 +71,7 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              className="mt-1 w-full rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
             />
           </label>
           <label className="block text-sm text-slate-700">
@@ -61,7 +81,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-slate-200/70 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              className="mt-1 w-full rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mercamio-100"
             />
           </label>
 
@@ -74,7 +94,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full border border-mercamio-200/70 bg-mercamio-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-all hover:bg-mercamio-700 disabled:cursor-not-allowed disabled:opacity-70"
+            className="w-full rounded-full border border-mercamio-200/70 bg-linear-to-r from-[#4f7eff] via-[#2563eb] to-[#4f7eff] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_8px_16px_-12px_rgba(37,99,235,0.55)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>

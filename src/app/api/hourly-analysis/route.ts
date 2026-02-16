@@ -4,7 +4,7 @@ import { getSessionCookieOptions, requireAuthSession } from "@/lib/auth";
 import type { HourlyAnalysisData, HourlyLineSales, HourSlot } from "@/types";
 
 // ============================================================================
-// CONSTANTES DE MAPEO (replicadas de productivity/route.ts)
+// CONSTANTES
 // ============================================================================
 
 const LINE_TABLES = [
@@ -16,51 +16,21 @@ const LINE_TABLES = [
   { id: "asadero", name: "Asadero", table: "ventas_asadero" },
 ] as const;
 
-const SEDE_NAMES: Record<string, string> = {
-  "001|mercamio": "Calle 5ta",
-  "002|mercamio": "La 39",
-  "003|mercamio": "Plaza Norte",
-  "004|mercamio": "Ciudad Jardín",
-  "005|mercamio": "Centro Sur",
-  "006|mercamio": "Palmira",
-  "001|mtodo": "Floresta",
-  "002|mtodo": "Floralia",
-  "003|mtodo": "Guaduales",
-  "001|bogota": "Bogotá",
-  "002|bogota": "Chía",
-};
+const LINE_IDS = new Set<string>(LINE_TABLES.map((line) => line.id));
 
-// Reverse: nombre de sede -> { centro, empresa }
-const REVERSE_SEDE: Record<string, { centro: string; empresa: string }> = {};
-for (const [key, name] of Object.entries(SEDE_NAMES)) {
-  const [centro, empresa] = key.split("|");
-  REVERSE_SEDE[name] = { centro, empresa };
-}
-
-const SEDE_ASISTENCIA_TO_SYSTEM: Record<string, string> = {
-  "merkmios bogota": "Bogotá",
-  "mio plaza norte": "Plaza Norte",
-  floresta: "Floresta",
-  "la 5a": "Calle 5ta",
-  "palmira mercamio": "Palmira",
-  guaduales: "Guaduales",
-  "merkmios chia": "Chía",
-  "centro sur": "Centro Sur",
-  floralia: "Floralia",
-  "floralia mercatodo": "Floralia",
-  "mercatodo floralia": "Floralia",
-  "la 39": "La 39",
-  "ciudad jardin": "Ciudad Jardín",
-};
-
-// Reverse: nombre del sistema -> nombres raw en asistencia_horas
-const REVERSE_SEDE_ASISTENCIA: Record<string, string[]> = {};
-for (const [raw, system] of Object.entries(SEDE_ASISTENCIA_TO_SYSTEM)) {
-  if (!REVERSE_SEDE_ASISTENCIA[system]) {
-    REVERSE_SEDE_ASISTENCIA[system] = [];
-  }
-  REVERSE_SEDE_ASISTENCIA[system].push(raw);
-}
+const SEDE_CONFIGS = [
+  { name: "Calle 5ta", centro: "001", empresa: "mercamio", attendanceNames: ["la 5a", "calle 5ta"], aliases: ["calle 5ta", "la 5a", "la 5"] },
+  { name: "La 39", centro: "002", empresa: "mercamio", attendanceNames: ["la 39"], aliases: ["la 39", "39"] },
+  { name: "Plaza Norte", centro: "003", empresa: "mercamio", attendanceNames: ["plaza norte", "mio plaza norte"], aliases: ["plaza norte", "mio plaza norte"] },
+  { name: "Ciudad Jardin", centro: "004", empresa: "mercamio", attendanceNames: ["ciudad jardin"], aliases: ["ciudad jardin", "ciudad jard", "jardin"] },
+  { name: "Centro Sur", centro: "005", empresa: "mercamio", attendanceNames: ["centro sur"], aliases: ["centro sur"] },
+  { name: "Palmira", centro: "006", empresa: "mercamio", attendanceNames: ["palmira", "palmira mercamio"], aliases: ["palmira", "palmira mercamio"] },
+  { name: "Floresta", centro: "001", empresa: "mtodo", attendanceNames: ["floresta"], aliases: ["floresta"] },
+  { name: "Floralia", centro: "002", empresa: "mtodo", attendanceNames: ["floralia", "floralia mercatodo", "mercatodo floralia"], aliases: ["floralia", "mercatodo floralia"] },
+  { name: "Guaduales", centro: "003", empresa: "mtodo", attendanceNames: ["guaduales"], aliases: ["guaduales"] },
+  { name: "Bogota", centro: "001", empresa: "bogota", attendanceNames: ["bogota", "merkmios bogota"], aliases: ["bogota", "bogot", "merkmios bogota", "merkmios bogot"] },
+  { name: "Chia", centro: "002", empresa: "bogota", attendanceNames: ["chia", "merkmios chia"], aliases: ["chia", "chi", "ch a", "merkmios chia"] },
+] as const;
 
 const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   cajas: "cajas",
@@ -73,6 +43,7 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   "carnes rojas": "carnes",
   "pollo y pescado": "pollo y pescado",
   "surtidor (a) pollo y pescado": "pollo y pescado",
+  "surtidor a pollo y pescado": "pollo y pescado",
   asadero: "asadero",
   "pollo asado": "asadero",
 };
@@ -86,6 +57,33 @@ const normalizeDepto = (depto: string): string => {
       .replace(/[^a-z0-9]+/g, " ")
       .trim() || ""
   );
+};
+
+const normalizeSedeName = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const matchSelectedSedeConfigs = (selectedSedes: string[]) => {
+  if (selectedSedes.length === 0) return SEDE_CONFIGS;
+
+  const normalizedSelected = selectedSedes.map(normalizeSedeName);
+  const matched = SEDE_CONFIGS.filter((cfg) => {
+    const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+    return normalizedSelected.some((selected) =>
+      aliasPool.some(
+        (alias) =>
+          selected === alias ||
+          selected.includes(alias) ||
+          alias.includes(selected),
+      ),
+    );
+  });
+
+  return matched.length > 0 ? matched : SEDE_CONFIGS;
 };
 
 const resolveLineId = (depto: string): string | undefined => {
@@ -121,67 +119,92 @@ const resolveLineId = (depto: string): string | undefined => {
 // UTILIDADES DE PARSEO
 // ============================================================================
 
-/** Extrae la hora (0-23) de un valor que puede ser entero, string de tiempo, o Date */
-const parseHour = (raw: unknown): number | null => {
+const parseMinuteOfDay = (raw: unknown): number | null => {
   if (raw === null || raw === undefined) return null;
 
   if (typeof raw === "number") {
     const h = Math.floor(raw);
-    return h >= 0 && h <= 23 ? h : null;
+    return h >= 0 && h <= 23 ? h * 60 : null;
   }
 
   if (raw instanceof Date) {
     const h = raw.getHours();
-    return h >= 0 && h <= 23 ? h : null;
+    const m = raw.getMinutes();
+    return h >= 0 && h <= 23 ? h * 60 + m : null;
   }
 
   const str = String(raw).trim();
   if (!str) return null;
 
-  // Entero directo: "8", "14"
   const asInt = parseInt(str, 10);
   if (!isNaN(asInt) && asInt >= 0 && asInt <= 23 && /^\d{1,2}$/.test(str)) {
-    return asInt;
+    return asInt * 60;
   }
 
-  // Formato de tiempo: "08:30:00", "14:00", etc.
-  const timeMatch = str.match(/^(\d{1,2}):/);
+  const timeMatch = str.match(/^(\d{1,2}):(\d{1,2})/);
   if (timeMatch) {
     const hour = parseInt(timeMatch[1], 10);
-    if (hour >= 0 && hour <= 23) return hour;
+    const minute = parseInt(timeMatch[2], 10);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return hour * 60 + minute;
+    }
   }
 
   return null;
 };
 
-/**
- * Determina en qué horas (0-23) un empleado estuvo presente.
- * Presente desde hora_entrada hasta hora_salida, ausente en el rango
- * hora_intermedia1..hora_intermedia2 (descanso).
- */
-const computePresenceHours = (
+const buildSlotLabel = (slotStartMinute: number, bucketMinutes: number) => {
+  const startHour = Math.floor(slotStartMinute / 60);
+  const startMinute = slotStartMinute % 60;
+  const slotEndMinute = (slotStartMinute + bucketMinutes) % 1440;
+  const endHour = Math.floor(slotEndMinute / 60);
+  const endMinute = slotEndMinute % 60;
+  return `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")} - ${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
+};
+
+const compactDateToISO = (value: string | null | undefined): string | null => {
+  if (!value || !/^\d{8}$/.test(value)) return null;
+  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+};
+
+const computePresenceSlots = (
   horaEntrada: unknown,
   horaIntermedia1: unknown,
   horaIntermedia2: unknown,
   horaSalida: unknown,
+  bucketMinutes: number,
 ): Set<number> => {
-  const present = new Set<number>();
+  const presentSlots = new Set<number>();
 
-  const entry = parseHour(horaEntrada);
-  const exit = parseHour(horaSalida);
-  if (entry === null || exit === null) return present;
+  const entry = parseMinuteOfDay(horaEntrada);
+  const exit = parseMinuteOfDay(horaSalida);
+  if (entry === null || exit === null) return presentSlots;
 
-  const break1 = parseHour(horaIntermedia1);
-  const break2 = parseHour(horaIntermedia2);
+  const break1 = parseMinuteOfDay(horaIntermedia1);
+  const break2 = parseMinuteOfDay(horaIntermedia2);
 
-  for (let h = entry; h <= exit && h <= 23; h++) {
-    if (break1 !== null && break2 !== null && h >= break1 && h < break2) {
-      continue;
+  const isInBreak = (minuteOfDay: number) => {
+    if (break1 === null || break2 === null) return false;
+    if (break1 <= break2) {
+      return minuteOfDay >= break1 && minuteOfDay < break2;
     }
-    present.add(h);
+    return minuteOfDay >= break1 || minuteOfDay < break2;
+  };
+
+  const isInShift = (minuteOfDay: number) => {
+    if (entry <= exit) {
+      return minuteOfDay >= entry && minuteOfDay <= exit;
+    }
+    return minuteOfDay >= entry || minuteOfDay <= exit;
+  };
+
+  for (let slotStart = 0; slotStart < 1440; slotStart += bucketMinutes) {
+    if (isInShift(slotStart) && !isInBreak(slotStart)) {
+      presentSlots.add(slotStart);
+    }
   }
 
-  return present;
+  return presentSlots;
 };
 
 // ============================================================================
@@ -221,92 +244,161 @@ const checkRateLimit = (request: Request) => {
 
 const fetchHourlyData = async (
   dateISO: string,
-  sedeName: string,
+  lineFilter: string | null,
+  bucketMinutes: number,
+  selectedSedes: string[],
 ): Promise<HourlyAnalysisData> => {
   const pool = await getDbPool();
   const client = await pool.connect();
 
   try {
-    // Preparar fecha en formato YYYYMMDD para las tablas de ventas
-    const dateParts = dateISO.split("-");
-    const dateCompact = dateParts.join("");
+    const dateCompact = dateISO.split("-").join("");
+    const selectedLineTables = lineFilter
+      ? LINE_TABLES.filter((line) => line.id === lineFilter)
+      : LINE_TABLES;
+    const selectedSedeConfigs = matchSelectedSedeConfigs(selectedSedes);
+    const selectedScopeLabel =
+      selectedSedeConfigs.length === 0 || selectedSedeConfigs.length === SEDE_CONFIGS.length
+        ? "Todas las sedes"
+        : selectedSedeConfigs.map((cfg) => cfg.name).join(", ");
+    const salesBranchClauses = selectedSedeConfigs
+      .map(
+        (_cfg, index) =>
+          `(centro_operacion = $${index * 2 + 2} AND (empresa_bd = $${index * 2 + 3} OR ($${index * 2 + 3} IS NULL AND empresa_bd IS NULL)))`,
+      )
+      .join(" OR ");
+    const salesBranchFilter =
+      selectedSedeConfigs.length > 0 ? `AND (${salesBranchClauses})` : "AND 1=0";
+    const salesBranchParams: Array<string | null> = [];
+    selectedSedeConfigs.forEach((cfg) => {
+      salesBranchParams.push(cfg.centro, cfg.empresa);
+    });
 
-    // Reverse lookup: sede -> (centro_operacion, empresa_bd)
-    const sedeInfo = REVERSE_SEDE[sedeName];
-
-    // Reverse lookup: sede -> nombre raw en asistencia_horas
-    const rawAsistenciaSedeList = REVERSE_SEDE_ASISTENCIA[sedeName] ?? [];
-    // Buscar todas las posibles variantes de nombre raw
-    const asistenciaSedeVariants: string[] = [];
-    if (rawAsistenciaSedeList.length > 0) {
-      asistenciaSedeVariants.push(...rawAsistenciaSedeList);
+    let salesDateCompact = dateCompact;
+    try {
+      const latestSalesDateSubqueries = selectedLineTables
+        .map(
+          (line) => `
+            SELECT MAX(fecha_dcto) AS max_fecha
+            FROM ${line.table}
+            WHERE fecha_dcto <= $1
+              ${salesBranchFilter}
+          `,
+        )
+        .join(" UNION ALL ");
+      const latestSalesDateResult = await client.query(
+        `
+          SELECT MAX(max_fecha) AS sales_date
+          FROM (
+            ${latestSalesDateSubqueries}
+          ) AS latest_dates
+        `,
+        [dateCompact, ...salesBranchParams],
+      );
+      const candidate = (latestSalesDateResult.rows?.[0] as { sales_date?: string })
+        ?.sales_date;
+      if (candidate && /^\d{8}$/.test(candidate)) {
+        salesDateCompact = candidate;
+      }
+    } catch (error) {
+      console.warn("[hourly-analysis] Error resolviendo fecha de ventas:", error);
     }
-    // Agregar el nombre del sistema directamente como fallback
-    asistenciaSedeVariants.push(sedeName);
 
-    // Map<hour, Map<lineId, totalSales>>
     const salesByHourByLine = new Map<number, Map<string, number>>();
 
-    // Consultar ventas en paralelo para todas las tablas
-    if (sedeInfo) {
-      const salesPromises = LINE_TABLES.map(async (line) => {
-        try {
-          const query = `
-            SELECT
-              hora_final_hora,
-              COALESCE(SUM(total_bruto), 0) AS total_sales
-            FROM ${line.table}
-            WHERE fecha_dcto = $1
-              AND centro_operacion = $2
-              AND (empresa_bd = $3 OR ($3 IS NULL AND empresa_bd IS NULL))
-            GROUP BY hora_final_hora
-            ORDER BY hora_final_hora
-          `;
+    const salesPromises = selectedLineTables.map(async (line) => {
+      try {
+        const query = `
+          SELECT
+            hora_final_hora,
+            COALESCE(SUM(total_bruto), 0) AS total_sales
+          FROM ${line.table}
+          WHERE fecha_dcto = $1
+            ${salesBranchFilter}
+          GROUP BY hora_final_hora
+          ORDER BY hora_final_hora
+        `;
 
-          const result = await client.query(query, [
-            dateCompact,
-            sedeInfo.centro,
-            sedeInfo.empresa || null,
-          ]);
+        const queryParams: Array<string | null> = [salesDateCompact, ...salesBranchParams];
+        const result = await client.query(query, queryParams);
 
-          if (!result.rows) return;
+        if (!result.rows) return;
 
-          for (const row of result.rows) {
-            const typedRow = row as {
-              hora_final_hora: unknown;
-              total_sales: string | number;
-            };
-            const hour = parseHour(typedRow.hora_final_hora);
-            if (hour === null) continue;
+        for (const row of result.rows) {
+          const typedRow = row as {
+            hora_final_hora: unknown;
+            total_sales: string | number;
+          };
+            const minuteOfDay = parseMinuteOfDay(typedRow.hora_final_hora);
+            if (minuteOfDay === null) continue;
+            const bucketStartMinute =
+              Math.floor(minuteOfDay / bucketMinutes) * bucketMinutes;
 
-            if (!salesByHourByLine.has(hour)) {
-              salesByHourByLine.set(hour, new Map());
+            if (!salesByHourByLine.has(bucketStartMinute)) {
+              salesByHourByLine.set(bucketStartMinute, new Map());
             }
-            const lineMap = salesByHourByLine.get(hour)!;
+            const lineMap = salesByHourByLine.get(bucketStartMinute)!;
             lineMap.set(
               line.id,
               (lineMap.get(line.id) ?? 0) + (Number(typedRow.total_sales) || 0),
-            );
-          }
-        } catch (error) {
-          console.warn(
-            `[hourly-analysis] Error consultando ${line.table}:`,
-            error,
           );
         }
-      });
+      } catch (error) {
+        console.warn(`[hourly-analysis] Error consultando ${line.table}:`, error);
+      }
+    });
 
-      await Promise.all(salesPromises);
-    }
+    await Promise.all(salesPromises);
 
-    // Consultar asistencia para presencia por hora
     const presenceByHour = new Map<number, number>();
+    const presenceByHourByLine = new Map<number, Map<string, number>>();
+
+    let attendanceDateUsed: string | null = null;
 
     try {
-      // Construir la condición WHERE para las variantes de sede
-      const sedePlaceholders = asistenciaSedeVariants
-        .map((_, i) => `$${i + 2}`)
-        .join(", ");
+      const attendanceDateResult = await client.query(
+        `
+        SELECT MAX(fecha::date)::text AS attendance_date
+        FROM asistencia_horas
+        WHERE fecha::date <= $1::date
+        `,
+        [dateISO],
+      );
+      attendanceDateUsed =
+        (attendanceDateResult.rows?.[0] as { attendance_date?: string })
+          ?.attendance_date ?? null;
+
+      if (!attendanceDateUsed) {
+        return {
+          date: dateISO,
+          scopeLabel: lineFilter
+            ? `${selectedScopeLabel} - ${
+                selectedLineTables.find((line) => line.id === lineFilter)?.name ??
+                lineFilter
+              }`
+            : selectedScopeLabel,
+          attendanceDateUsed: null,
+          salesDateUsed: compactDateToISO(salesDateCompact),
+          bucketMinutes,
+          hours: Array.from({ length: 1440 / bucketMinutes }, (_, index) => {
+            const slotStartMinute = index * bucketMinutes;
+            return {
+              hour: Math.floor(slotStartMinute / 60),
+              slotStartMinute,
+              slotEndMinute: (slotStartMinute + bucketMinutes) % 1440,
+              label: buildSlotLabel(slotStartMinute, bucketMinutes),
+              totalSales: 0,
+              employeesPresent: 0,
+              employeesByLine: {},
+              lines: selectedLineTables.map((lt) => ({
+                lineId: lt.id,
+                lineName: lt.name,
+                sales: 0,
+              })),
+            };
+          }),
+        };
+      }
 
       const attendanceQuery = `
         SELECT
@@ -316,17 +408,39 @@ const fetchHourlyData = async (
           hora_salida,
           departamento
         FROM asistencia_horas
-        WHERE fecha = $1
-          AND LOWER(TRIM(sede)) IN (${sedePlaceholders})
+        WHERE fecha::date = $1::date
           AND departamento IS NOT NULL
+          ${
+            selectedSedeConfigs.length > 0
+              ? `AND REGEXP_REPLACE(
+                   LOWER(
+                     TRANSLATE(
+                       TRIM(sede),
+                       'áéíóúüñÁÉÍÓÚÜÑ',
+                       'aeiouunaeiouun'
+                     )
+                   ),
+                   '[^a-z0-9]+',
+                   ' ',
+                   'g'
+                 ) = ANY($2::text[])`
+              : "AND 1=0"
+          }
       `;
-
-      const params = [
-        dateISO,
-        ...asistenciaSedeVariants.map((s) => s.toLowerCase().trim()),
-      ];
-
-      const attendanceResult = await client.query(attendanceQuery, params);
+      const selectedAttendanceNames = Array.from(
+        new Set(
+          selectedSedeConfigs.flatMap((cfg) =>
+            [cfg.name, ...cfg.attendanceNames].map((name) =>
+              normalizeSedeName(name),
+            ),
+          ),
+        ),
+      );
+      const attendanceParams: unknown[] = [attendanceDateUsed];
+      if (selectedSedeConfigs.length > 0) {
+        attendanceParams.push(selectedAttendanceNames);
+      }
+      const attendanceResult = await client.query(attendanceQuery, attendanceParams);
 
       if (attendanceResult.rows) {
         for (const row of attendanceResult.rows) {
@@ -338,19 +452,28 @@ const fetchHourlyData = async (
             departamento: string;
           };
 
-          // Solo contar empleados de departamentos conocidos
           const lineId = resolveLineId(typedRow.departamento);
           if (!lineId) continue;
 
-          const hours = computePresenceHours(
+          const slots = computePresenceSlots(
             typedRow.hora_entrada,
             typedRow.hora_intermedia1,
             typedRow.hora_intermedia2,
             typedRow.hora_salida,
+            bucketMinutes,
           );
 
-          for (const h of hours) {
-            presenceByHour.set(h, (presenceByHour.get(h) ?? 0) + 1);
+          for (const slotStartMinute of slots) {
+            presenceByHour.set(
+              slotStartMinute,
+              (presenceByHour.get(slotStartMinute) ?? 0) + 1,
+            );
+
+            if (!presenceByHourByLine.has(slotStartMinute)) {
+              presenceByHourByLine.set(slotStartMinute, new Map());
+            }
+            const linePresenceMap = presenceByHourByLine.get(slotStartMinute)!;
+            linePresenceMap.set(lineId, (linePresenceMap.get(lineId) ?? 0) + 1);
           }
         }
       }
@@ -358,28 +481,56 @@ const fetchHourlyData = async (
       console.warn("[hourly-analysis] Error consultando asistencia_horas:", error);
     }
 
-    // Construir slots de 24 horas
     const hours: HourSlot[] = [];
-    for (let h = 0; h < 24; h++) {
-      const lineSalesMap = salesByHourByLine.get(h) ?? new Map<string, number>();
-      const lines: HourlyLineSales[] = LINE_TABLES.map((lt) => ({
+    for (
+      let slotStartMinute = 0;
+      slotStartMinute < 1440;
+      slotStartMinute += bucketMinutes
+    ) {
+      const lineSalesMap =
+        salesByHourByLine.get(slotStartMinute) ?? new Map<string, number>();
+      const linePresenceMap =
+        presenceByHourByLine.get(slotStartMinute) ?? new Map<string, number>();
+
+      const lines: HourlyLineSales[] = selectedLineTables.map((lt) => ({
         lineId: lt.id,
         lineName: lt.name,
         sales: lineSalesMap.get(lt.id) ?? 0,
       }));
 
       const totalSales = lines.reduce((sum, l) => sum + l.sales, 0);
+      const employeesByLine = Object.fromEntries(
+        selectedLineTables.map((line) => [line.id, linePresenceMap.get(line.id) ?? 0]),
+      );
 
       hours.push({
-        hour: h,
-        label: String(h).padStart(2, "0") + ":00 – " + String((h + 1) % 24).padStart(2, "0") + ":00",
+        hour: Math.floor(slotStartMinute / 60),
+        slotStartMinute,
+        slotEndMinute: (slotStartMinute + bucketMinutes) % 1440,
+        label: buildSlotLabel(slotStartMinute, bucketMinutes),
         totalSales,
-        employeesPresent: presenceByHour.get(h) ?? 0,
+        employeesPresent: lineFilter
+          ? linePresenceMap.get(lineFilter) ?? 0
+          : presenceByHour.get(slotStartMinute) ?? 0,
+        employeesByLine,
         lines,
       });
     }
 
-    return { date: dateISO, sede: sedeName, hours };
+    const lineName = lineFilter
+      ? selectedLineTables.find((line) => line.id === lineFilter)?.name || lineFilter
+      : null;
+
+    return {
+      date: dateISO,
+      scopeLabel: lineName
+        ? `${selectedScopeLabel} - ${lineName}`
+        : selectedScopeLabel,
+      attendanceDateUsed,
+      salesDateUsed: compactDateToISO(salesDateCompact),
+      bucketMinutes,
+      hours,
+    };
   } finally {
     client.release();
   }
@@ -424,12 +575,15 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date");
-  const sedeParam = url.searchParams.get("sede");
+  const lineParam = url.searchParams.get("line")?.trim() || null;
+  const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
+  const bucketParamRaw = url.searchParams.get("bucketMinutes");
+  const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
 
-  if (!dateParam || !sedeParam) {
+  if (!dateParam) {
     return withSession(
       NextResponse.json(
-        { error: "Parametros \"date\" y \"sede\" son requeridos." },
+        { error: 'Parametro "date" es requerido.' },
         { status: 400 },
       ),
     );
@@ -444,9 +598,33 @@ export async function GET(request: Request) {
     );
   }
 
+  if (lineParam && !LINE_IDS.has(lineParam)) {
+    return withSession(
+      NextResponse.json(
+        { error: "Linea invalida para el analisis por hora." },
+        { status: 400 },
+      ),
+    );
+  }
+
+  const allowedBuckets = new Set([60, 30, 20, 15, 10]);
+  if (!allowedBuckets.has(bucketMinutes)) {
+    return withSession(
+      NextResponse.json(
+        { error: "bucketMinutes invalido. Valores permitidos: 60, 30, 20, 15, 10." },
+        { status: 400 },
+      ),
+    );
+  }
+
   try {
     await testDbConnection();
-    const data = await fetchHourlyData(dateParam, sedeParam);
+    const data = await fetchHourlyData(
+      dateParam,
+      lineParam,
+      bucketMinutes,
+      sedeParams,
+    );
 
     return withSession(
       NextResponse.json(data, {
@@ -467,4 +645,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

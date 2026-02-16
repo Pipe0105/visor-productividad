@@ -68,7 +68,19 @@ const parseDateKey = (dateKey: string): Date => {
   return new Date(year, month - 1, day);
 };
 
-const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
+const toDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getYesterdayDateKey = () => {
+  const yesterday = new Date();
+  yesterday.setHours(0, 0, 0, 0);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return toDateKey(yesterday);
+};
 
 const dateLabelOptions: Intl.DateTimeFormatOptions = {
   day: "2-digit",
@@ -558,25 +570,25 @@ const ViewToggle = ({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/80 bg-linear-to-b from-white to-slate-50/70 p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-700">
+        <p className="text-xs uppercase tracking-[0.24em] text-slate-600">
           Vista de líneas
         </p>
         <p className="text-sm font-semibold text-slate-900">{getModeLabel()}</p>
-        <p className="mt-1 text-xs text-slate-700">
+        <p className="mt-1 text-xs text-slate-600">
           Alterna la visualización para detectar oportunidades rápidamente.
         </p>
       </div>
-      <div className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 p-1">
+      <div className="flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-100 p-1">
         <button
           type="button"
           onClick={() => onChange("cards")}
           aria-pressed={viewMode === "cards"}
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "cards"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
+              ? "bg-blue-100 text-blue-800 ring-1 ring-blue-200/80 shadow-sm"
+              : "text-slate-600 hover:bg-white/80 hover:text-slate-800"
           }`}
         >
           <LayoutGrid className="h-4 w-4" />
@@ -588,8 +600,8 @@ const ViewToggle = ({
           aria-pressed={viewMode === "comparison"}
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "comparison"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
+              ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80 shadow-sm"
+              : "text-slate-600 hover:bg-white/80 hover:text-slate-800"
           }`}
         >
           <Table2 className="h-4 w-4" />
@@ -601,8 +613,8 @@ const ViewToggle = ({
           aria-pressed={viewMode === "chart"}
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "chart"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
+              ? "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80 shadow-sm"
+              : "text-slate-600 hover:bg-white/80 hover:text-slate-800"
           }`}
         >
           <BarChart3 className="h-4 w-4" />
@@ -614,8 +626,8 @@ const ViewToggle = ({
           aria-pressed={viewMode === "trends"}
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "trends"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
+              ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200/80 shadow-sm"
+              : "text-slate-600 hover:bg-white/80 hover:text-slate-800"
           }`}
         >
           <ArrowUpDown className="h-4 w-4" />
@@ -627,25 +639,12 @@ const ViewToggle = ({
           aria-pressed={viewMode === "hourly"}
           className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
             viewMode === "hourly"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
+              ? "bg-rose-100 text-rose-800 ring-1 ring-rose-200/80 shadow-sm"
+              : "text-slate-600 hover:bg-white/80 hover:text-slate-800"
           }`}
         >
           <Clock className="h-4 w-4" />
           Por hora
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange("m2")}
-          aria-pressed={viewMode === "m2"}
-          className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-all ${
-            viewMode === "m2"
-              ? "bg-white text-mercamio-700 shadow-sm"
-              : "text-slate-700 hover:text-slate-800"
-          }`}
-        >
-          <Sparkles className="h-4 w-4" />
-          M2
         </button>
       </div>
     </div>
@@ -1287,11 +1286,18 @@ const LineTrends = ({
   const [trendSede, setTrendSede] = useState<string>("");
   const [heatBaseline, setHeatBaseline] = useState<"sede" | "todas">("sede");
   const [comparisonBaseline, setComparisonBaseline] = useState<
-    "seleccionadas" | "todas"
+    "seleccionadas" | "todas" | "propia"
   >("seleccionadas");
   const [comparisonSort, setComparisonSort] = useState<
     "none" | "m2_desc" | "m2_asc"
   >("none");
+  const [trendDateFilterMode, setTrendDateFilterMode] = useState<
+    "mes_corrido" | "mes_anterior" | "rango"
+  >("mes_corrido");
+  const [customTrendRange, setCustomTrendRange] = useState<DateRange>({
+    start: dateRange.start,
+    end: dateRange.end,
+  });
   const [comparisonSizeFilter, setComparisonSizeFilter] = useState<
     | "all"
     | "gte_1000"
@@ -1303,6 +1309,14 @@ const LineTrends = ({
   const cardRef = useRef<HTMLDivElement | null>(null);
   const filtersRef = useRef<HTMLDivElement | null>(null);
   const [showFloatingFilters, setShowFloatingFilters] = useState(false);
+  const availableDateBounds = useMemo(() => {
+    if (availableDates.length === 0) return { min: "", max: "" };
+    const sortedDates = [...availableDates].sort();
+    return {
+      min: sortedDates[0] ?? "",
+      max: sortedDates[sortedDates.length - 1] ?? "",
+    };
+  }, [availableDates]);
   const visibleSedes = useMemo(
     () =>
       sedes.filter((sede) => {
@@ -1321,6 +1335,103 @@ const LineTrends = ({
       return visibleSedes[0]?.id ?? "";
     });
   }, [visibleSedes]);
+
+  useEffect(() => {
+    if (!availableDateBounds.min || !availableDateBounds.max) return;
+
+    setCustomTrendRange((prev) => {
+      let start = prev.start || dateRange.start || availableDateBounds.min;
+      let end = prev.end || dateRange.end || availableDateBounds.max;
+
+      if (start < availableDateBounds.min) start = availableDateBounds.min;
+      if (start > availableDateBounds.max) start = availableDateBounds.max;
+      if (end < availableDateBounds.min) end = availableDateBounds.min;
+      if (end > availableDateBounds.max) end = availableDateBounds.max;
+      if (start > end) {
+        const swapped = start;
+        start = end;
+        end = swapped;
+      }
+
+      if (start === prev.start && end === prev.end) return prev;
+      return { start, end };
+    });
+  }, [
+    availableDateBounds.max,
+    availableDateBounds.min,
+    dateRange.end,
+    dateRange.start,
+  ]);
+
+  const todayDateKey = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return toDateKey(today);
+  }, []);
+
+  const trendEffectiveDateRange = useMemo<DateRange>(() => {
+    if (!availableDateBounds.min || !availableDateBounds.max) {
+      return { start: "", end: "" };
+    }
+
+    if (trendDateFilterMode === "mes_corrido") {
+      const today = parseDateKey(todayDateKey);
+      return {
+        start: toDateKey(new Date(today.getFullYear(), today.getMonth(), 1)),
+        end: todayDateKey,
+      };
+    }
+
+    if (trendDateFilterMode === "mes_anterior") {
+      const today = parseDateKey(todayDateKey);
+      const previousMonthStart = new Date(
+        today.getFullYear(),
+        today.getMonth() - 1,
+        1,
+      );
+      const previousMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+      return {
+        start: toDateKey(previousMonthStart),
+        end: toDateKey(previousMonthEnd),
+      };
+    }
+
+    const fallbackStart = dateRange.start || availableDateBounds.min;
+    const fallbackEnd = dateRange.end || availableDateBounds.max;
+    const start = customTrendRange.start || fallbackStart;
+    const end = customTrendRange.end || fallbackEnd;
+    return start <= end ? { start, end } : { start: end, end: start };
+  }, [
+    availableDateBounds.max,
+    availableDateBounds.min,
+    customTrendRange.end,
+    customTrendRange.start,
+    dateRange.end,
+    dateRange.start,
+    todayDateKey,
+    trendDateFilterMode,
+  ]);
+
+  const trendDateRangeLabel = useMemo(
+    () => formatRangeLabel(trendEffectiveDateRange),
+    [trendEffectiveDateRange],
+  );
+
+  const handleCustomTrendStartChange = useCallback((value: string) => {
+    setCustomTrendRange((prev) => {
+      const nextEnd =
+        !prev.end || value <= prev.end ? prev.end || value : value;
+      return { start: value, end: nextEnd };
+    });
+  }, []);
+
+  const handleCustomTrendEndChange = useCallback((value: string) => {
+    setCustomTrendRange((prev) => {
+      const nextStart =
+        !prev.start || value >= prev.start ? prev.start || value : value;
+      return { start: nextStart, end: value };
+    });
+  }, []);
 
   const toggleComparisonSede = useCallback((sedeId: string) => {
     setComparisonSedeIds((prev) =>
@@ -1436,13 +1547,19 @@ const LineTrends = ({
     sedeNameMap,
   ]);
   const temporalDates = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) {
-      return availableDates;
+    if (!trendEffectiveDateRange.start || !trendEffectiveDateRange.end) {
+      return [];
     }
     return availableDates.filter(
-      (date) => date >= dateRange.start && date <= dateRange.end,
+      (date) =>
+        date >= trendEffectiveDateRange.start &&
+        date <= trendEffectiveDateRange.end,
     );
-  }, [availableDates, dateRange.end, dateRange.start]);
+  }, [
+    availableDates,
+    trendEffectiveDateRange.end,
+    trendEffectiveDateRange.start,
+  ]);
 
   const trendData = useMemo(() => {
     if (!selectedLine) return [];
@@ -1514,7 +1631,11 @@ const LineTrends = ({
 
     dailyDataSet.forEach((item) => {
       if (!sedeIdSet.has(item.sede)) return;
-      if (item.date < dateRange.start || item.date > dateRange.end) return;
+      if (
+        item.date < trendEffectiveDateRange.start ||
+        item.date > trendEffectiveDateRange.end
+      )
+        return;
       const lineData = item.lines.find((l) => l.id === selectedLine);
       if (!lineData) return;
       const hasLaborData = hasLaborDataForLine(lineData.id);
@@ -1529,30 +1650,17 @@ const LineTrends = ({
     };
   }, [
     dailyDataSet,
-    dateRange.end,
-    dateRange.start,
     selectedLine,
     temporalDates.length,
+    trendEffectiveDateRange.end,
+    trendEffectiveDateRange.start,
     visibleSedes,
   ]);
 
-  // Full-month dates: from the 1st of the start month to the last available
-  // date in the end month, so heat map baselines always use the full month.
-  const fullMonthDates = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return availableDates;
-    const start = parseDateKey(dateRange.start);
-    const end = parseDateKey(dateRange.end);
-    const monthStart = toDateKey(new Date(start.getFullYear(), start.getMonth(), 1));
-    const monthEnd = toDateKey(
-      new Date(end.getFullYear(), end.getMonth() + 1, 0),
-    );
-    return availableDates.filter((d) => d >= monthStart && d <= monthEnd);
-  }, [availableDates, dateRange.start, dateRange.end]);
-
-  // Average sales/hour over the full month (not just the filtered range)
+  // Average sales/hour over the selected trends range.
   const avgSalesPerHour = useMemo(() => {
-    if (!selectedLine || fullMonthDates.length === 0) return 0;
-    const totals = fullMonthDates.reduce(
+    if (!selectedLine || temporalDates.length === 0) return 0;
+    const totals = temporalDates.reduce(
       (acc, date) => {
         const dayData = dailyDataSet.filter(
           (item) => baselineSedeIdSet.has(item.sede) && item.date === date,
@@ -1569,7 +1677,7 @@ const LineTrends = ({
       { sales: 0, hours: 0 },
     );
     return totals.hours > 0 ? totals.sales / 1_000_000 / totals.hours : 0;
-  }, [selectedLine, fullMonthDates, dailyDataSet, baselineSedeIdSet]);
+  }, [selectedLine, temporalDates, dailyDataSet, baselineSedeIdSet]);
 
   // Daily average sales/hour for the selected range (used for "promedio total")
   const dailyAvgSalesPerHour = useMemo(() => {
@@ -1626,11 +1734,10 @@ const LineTrends = ({
   }, [viewType]);
 
   const dailyComparisonBaseline = useMemo(() => {
-    if (!selectedLine || availableDates.length === 0) return new Map<string, number>();
+    if (comparisonBaseline === "propia") return new Map<string, number>();
+    if (!selectedLine || temporalDates.length === 0) return new Map<string, number>();
     const map = new Map<string, number>();
-    const rangeDates = availableDates.filter(
-      (d) => d >= dateRange.start && d <= dateRange.end,
-    );
+    const rangeDates = temporalDates;
 
     rangeDates.forEach((date) => {
       let sales = 0;
@@ -1650,17 +1757,46 @@ const LineTrends = ({
 
     return map;
   }, [
+    comparisonBaseline,
     selectedLine,
-    availableDates,
-    dateRange.start,
-    dateRange.end,
     dailyDataSet,
     comparisonBaselineIds,
+    temporalDates,
   ]);
 
+  const ownSedeBaseline = useMemo(() => {
+    const map = new Map<string, number>();
+    const rangeDates = temporalDates;
+    if (!selectedLine || comparisonSedeIds.length === 0 || rangeDates.length === 0) {
+      return map;
+    }
+
+    comparisonSedeIds.forEach((sedeId) => {
+      let sales = 0;
+      let hours = 0;
+
+      rangeDates.forEach((date) => {
+        const dayData = dailyDataSet.filter(
+          (item) => item.sede === sedeId && item.date === date,
+        );
+        dayData.forEach((item) => {
+          const lineData = item.lines.find((l) => l.id === selectedLine);
+          if (!lineData) return;
+          const hasLaborData = hasLaborDataForLine(lineData.id);
+          sales += lineData.sales;
+          hours += hasLaborData ? lineData.hours : 0;
+        });
+      });
+
+      map.set(sedeId, hours > 0 ? sales / 1_000_000 / hours : 0);
+    });
+
+    return map;
+  }, [comparisonSedeIds, dailyDataSet, selectedLine, temporalDates]);
+
   const comparisonRangeDates = useMemo(
-    () => availableDates.filter((d) => d >= dateRange.start && d <= dateRange.end),
-    [availableDates, dateRange.start, dateRange.end],
+    () => temporalDates,
+    [temporalDates],
   );
 
   const computeComparisonStats = useCallback(
@@ -1675,7 +1811,11 @@ const LineTrends = ({
 
       dailyDataSet.forEach((item) => {
         if (!sedeSet.has(item.sede)) return;
-        if (item.date < dateRange.start || item.date > dateRange.end) return;
+        if (
+          item.date < trendEffectiveDateRange.start ||
+          item.date > trendEffectiveDateRange.end
+        )
+          return;
         const lineData = item.lines.find((l) => l.id === selectedLine);
         if (!lineData) return;
         const hasLaborData = hasLaborDataForLine(lineData.id);
@@ -1690,7 +1830,13 @@ const LineTrends = ({
 
       return { sales, hours, days, salesPerHour, salesPerDay, hoursPerDay };
     },
-    [comparisonRangeDates.length, dailyDataSet, dateRange.end, dateRange.start, selectedLine],
+    [
+      comparisonRangeDates.length,
+      dailyDataSet,
+      selectedLine,
+      trendEffectiveDateRange.end,
+      trendEffectiveDateRange.start,
+    ],
   );
 
   const selectedComparisonStats = useMemo(
@@ -1707,7 +1853,11 @@ const LineTrends = ({
     let hours = 0;
 
     dailyDataSet.forEach((item) => {
-      if (item.date < dateRange.start || item.date > dateRange.end) return;
+      if (
+        item.date < trendEffectiveDateRange.start ||
+        item.date > trendEffectiveDateRange.end
+      )
+        return;
       const lineData = item.lines.find((l) => l.id === selectedLine);
       if (!lineData) return;
       const hasLaborData = hasLaborDataForLine(lineData.id);
@@ -1724,17 +1874,15 @@ const LineTrends = ({
   }, [
     comparisonRangeDates.length,
     dailyDataSet,
-    dateRange.end,
-    dateRange.start,
     selectedLine,
+    trendEffectiveDateRange.end,
+    trendEffectiveDateRange.start,
   ]);
 
   const sedeComparisonData = useMemo(() => {
     if (!selectedLine || comparisonSedeIds.length === 0) return [];
 
-    const rangeDates = availableDates.filter(
-      (d) => d >= dateRange.start && d <= dateRange.end,
-    );
+    const rangeDates = comparisonRangeDates;
 
     return rangeDates.map((date) => {
       const sedesForDay = orderedComparisonSedeIds.map((sedeId) => {
@@ -1774,8 +1922,7 @@ const LineTrends = ({
     comparisonSedeIds,
     orderedComparisonSedeIds,
     dailyDataSet,
-    availableDates,
-    dateRange,
+    comparisonRangeDates,
     sedeNameMap,
   ]);
 
@@ -1862,6 +2009,17 @@ const LineTrends = ({
           >
             Promedio total
           </button>
+          <button
+            type="button"
+            onClick={() => setComparisonBaseline("propia")}
+            className={`flex-1 rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              comparisonBaseline === "propia"
+                ? "bg-white text-mercamio-700 shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Promedio por sede
+          </button>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
@@ -1906,7 +2064,7 @@ const LineTrends = ({
       className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]"
     >
       {viewType === "por-sede" && showFloatingFilters && (
-        <div className="fixed left-1/2 top-3 z-30 w-[min(960px,92vw)] -translate-x-1/2">
+        <div className="fixed left-1/2 top-0 z-30 w-[calc(100vw-1rem)] max-w-none -translate-x-1/2">
           {renderComparisonFilters(true)}
         </div>
       )}
@@ -1962,6 +2120,80 @@ const LineTrends = ({
             ))}
           </select>
         </label>
+      </div>
+
+      <div className="mb-6 space-y-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4">
+        <span className="text-xs font-semibold text-slate-700">
+          Filtro de fechas (tendencias)
+        </span>
+        <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200/70 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setTrendDateFilterMode("mes_corrido")}
+            className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              trendDateFilterMode === "mes_corrido"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Mes corrido
+          </button>
+          <button
+            type="button"
+            onClick={() => setTrendDateFilterMode("mes_anterior")}
+            className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              trendDateFilterMode === "mes_anterior"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Mes anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => setTrendDateFilterMode("rango")}
+            className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-all ${
+              trendDateFilterMode === "rango"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-700 hover:text-slate-800"
+            }`}
+          >
+            Rango
+          </button>
+        </div>
+        {trendDateFilterMode === "rango" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
+                Desde
+              </span>
+              <input
+                type="date"
+                value={customTrendRange.start}
+                onChange={(e) => handleCustomTrendStartChange(e.target.value)}
+                min={availableDateBounds.min}
+                max={availableDateBounds.max}
+                className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700">
+                Hasta
+              </span>
+              <input
+                type="date"
+                value={customTrendRange.end}
+                onChange={(e) => handleCustomTrendEndChange(e.target.value)}
+                min={availableDateBounds.min}
+                max={availableDateBounds.max}
+                className="rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              />
+            </label>
+          </div>
+        )}
+        <p className="text-xs text-slate-600">
+          Rango aplicado: {trendDateRangeLabel || "Sin rango definido"}
+        </p>
       </div>
 
       {viewType === "temporal" && (
@@ -2200,7 +2432,14 @@ const LineTrends = ({
                             dayAvgSalesPerHour > 0
                               ? (salesPerHour / dayAvgSalesPerHour) * 100
                               : 0;
-                          const heatColor = getHeatColor(heatRatio);
+                          const ownBaseline = ownSedeBaseline.get(sede.sedeId) ?? 0;
+                          const resolvedHeatRatio =
+                            comparisonBaseline === "propia"
+                              ? ownBaseline > 0
+                                ? (salesPerHour / ownBaseline) * 100
+                                : 0
+                              : heatRatio;
+                          const heatColor = getHeatColor(resolvedHeatRatio);
 
                           return (
                             <div
@@ -2398,9 +2637,9 @@ export default function Home() {
   // Estado con persistencia - siempre inicia con valores por defecto
   const [selectedSede, setSelectedSede] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
-  const [dateRange, setDateRange] = useState<DateRange>({
-    start: "2025-11-01",
-    end: "2025-11-30",
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const yesterday = getYesterdayDateKey();
+    return { start: yesterday, end: yesterday };
   });
   const [lineFilter, setLineFilter] = useState("all");
   const [viewMode, setViewMode] = useState<
@@ -2457,9 +2696,6 @@ export default function Home() {
         if (typeof parsed.selectedSede === "string") {
           setSelectedSede(parsed.selectedSede);
         }
-        if (parsed.dateRange?.start && parsed.dateRange?.end) {
-          setDateRange(parsed.dateRange);
-        }
         if (typeof parsed.lineFilter === "string") {
           setLineFilter(parsed.lineFilter);
         }
@@ -2492,15 +2728,6 @@ export default function Home() {
     } else if (savedSede) {
       setSelectedSede(savedSede);
       setSelectedCompanies([]);
-    }
-
-    const savedDateRange = localStorage.getItem("dateRange");
-    if (savedDateRange) {
-      try {
-        setDateRange(JSON.parse(savedDateRange));
-      } catch {
-        // Mantener valores por defecto si hay error
-      }
     }
 
     const savedLineFilter = localStorage.getItem("lineFilter");
@@ -2645,19 +2872,12 @@ export default function Home() {
     }
   }, [appliedUserDefault, orderedSedes, pendingSedeKey, prefsReady]);
 
-  // Sincronizar fechas
+  // Rango por defecto al cargar sesión: siempre ayer
   useEffect(() => {
-    if (availableDates.length === 0) return;
-
-    setDateRange((prev) => ({
-      start: availableDates.includes(prev.start)
-        ? prev.start
-        : availableDates[0],
-      end: availableDates.includes(prev.end)
-        ? prev.end
-        : availableDates[availableDates.length - 1],
-    }));
-  }, [availableDates]);
+    if (!prefsReady) return;
+    const yesterday = getYesterdayDateKey();
+    setDateRange({ start: yesterday, end: yesterday });
+  }, [prefsReady]);
 
   // Datos derivados
   const selectedSedeName = (() => {
@@ -3726,6 +3946,10 @@ export default function Home() {
               filteredLines.length > 0 ? (
                 <LineComparisonTable
                   lines={filteredLines}
+                  dailyDataSet={dailyDataSet}
+                  sedes={orderedSedes}
+                  dateRange={dateRange}
+                  defaultSedeIds={selectedSedeIds}
                   hasData={hasRangeData}
                 />
               ) : (
@@ -3759,7 +3983,7 @@ export default function Home() {
                 availableDates={availableDates}
                 availableSedes={orderedSedes}
                 defaultDate={dateRange.end}
-                defaultSede={selectedSede || (orderedSedes.length > 0 ? orderedSedes[0].name : "")}
+                defaultSede={selectedSede || undefined}
               />
             ) : viewMode === "m2" ? (
               <M2MetricsSection

@@ -1,5 +1,6 @@
 ﻿﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Building2,
   CalendarDays,
@@ -40,6 +41,10 @@ const SelectField = ({
   onChange,
   disabled = false,
   emptyMessage = "Sin opciones disponibles",
+  accentClassName = "text-slate-500",
+  ringClassName = "focus:ring-slate-200 focus:border-slate-400",
+  hoverBorderClassName = "hover:border-slate-300",
+  inputBgClassName = "bg-slate-50/70",
 }: {
   icon: React.ElementType;
   label: string;
@@ -48,11 +53,15 @@ const SelectField = ({
   onChange: (value: string) => void;
   disabled?: boolean;
   emptyMessage?: string;
+  accentClassName?: string;
+  ringClassName?: string;
+  hoverBorderClassName?: string;
+  inputBgClassName?: string;
 }) => (
   <label className="group relative flex flex-col gap-1 cursor-pointer sm:gap-1.5">
     <div className="flex items-center gap-1 px-1 sm:gap-1.5">
-      <Icon className="h-3 w-3 text-mercamio-600 sm:h-3.5 sm:w-3.5" />
-      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
+      <Icon className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${accentClassName}`} />
+      <span className={`text-[9px] font-bold uppercase tracking-widest sm:text-[10px] sm:tracking-[0.15em] ${accentClassName}`}>
         {label}
       </span>
     </div>
@@ -60,7 +69,7 @@ const SelectField = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 hover:shadow-md focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5"
+      className={`w-full rounded-lg border border-slate-200/70 px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all ${inputBgClassName} ${hoverBorderClassName} hover:shadow-md ${ringClassName} focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5`}
     >
       {options.length === 0 ? (
         <option value="" className="bg-white text-slate-700">
@@ -90,6 +99,10 @@ const MultiSelectField = ({
   disabled = false,
   emptyMessage = "Sin opciones disponibles",
   maxSelected = 2,
+  accentClassName = "text-slate-500",
+  ringClassName = "focus:ring-slate-200 focus:border-slate-400",
+  hoverBorderClassName = "hover:border-slate-300",
+  inputBgClassName = "bg-slate-50/70",
 }: {
   icon: React.ElementType;
   label: string;
@@ -99,6 +112,10 @@ const MultiSelectField = ({
   disabled?: boolean;
   emptyMessage?: string;
   maxSelected?: number;
+  accentClassName?: string;
+  ringClassName?: string;
+  hoverBorderClassName?: string;
+  inputBgClassName?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -133,8 +150,8 @@ const MultiSelectField = ({
   return (
     <div className="group relative flex flex-col gap-1 sm:gap-1.5" ref={menuRef}>
       <div className="flex items-center gap-1 px-1 sm:gap-1.5">
-        <Icon className="h-3 w-3 text-mercamio-600 sm:h-3.5 sm:w-3.5" />
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
+        <Icon className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${accentClassName}`} />
+        <span className={`text-[9px] font-bold uppercase tracking-widest sm:text-[10px] sm:tracking-[0.15em] ${accentClassName}`}>
           {label}
         </span>
       </div>
@@ -142,7 +159,7 @@ const MultiSelectField = ({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-left text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 hover:shadow-md focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5"
+        className={`flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200/70 px-2.5 py-2 text-left text-sm font-medium text-slate-900 shadow-sm transition-all ${inputBgClassName} ${hoverBorderClassName} hover:shadow-md ${ringClassName} focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5`}
       >
         <span className="truncate">{displayLabel}</span>
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -180,7 +197,7 @@ const MultiSelectField = ({
                         checked={checked}
                         onChange={() => toggleValue(option.value)}
                         disabled={isDisabled}
-                        className="h-4 w-4 rounded border-slate-300 text-mercamio-600 focus:ring-mercamio-200"
+                        className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-slate-200"
                       />
                     </label>
                   );
@@ -207,19 +224,27 @@ const DateField = ({
   max,
   onChange,
   disabled = false,
+  accentClassName = "text-slate-500",
+  ringClassName = "focus:ring-slate-200 focus:border-slate-400",
+  hoverBorderClassName = "hover:border-slate-300",
+  inputBgClassName = "bg-slate-50/70",
 }: {
   icon: React.ElementType;
   label: string;
   value: string;
-  min: string;
-  max: string;
+  min?: string;
+  max?: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  accentClassName?: string;
+  ringClassName?: string;
+  hoverBorderClassName?: string;
+  inputBgClassName?: string;
 }) => (
   <label className="group relative flex flex-col gap-1 cursor-pointer sm:gap-1.5">
     <div className="flex items-center gap-1 px-1 sm:gap-1.5">
-      <Icon className="h-3 w-3 text-mercamio-600 sm:h-3.5 sm:w-3.5" />
-      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 sm:text-[10px] sm:tracking-[0.15em]">
+      <Icon className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${accentClassName}`} />
+      <span className={`text-[9px] font-bold uppercase tracking-widest sm:text-[10px] sm:tracking-[0.15em] ${accentClassName}`}>
         {label}
       </span>
     </div>
@@ -230,18 +255,40 @@ const DateField = ({
       max={max}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full rounded-lg border border-slate-200/70 bg-white px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-mercamio-200 hover:shadow-md focus:border-mercamio-400 focus:outline-none focus:ring-2 focus:ring-mercamio-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5"
+      className={`w-full rounded-lg border border-slate-200/70 px-2.5 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all ${inputBgClassName} ${hoverBorderClassName} hover:shadow-md ${ringClassName} focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200/70 disabled:hover:shadow-sm sm:rounded-xl sm:px-3 sm:py-2.5`}
     />
   </label>
 );
 
 const BrandHeader = ({ title }: { title: ReactNode }) => (
-  <div className="flex items-start gap-4">
+  <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
     <div className="flex-1 space-y-3">
       {/* Título principal con gradiente */}
-      <h1 className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-2xl font-bold leading-tight text-transparent sm:text-3xl md:text-4xl">
+      <h1 className="bg-linear-to-r from-slate-900 via-slate-800 to-blue-800 bg-clip-text text-2xl font-bold leading-tight text-transparent sm:text-3xl md:text-4xl">
         {title}
       </h1>
+    </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-1 shadow-sm">
+        <Image
+          src="/logos/mercamio.jpeg"
+          alt="Logo MercaMio"
+          width={210}
+          height={68}
+          className="h-12 w-auto sm:h-14"
+          priority
+        />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-1 shadow-sm">
+        <Image
+          src="/logos/mercatodo.jpeg"
+          alt="Logo MercaTodo"
+          width={210}
+          height={68}
+          className="h-12 w-auto sm:h-14"
+          priority
+        />
+      </div>
     </div>
   </div>
 );
@@ -283,21 +330,17 @@ export const TopBar = ({
     })),
   ];
 
-  const sortedDates = [...dates].sort();
-  const minDate = sortedDates[0] ?? "";
-  const maxDate = sortedDates[sortedDates.length - 1] ?? "";
-
   return (
     <header
       data-animate="top-bar"
-      className="flex flex-col gap-4 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] backdrop-blur sm:gap-6 sm:rounded-3xl sm:p-6 md:gap-8 md:p-8"
+      className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-blue-50/45 p-4 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] backdrop-blur sm:gap-6 sm:rounded-3xl sm:p-6 md:gap-8 md:p-8"
     >
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <BrandHeader title={title} />
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/tableros"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
+            className="inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-800 transition-all hover:border-blue-300 hover:bg-blue-100 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
           >
             Cambiar tablero
           </Link>
@@ -307,7 +350,7 @@ export const TopBar = ({
             aria-label={
               theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
             }
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100 sm:gap-2 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 sm:gap-2 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
           >
             {theme === "dark" ? (
               <Sun className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -331,6 +374,10 @@ export const TopBar = ({
             onChange={onCompaniesChange}
             disabled={companies.length === 0}
             emptyMessage="Sin empresas disponibles"
+            accentClassName="text-indigo-700"
+            ringClassName="focus:ring-indigo-200 focus:border-indigo-300"
+            hoverBorderClassName="hover:border-indigo-300"
+            inputBgClassName="bg-indigo-50/45"
           />
         </div>
 
@@ -344,6 +391,10 @@ export const TopBar = ({
             onChange={onSedeChange}
             disabled={sedes.length === 0}
             emptyMessage="Sin sedes disponibles"
+            accentClassName="text-sky-700"
+            ringClassName="focus:ring-sky-200 focus:border-sky-300"
+            hoverBorderClassName="hover:border-sky-300"
+            inputBgClassName="bg-sky-50/45"
           />
         </div>
 
@@ -354,10 +405,11 @@ export const TopBar = ({
               icon={CalendarDays}
               label="Desde"
               value={startDate}
-              min={minDate}
-              max={maxDate}
               onChange={onStartDateChange}
-              disabled={dates.length === 0}
+              accentClassName="text-amber-700"
+              ringClassName="focus:ring-amber-200 focus:border-amber-300"
+              hoverBorderClassName="hover:border-amber-300"
+              inputBgClassName="bg-amber-50/45"
             />
           </div>
 
@@ -366,10 +418,11 @@ export const TopBar = ({
               icon={CalendarDays}
               label="Hasta"
               value={endDate}
-              min={minDate}
-              max={maxDate}
               onChange={onEndDateChange}
-              disabled={dates.length === 0}
+              accentClassName="text-amber-700"
+              ringClassName="focus:ring-amber-200 focus:border-amber-300"
+              hoverBorderClassName="hover:border-amber-300"
+              inputBgClassName="bg-amber-50/45"
             />
           </div>
         </div>
@@ -379,7 +432,7 @@ export const TopBar = ({
             type="button"
             onClick={onExportClick}
             disabled={isExportDisabled}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full border border-blue-300/70 bg-blue-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-900 transition-all hover:border-blue-400 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             Exportar
