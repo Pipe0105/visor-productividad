@@ -328,7 +328,7 @@ export const LineComparisonTable = ({
                 onClick={() => toggleSede(sede.id)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
                   selected
-                    ? "border-mercamio-300 bg-mercamio-50 text-mercamio-700"
+                    ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
                     : "border-slate-200/70 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
                 }`}
               >
