@@ -6,8 +6,6 @@ import {
   CalendarDays,
   Download,
   MapPin,
-  Moon,
-  Sun,
 } from "lucide-react";
 
 interface TopBarProps {
@@ -19,12 +17,10 @@ interface TopBarProps {
   startDate: string;
   endDate: string;
   dates: string[];
-  theme: "light" | "dark";
   onSedeChange: (value: string) => void;
   onCompaniesChange: (value: string[]) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
-  onToggleTheme: () => void;
   onExportClick: () => void;
   isExportDisabled?: boolean;
 }
@@ -306,12 +302,10 @@ export const TopBar = ({
   startDate,
   endDate,
   dates,
-  theme,
   onSedeChange,
   onCompaniesChange,
   onStartDateChange,
   onEndDateChange,
-  onToggleTheme,
   onExportClick,
   isExportDisabled = false,
 }: TopBarProps) => {
@@ -344,21 +338,6 @@ export const TopBar = ({
           >
             Cambiar tablero
           </Link>
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            aria-label={
-              theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
-            }
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-100 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 sm:gap-2 sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            ) : (
-              <Moon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            )}
-            {theme === "dark" ? "Claro" : "Oscuro"}
-          </button>
         </div>
       </div>
 

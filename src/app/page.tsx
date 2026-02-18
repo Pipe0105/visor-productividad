@@ -2625,7 +2625,6 @@ const M2MetricsSection = ({
 export default function Home() {
   // Estado para controlar hidratación
   const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
@@ -2662,18 +2661,7 @@ export default function Home() {
   // Cargar preferencias desde localStorage después de montar
   useEffect(() => {
     setMounted(true);
-
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light" || savedTheme === "dark") {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle("dark", savedTheme === "dark");
-    } else if (window.matchMedia) {
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)",
-      ).matches;
-      setTheme(prefersDark ? "dark" : "light");
-      document.documentElement.classList.toggle("dark", prefersDark);
-    }
+    document.documentElement.classList.remove("dark");
   }, []);
 
   // Cargar preferencias por usuario cuando auth esté listo
@@ -2770,16 +2758,6 @@ export default function Home() {
     selectedSede,
     viewMode,
   ]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("theme", theme);
-  }, [theme, mounted]);
-
-  const handleToggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  }, []);
 
   // Estados adicionales para búsqueda y ordenamiento
   const [searchQuery, setSearchQuery] = useState("");
@@ -3774,12 +3752,10 @@ export default function Home() {
           startDate={dateRange.start}
           endDate={dateRange.end}
           dates={availableDates}
-          theme={theme}
           onSedeChange={handleSedeChange}
           onCompaniesChange={handleCompaniesChange}
           onStartDateChange={handleStartDateChange}
           onEndDateChange={handleEndDateChange}
-          onToggleTheme={handleToggleTheme}
           onExportClick={openExportModal}
           isExportDisabled={dailyDataSet.length === 0}
         />
