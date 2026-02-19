@@ -216,6 +216,12 @@ export const HourlyAnalysis = ({
   const [compareError, setCompareError] = useState<string | null>(null);
   const [expandedSlotStart, setExpandedSlotStart] = useState<number | null>(null);
   const [hourlySection, setHourlySection] = useState<"map" | "overtime">("map");
+  const [overtimeFilterMode, setOvertimeFilterMode] = useState<
+    "gte" | "lte" | "gt" | "lt" | "eq" | "range"
+  >("gte");
+  const [overtimeFilterValue, setOvertimeFilterValue] = useState("8");
+  const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
+  const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -539,6 +545,36 @@ export const HourlyAnalysis = ({
   const selectedLineLabel =
     selectedLine && lineOptions.find((line) => line.id === selectedLine)?.name;
   const overtimeEmployees = hourlyData?.overtimeEmployees ?? [];
+  const filteredOvertimeEmployees = useMemo(() => {
+    const value = overtimeFilterValue.trim() === "" ? null : Number(overtimeFilterValue);
+    const min = overtimeRangeMin.trim() === "" ? null : Number(overtimeRangeMin);
+    const max = overtimeRangeMax.trim() === "" ? null : Number(overtimeRangeMax);
+    const validValue = value !== null && Number.isFinite(value) ? value : null;
+    const validMin = min !== null && Number.isFinite(min) ? min : null;
+    const validMax = max !== null && Number.isFinite(max) ? max : null;
+
+    return overtimeEmployees.filter((employee) => {
+      if (overtimeFilterMode === "range") {
+        if (validMin !== null && employee.workedHours < validMin) return false;
+        if (validMax !== null && employee.workedHours > validMax) return false;
+        return true;
+      }
+      if (validValue === null) return true;
+      if (overtimeFilterMode === "gt") return employee.workedHours > validValue;
+      if (overtimeFilterMode === "gte") return employee.workedHours >= validValue;
+      if (overtimeFilterMode === "lt") return employee.workedHours < validValue;
+      if (overtimeFilterMode === "lte") return employee.workedHours <= validValue;
+      if (overtimeFilterMode === "eq")
+        return Math.abs(employee.workedHours - validValue) < 0.005;
+      return true;
+    });
+  }, [
+    overtimeEmployees,
+    overtimeFilterMode,
+    overtimeFilterValue,
+    overtimeRangeMin,
+    overtimeRangeMax,
+  ]);
 
   return (
     <div
@@ -832,18 +868,78 @@ export const HourlyAnalysis = ({
                   Jornada extendida
                 </p>
                 <p className="text-sm font-semibold text-slate-900">
-                  Empleados con 8 horas o mas en el dia
+                  Filtra por total de horas trabajadas
                 </p>
               </div>
               <div className="mt-3">
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
-                  {overtimeEmployees.length} empleado(s)
+                  {filteredOvertimeEmployees.length} empleado(s)
                 </span>
               </div>
 
-              {overtimeEmployees.length === 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Tipo de filtro</span>
+                  <select
+                    value={overtimeFilterMode}
+                    onChange={(e) =>
+                      setOvertimeFilterMode(
+                        e.target.value as "gte" | "lte" | "gt" | "lt" | "eq" | "range",
+                      )
+                    }
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  >
+                    <option value="gte">Mayor o igual que</option>
+                    <option value="gt">Mayor que</option>
+                    <option value="lte">Menor o igual que</option>
+                    <option value="lt">Menor que</option>
+                    <option value="eq">Igual a</option>
+                    <option value="range">Rango</option>
+                  </select>
+                </label>
+                {overtimeFilterMode === "range" ? (
+                  <>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-700">Horas min</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={overtimeRangeMin}
+                        onChange={(e) => setOvertimeRangeMin(e.target.value)}
+                        className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-700">Horas max</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={overtimeRangeMax}
+                        onChange={(e) => setOvertimeRangeMax(e.target.value)}
+                        className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-semibold text-slate-700">Horas</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={overtimeFilterValue}
+                      onChange={(e) => setOvertimeFilterValue(e.target.value)}
+                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {filteredOvertimeEmployees.length === 0 ? (
                 <p className="text-xs text-slate-500">
-                  No hay empleados con 8 horas o mas para este filtro.
+                  No hay empleados para ese filtro de horas.
                 </p>
               ) : (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
@@ -853,7 +949,7 @@ export const HourlyAnalysis = ({
                     <span className="col-span-2 text-right">Horas</span>
                     <span className="col-span-3 text-right">Linea</span>
                   </div>
-                  {overtimeEmployees.map((employee, index) => (
+                  {filteredOvertimeEmployees.map((employee, index) => (
                     <div
                       key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}`}
                       className="grid grid-cols-12 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"

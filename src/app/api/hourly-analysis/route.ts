@@ -681,7 +681,7 @@ const fetchHourlyData = async (
           }
 
           overtimeEmployees = Array.from(overtimeByEmployee.values())
-            .filter((employee) => employee.workedHours >= 7.995)
+            .filter((employee) => employee.workedHours > 0)
             .sort((a, b) => b.workedHours - a.workedHours)
             .map((employee) => ({
               employeeId: employee.employeeId,
