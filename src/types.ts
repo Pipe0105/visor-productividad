@@ -38,6 +38,13 @@ export interface HourSlot {
   lines: HourlyLineSales[];
 }
 
+export interface OvertimeEmployee {
+  employeeId?: string | null;
+  employeeName: string;
+  workedHours: number;
+  lineName?: string;
+}
+
 export interface HourlyAnalysisData {
   date: string;
   scopeLabel: string;
@@ -45,4 +52,5 @@ export interface HourlyAnalysisData {
   salesDateUsed?: string | null;
   bucketMinutes?: number;
   hours: HourSlot[];
+  overtimeEmployees?: OvertimeEmployee[];
 }

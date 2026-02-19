@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getDbPool, testDbConnection } from "@/lib/db";
 import { getSessionCookieOptions, requireAuthSession } from "@/lib/auth";
-import type { HourlyAnalysisData, HourlyLineSales, HourSlot } from "@/types";
+import type {
+  HourlyAnalysisData,
+  HourlyLineSales,
+  HourSlot,
+  OvertimeEmployee,
+} from "@/types";
 
 // ============================================================================
 // CONSTANTES
@@ -166,6 +171,60 @@ const compactDateToISO = (value: string | null | undefined): string | null => {
   if (!value || !/^\d{8}$/.test(value)) return null;
   return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
 };
+
+const EMPLOYEE_ID_COLUMN_CANDIDATES = [
+  "identificacion",
+  "cedula",
+  "documento",
+  "id_empleado",
+  "codigo_empleado",
+  "codigo",
+  "nit",
+  "num_documento",
+  "numero_documento",
+] as const;
+
+const EMPLOYEE_NAME_COLUMN_CANDIDATES = [
+  "nombre_empleado",
+  "nombre_trabajador",
+  "empleado",
+  "trabajador",
+  "nombre_completo",
+  "nombre_y_apellido",
+  "nombre_colaborador",
+  "colaborador",
+  "nombres_apellidos",
+  "nombre",
+  "funcionario",
+] as const;
+
+const isSafeSqlIdentifier = (value: string): boolean =>
+  /^[a-z_][a-z0-9_]*$/.test(value);
+
+const toSafeIdentifier = (value: string): string | null =>
+  isSafeSqlIdentifier(value) ? `"${value}"` : null;
+
+const parseHoursValue = (value: string | number): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const normalized = value.replace(",", ".").trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const buildNormalizeSedeSql = (columnName: string) => `
+  REGEXP_REPLACE(
+    LOWER(
+      TRANSLATE(
+        TRIM(${columnName}),
+        CHR(225)||CHR(233)||CHR(237)||CHR(243)||CHR(250)||CHR(252)||CHR(241)||CHR(193)||CHR(201)||CHR(205)||CHR(211)||CHR(218)||CHR(220)||CHR(209),
+        'aeiouunaeiouun'
+      )
+    ),
+    '[^a-z0-9]+',
+    ' ',
+    'g'
+  )
+`;
 
 const computePresenceSlots = (
   horaEntrada: unknown,
@@ -354,15 +413,32 @@ const fetchHourlyData = async (
     const presenceByHourByLine = new Map<number, Map<string, number>>();
 
     let attendanceDateUsed: string | null = null;
+    let overtimeEmployees: OvertimeEmployee[] = [];
 
     try {
+      const selectedAttendanceNames = Array.from(
+        new Set(
+          selectedSedeConfigs.flatMap((cfg) =>
+            [cfg.name, ...cfg.attendanceNames].map((name) =>
+              normalizeSedeName(name),
+            ),
+          ),
+        ),
+      );
       const attendanceDateResult = await client.query(
         `
         SELECT MAX(fecha::date)::text AS attendance_date
         FROM asistencia_horas
         WHERE fecha::date <= $1::date
+          ${
+            selectedSedeConfigs.length > 0
+              ? `AND ${buildNormalizeSedeSql("sede")} = ANY($2::text[])`
+              : "AND 1=0"
+          }
         `,
-        [dateISO],
+        selectedSedeConfigs.length > 0
+          ? [dateISO, selectedAttendanceNames]
+          : [dateISO],
       );
       attendanceDateUsed =
         (attendanceDateResult.rows?.[0] as { attendance_date?: string })
@@ -380,6 +456,7 @@ const fetchHourlyData = async (
           attendanceDateUsed: null,
           salesDateUsed: compactDateToISO(salesDateCompact),
           bucketMinutes,
+          overtimeEmployees: [],
           hours: Array.from({ length: 1440 / bucketMinutes }, (_, index) => {
             const slotStartMinute = index * bucketMinutes;
             return {
@@ -412,29 +489,22 @@ const fetchHourlyData = async (
           AND departamento IS NOT NULL
           ${
             selectedSedeConfigs.length > 0
-              ? `AND REGEXP_REPLACE(
-                   LOWER(
-                     TRANSLATE(
-                       TRIM(sede),
-                       'áéíóúüñÁÉÍÓÚÜÑ',
-                       'aeiouunaeiouun'
-                     )
-                   ),
-                   '[^a-z0-9]+',
-                   ' ',
-                   'g'
-                 ) = ANY($2::text[])`
+              ? `AND ${buildNormalizeSedeSql("sede")} = ANY($2::text[])`
               : "AND 1=0"
           }
       `;
-      const selectedAttendanceNames = Array.from(
-        new Set(
-          selectedSedeConfigs.flatMap((cfg) =>
-            [cfg.name, ...cfg.attendanceNames].map((name) =>
-              normalizeSedeName(name),
-            ),
-          ),
-        ),
+      const attendanceColumnsResult = await client.query(
+        `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'asistencia_horas'
+        `,
+      );
+      const attendanceColumns = new Set(
+        (attendanceColumnsResult.rows ?? [])
+          .map((row) => (row as { column_name?: string }).column_name?.toLowerCase())
+          .filter((value): value is string => Boolean(value)),
       );
       const attendanceParams: unknown[] = [attendanceDateUsed];
       if (selectedSedeConfigs.length > 0) {
@@ -475,6 +545,155 @@ const fetchHourlyData = async (
             const linePresenceMap = presenceByHourByLine.get(slotStartMinute)!;
             linePresenceMap.set(lineId, (linePresenceMap.get(lineId) ?? 0) + 1);
           }
+        }
+      }
+
+      if (attendanceColumns.has("total_laborado_horas")) {
+        const employeeIdColumn =
+          EMPLOYEE_ID_COLUMN_CANDIDATES.find((col) => attendanceColumns.has(col)) ??
+          null;
+        const employeeNameColumn =
+          EMPLOYEE_NAME_COLUMN_CANDIDATES.find((col) => attendanceColumns.has(col)) ??
+          null;
+        const firstNameColumn = attendanceColumns.has("nombres")
+          ? "nombres"
+          : null;
+        const lastNameColumn = attendanceColumns.has("apellidos")
+          ? "apellidos"
+          : null;
+        const employeeIdIdentifier = employeeIdColumn
+          ? toSafeIdentifier(employeeIdColumn)
+          : null;
+        const employeeNameIdentifier = employeeNameColumn
+          ? toSafeIdentifier(employeeNameColumn)
+          : null;
+        const firstNameIdentifier = firstNameColumn
+          ? toSafeIdentifier(firstNameColumn)
+          : null;
+        const lastNameIdentifier = lastNameColumn
+          ? toSafeIdentifier(lastNameColumn)
+          : null;
+
+        if (
+          employeeIdIdentifier ||
+          employeeNameIdentifier ||
+          firstNameIdentifier ||
+          lastNameIdentifier
+        ) {
+          const employeeIdExpr = employeeIdIdentifier
+            ? `NULLIF(TRIM(CAST(${employeeIdIdentifier} AS text)), '')`
+            : "NULL::text";
+          const employeeNameExpr = employeeNameIdentifier
+            ? `NULLIF(TRIM(CAST(${employeeNameIdentifier} AS text)), '')`
+            : firstNameIdentifier || lastNameIdentifier
+              ? `NULLIF(
+                   TRIM(
+                     CONCAT_WS(
+                       ' ',
+                       ${
+                         firstNameIdentifier
+                           ? `NULLIF(TRIM(CAST(${firstNameIdentifier} AS text)), '')`
+                           : "NULL"
+                       },
+                       ${
+                         lastNameIdentifier
+                           ? `NULLIF(TRIM(CAST(${lastNameIdentifier} AS text)), '')`
+                           : "NULL"
+                       }
+                     )
+                   ),
+                   ''
+                 )`
+              : "NULL::text";
+          const overtimeQuery = `
+            SELECT
+              ${employeeIdExpr} AS employee_id,
+              ${employeeNameExpr} AS employee_name,
+              departamento,
+              COALESCE(SUM(total_laborado_horas), 0) AS total_hours
+            FROM asistencia_horas
+            WHERE fecha::date = $1::date
+              AND departamento IS NOT NULL
+              ${
+                selectedSedeConfigs.length > 0
+                  ? `AND ${buildNormalizeSedeSql("sede")} = ANY($2::text[])`
+                  : "AND 1=0"
+              }
+            GROUP BY 1, 2, 3
+            ORDER BY total_hours DESC
+          `;
+          const overtimeParams: unknown[] = [attendanceDateUsed];
+          if (selectedSedeConfigs.length > 0) {
+            overtimeParams.push(selectedAttendanceNames);
+          }
+
+          const overtimeResult = await client.query(overtimeQuery, overtimeParams);
+          const lineNameById = new Map<string, string>(
+            LINE_TABLES.map((line) => [line.id, line.name]),
+          );
+          const overtimeByEmployee = new Map<
+            string,
+            {
+              employeeId: string | null;
+              employeeName: string;
+              workedHours: number;
+              lineNames: Set<string>;
+            }
+          >();
+
+          for (const row of overtimeResult.rows ?? []) {
+            const typedRow = row as {
+              employee_id: string | null;
+              employee_name: string | null;
+              departamento: string;
+              total_hours: string | number;
+            };
+            const lineId = resolveLineId(typedRow.departamento);
+            if (lineFilter && lineId !== lineFilter) continue;
+
+            const employeeId = typedRow.employee_id?.trim() || null;
+            const employeeNameRaw = typedRow.employee_name?.trim() || "";
+            const employeeName =
+              employeeNameRaw || employeeId || "Empleado sin nombre";
+            const employeeKey = `${employeeId ?? "__no_id__"}::${employeeName}`;
+            const workedHours = parseHoursValue(typedRow.total_hours);
+
+            const current = overtimeByEmployee.get(employeeKey);
+            if (current) {
+              current.workedHours += workedHours;
+              if (lineId) {
+                current.lineNames.add(lineNameById.get(lineId) ?? lineId);
+              }
+              continue;
+            }
+
+            const lineNames = new Set<string>();
+            if (lineId) {
+              lineNames.add(lineNameById.get(lineId) ?? lineId);
+            }
+
+            overtimeByEmployee.set(employeeKey, {
+              employeeId,
+              employeeName,
+              workedHours,
+              lineNames,
+            });
+          }
+
+          overtimeEmployees = Array.from(overtimeByEmployee.values())
+            .filter((employee) => employee.workedHours >= 7.995)
+            .sort((a, b) => b.workedHours - a.workedHours)
+            .map((employee) => ({
+              employeeId: employee.employeeId,
+              employeeName: employee.employeeName,
+              workedHours: employee.workedHours,
+              lineName:
+                employee.lineNames.size === 1
+                  ? Array.from(employee.lineNames)[0]
+                  : employee.lineNames.size > 1
+                    ? "Varias lineas"
+                    : undefined,
+            }));
         }
       }
     } catch (error) {
@@ -529,6 +748,7 @@ const fetchHourlyData = async (
       attendanceDateUsed,
       salesDateUsed: compactDateToISO(salesDateCompact),
       bucketMinutes,
+      overtimeEmployees,
       hours,
     };
   } finally {
@@ -645,3 +865,4 @@ export async function GET(request: Request) {
     );
   }
 }
+

@@ -215,6 +215,7 @@ export const HourlyAnalysis = ({
   const [error, setError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [expandedSlotStart, setExpandedSlotStart] = useState<number | null>(null);
+  const [hourlySection, setHourlySection] = useState<"map" | "overtime">("map");
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -537,6 +538,7 @@ export const HourlyAnalysis = ({
 
   const selectedLineLabel =
     selectedLine && lineOptions.find((line) => line.id === selectedLine)?.name;
+  const overtimeEmployees = hourlyData?.overtimeEmployees ?? [];
 
   return (
     <div
@@ -740,50 +742,143 @@ export const HourlyAnalysis = ({
 
       {!isLoading && hourlyData && (
         <>
-          <div className="mb-6 flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/60">
-              {formatDateLabel(hourlyData.date, hourlyDateLabelOptions)}
-            </span>
-            <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/60">
-              {hourlyData.scopeLabel}
-            </span>
-            <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200/70">
-              Rango: {minuteToTime(minuteRangeStart)} - {minuteToTime(minuteRangeEnd)}
-            </span>
-            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200/70">
-              Intervalo: {bucketMinutes} min
-            </span>
-            {hourlyData.attendanceDateUsed &&
-              hourlyData.attendanceDateUsed !== hourlyData.date && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
-                  Asistencia usada: {hourlyData.attendanceDateUsed}
-                </span>
-              )}
-            {hourlyData.salesDateUsed &&
-              hourlyData.salesDateUsed !== hourlyData.date && (
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
-                  Ventas usadas: {hourlyData.salesDateUsed}
-                </span>
-              )}
-            {selectedLineLabel && (
-              <span className="rounded-full bg-mercamio-50 px-3 py-1 text-xs font-semibold text-mercamio-700 ring-1 ring-mercamio-200/70">
-                Linea: {selectedLineLabel}
+          <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Fecha</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {formatDateLabel(hourlyData.date, hourlyDateLabelOptions)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Alcance</p>
+                <p className="text-sm font-semibold text-slate-900">{hourlyData.scopeLabel}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Rango</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {minuteToTime(minuteRangeStart)} - {minuteToTime(minuteRangeEnd)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200/70">
+                Intervalo: {bucketMinutes} min
               </span>
-            )}
-            <span className="flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
-              <DollarSign className="h-3.5 w-3.5" />
-              Vta/Hr prom: {formatProductivity(dayTotals.avgProductivity)}
-            </span>
-            <span className="flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200/70">
-              <Users className="h-3.5 w-3.5" />
-              Pico: {dayTotals.peakEmployees} empleados
-            </span>
-            <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200/60">
-              {dayTotals.activeHoursCount} horas con actividad
-            </span>
+              {selectedLineLabel && (
+                <span className="rounded-full bg-mercamio-50 px-3 py-1 text-xs font-semibold text-mercamio-700 ring-1 ring-mercamio-200/70">
+                  Linea: {selectedLineLabel}
+                </span>
+              )}
+              {hourlyData.attendanceDateUsed &&
+                hourlyData.attendanceDateUsed !== hourlyData.date && (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/70">
+                    Asistencia usada: {hourlyData.attendanceDateUsed}
+                  </span>
+                )}
+              {hourlyData.salesDateUsed &&
+                hourlyData.salesDateUsed !== hourlyData.date && (
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
+                    Ventas usadas: {hourlyData.salesDateUsed}
+                  </span>
+                )}
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                <DollarSign className="h-3.5 w-3.5" />
+                Vta/Hr prom: {formatProductivity(dayTotals.avgProductivity)}
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+                <Users className="h-3.5 w-3.5" />
+                Pico: {dayTotals.peakEmployees} empleados
+              </div>
+              <div className="rounded-xl border border-slate-200/70 bg-slate-100/80 px-3 py-2 text-xs font-semibold text-slate-700">
+                {dayTotals.activeHoursCount} horas con actividad
+              </div>
+            </div>
           </div>
 
-          <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHourlySection("map")}
+              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+                hourlySection === "map"
+                  ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
+                  : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+              }`}
+            >
+              Mapa por hora
+            </button>
+            <button
+              type="button"
+              onClick={() => setHourlySection("overtime")}
+              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+                hourlySection === "overtime"
+                  ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/70"
+                  : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+              }`}
+            >
+              Jornada extendida
+            </button>
+          </div>
+
+          {hourlySection === "overtime" && (
+            <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Jornada extendida
+                </p>
+                <p className="text-sm font-semibold text-slate-900">
+                  Empleados con 8 horas o mas en el dia
+                </p>
+              </div>
+              <div className="mt-3">
+                <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
+                  {overtimeEmployees.length} empleado(s)
+                </span>
+              </div>
+
+              {overtimeEmployees.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No hay empleados con 8 horas o mas para este filtro.
+                </p>
+              ) : (
+                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
+                  <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <span className="col-span-1">#</span>
+                    <span className="col-span-6">Empleado</span>
+                    <span className="col-span-2 text-right">Horas</span>
+                    <span className="col-span-3 text-right">Linea</span>
+                  </div>
+                  {overtimeEmployees.map((employee, index) => (
+                    <div
+                      key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}`}
+                      className="grid grid-cols-12 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"
+                    >
+                      <span className="col-span-1 text-xs font-semibold text-slate-500">
+                        {index + 1}
+                      </span>
+                      <span className="col-span-6 font-semibold text-slate-900">
+                        {employee.employeeName}
+                      </span>
+                      <span className="col-span-2 text-right text-xs font-semibold text-amber-700">
+                        {employee.workedHours.toFixed(2)}h
+                      </span>
+                      <span className="col-span-3 text-right text-xs font-semibold text-sky-700">
+                        {employee.lineName ?? "-"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hourlySection === "map" && (
+            <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -875,9 +970,10 @@ export const HourlyAnalysis = ({
                 </span>
               </div>
             )}
-          </div>
+            </div>
+          )}
 
-          {activeHours.length > 0 ? (
+          {hourlySection === "map" && (activeHours.length > 0 ? (
             <div className="space-y-3">
               {activeHours.map((slot) => {
                 const heatRatio = computeHeatRatio(
@@ -914,7 +1010,7 @@ export const HourlyAnalysis = ({
             <p className="py-10 text-center text-sm text-slate-600">
               No hay actividad registrada para este filtro.
             </p>
-          )}
+          ))}
         </>
       )}
     </div>
