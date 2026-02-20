@@ -173,6 +173,7 @@ const compactDateToISO = (value: string | null | undefined): string | null => {
 };
 
 const EMPLOYEE_ID_COLUMN_CANDIDATES = [
+  "numero",
   "identificacion",
   "cedula",
   "cedula_empleado",
@@ -205,26 +206,27 @@ const EMPLOYEE_NAME_COLUMN_CANDIDATES = [
   "funcionario",
 ] as const;
 
+const normalizeColumnName = (value: string) => value.trim().toLowerCase();
+
+const quoteIdentifier = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
 const pickAttendanceColumn = (
-  columns: Set<string>,
+  columns: string[],
   candidates: readonly string[],
   fuzzyTokens: readonly string[],
 ): string | null => {
-  const exact = candidates.find((col) => columns.has(col));
+  const exact = columns.find((col) =>
+    candidates.includes(normalizeColumnName(col)),
+  );
   if (exact) return exact;
 
-  const fuzzy = Array.from(columns).find((col) => {
-    if (col.includes("tipo")) return false;
-    return fuzzyTokens.some((token) => col.includes(token));
+  const fuzzy = columns.find((col) => {
+    const normalized = normalizeColumnName(col);
+    if (normalized.includes("tipo")) return false;
+    return fuzzyTokens.some((token) => normalized.includes(token));
   });
   return fuzzy ?? null;
 };
-
-const isSafeSqlIdentifier = (value: string): boolean =>
-  /^[a-z_][a-z0-9_]*$/.test(value);
-
-const toSafeIdentifier = (value: string): string | null =>
-  isSafeSqlIdentifier(value) ? `"${value}"` : null;
 
 const parseHoursValue = (value: string | number): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -523,10 +525,11 @@ const fetchHourlyData = async (
             AND table_name = 'asistencia_horas'
         `,
       );
-      const attendanceColumns = new Set(
-        (attendanceColumnsResult.rows ?? [])
-          .map((row) => (row as { column_name?: string }).column_name?.toLowerCase())
-          .filter((value): value is string => Boolean(value)),
+      const attendanceColumns = (attendanceColumnsResult.rows ?? [])
+        .map((row) => (row as { column_name?: string }).column_name)
+        .filter((value): value is string => Boolean(value));
+      const attendanceColumnSet = new Set(
+        attendanceColumns.map((col) => normalizeColumnName(col)),
       );
       const attendanceParams: unknown[] = [attendanceDateUsed];
       if (selectedSedeConfigs.length > 0) {
@@ -570,42 +573,47 @@ const fetchHourlyData = async (
         }
       }
 
-      if (attendanceColumns.has("total_laborado_horas")) {
+      if (attendanceColumnSet.has("total_laborado_horas")) {
         const employeeNameColumn = pickAttendanceColumn(
           attendanceColumns,
           EMPLOYEE_NAME_COLUMN_CANDIDATES,
           ["nombre", "emplead", "trabajador", "colaborador", "funcionario"],
         );
-        const firstNameColumn = attendanceColumns.has("nombres")
-          ? "nombres"
-          : null;
-        const lastNameColumn = attendanceColumns.has("apellidos")
-          ? "apellidos"
-          : null;
+        const firstNameColumn =
+          attendanceColumns.find(
+            (col) => normalizeColumnName(col) === "nombres",
+          ) ?? null;
+        const lastNameColumn =
+          attendanceColumns.find(
+            (col) => normalizeColumnName(col) === "apellidos",
+          ) ?? null;
         const employeeIdColumns = Array.from(
           new Set([
-            ...EMPLOYEE_ID_COLUMN_CANDIDATES.filter((col) =>
-              attendanceColumns.has(col),
+            ...attendanceColumns.filter((col) =>
+              EMPLOYEE_ID_COLUMN_CANDIDATES.includes(
+                normalizeColumnName(col) as (typeof EMPLOYEE_ID_COLUMN_CANDIDATES)[number],
+              ),
             ),
             ...Array.from(attendanceColumns).filter((col) => {
-              if (col.includes("tipo")) return false;
+              const normalized = normalizeColumnName(col);
+              if (normalized.includes("tipo")) return false;
               return ["cedula", "ident", "document", "doc", "dni", "nit"].some(
-                (token) => col.includes(token),
+                (token) => normalized.includes(token),
               );
             }),
           ]),
         );
         const employeeIdIdentifiers = employeeIdColumns
-          .map((col) => toSafeIdentifier(col))
+          .map((col) => quoteIdentifier(col))
           .filter((value): value is string => Boolean(value));
         const employeeNameIdentifier = employeeNameColumn
-          ? toSafeIdentifier(employeeNameColumn)
+          ? quoteIdentifier(employeeNameColumn)
           : null;
         const firstNameIdentifier = firstNameColumn
-          ? toSafeIdentifier(firstNameColumn)
+          ? quoteIdentifier(firstNameColumn)
           : null;
         const lastNameIdentifier = lastNameColumn
-          ? toSafeIdentifier(lastNameColumn)
+          ? quoteIdentifier(lastNameColumn)
           : null;
 
         if (
