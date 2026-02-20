@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, DollarSign, ChevronDown, Clock, Sparkles } from "lucide-react";
+import { Users, DollarSign, ChevronDown, Clock, Sparkles, Download } from "lucide-react";
+import * as ExcelJS from "exceljs";
 import { formatDateLabel } from "@/lib/utils";
 import { DEFAULT_LINES } from "@/lib/constants";
 import type { Sede } from "@/lib/constants";
@@ -12,6 +13,9 @@ interface HourlyAnalysisProps {
   availableSedes: Sede[];
   defaultDate?: string;
   defaultSede?: string;
+  sections?: Array<"map" | "overtime">;
+  defaultSection?: "map" | "overtime";
+  showTimeFilters?: boolean;
 }
 
 const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
@@ -55,6 +59,14 @@ const minuteToTime = (value: number) => {
   const minute = safe % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 };
+
+const normalizeSedeValue = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, " ");
 
 const HourlyLoadingSkeleton = () => (
   <div className="space-y-3 animate-pulse">
@@ -198,7 +210,14 @@ export const HourlyAnalysis = ({
   availableSedes,
   defaultDate,
   defaultSede,
+  sections = ["map", "overtime"],
+  defaultSection = "map",
+  showTimeFilters = true,
 }: HourlyAnalysisProps) => {
+  const enabledSections = useMemo(() => {
+    const unique = Array.from(new Set(sections));
+    return unique.length > 0 ? unique : (["map"] as Array<"map" | "overtime">);
+  }, [sections]);
   const [selectedDate, setSelectedDate] = useState(defaultDate ?? "");
   const [selectedLine, setSelectedLine] = useState("");
   const [selectedSedes, setSelectedSedes] = useState<string[]>(
@@ -215,13 +234,16 @@ export const HourlyAnalysis = ({
   const [error, setError] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [expandedSlotStart, setExpandedSlotStart] = useState<number | null>(null);
-  const [hourlySection, setHourlySection] = useState<"map" | "overtime">("map");
+  const [hourlySection, setHourlySection] = useState<"map" | "overtime">(
+    enabledSections.includes(defaultSection) ? defaultSection : enabledSections[0],
+  );
   const [overtimeFilterMode, setOvertimeFilterMode] = useState<
     "gte" | "lte" | "gt" | "lt" | "eq" | "range"
   >("gte");
   const [overtimeFilterValue, setOvertimeFilterValue] = useState("8");
   const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
+  const [overtimeSedeFilter, setOvertimeSedeFilter] = useState("all");
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -256,6 +278,16 @@ export const HourlyAnalysis = ({
     const available = new Set(availableSedes.map((s) => s.name));
     setSelectedSedes((prev) => prev.filter((name) => available.has(name)));
   }, [availableSedes]);
+
+  useEffect(() => {
+    if (!enabledSections.includes(hourlySection)) {
+      setHourlySection(enabledSections[0]);
+    }
+  }, [enabledSections, hourlySection]);
+
+  const showMapSection = enabledSections.includes("map");
+  const showOvertimeSection = enabledSections.includes("overtime");
+  const showSectionToggle = enabledSections.length > 1;
 
   const toggleSede = (sedeName: string) => {
     setSelectedSedes((prev) =>
@@ -545,6 +577,36 @@ export const HourlyAnalysis = ({
   const selectedLineLabel =
     selectedLine && lineOptions.find((line) => line.id === selectedLine)?.name;
   const overtimeEmployees = hourlyData?.overtimeEmployees ?? [];
+  const overtimeEmployeesResolved = useMemo(() => {
+    if (overtimeEmployees.length === 0) return [];
+    return overtimeEmployees.map((employee) => {
+      const rawSede = employee.sede?.trim();
+      if (!rawSede) return employee;
+
+      const normalizedRaw = normalizeSedeValue(rawSede);
+      const match = availableSedes.find((sede) => {
+        const normalizedSede = normalizeSedeValue(sede.name);
+        return (
+          normalizedSede === normalizedRaw ||
+          normalizedSede.includes(normalizedRaw) ||
+          normalizedRaw.includes(normalizedSede)
+        );
+      });
+
+      if (!match) return employee;
+      return { ...employee, sede: match.name };
+    });
+  }, [overtimeEmployees, availableSedes]);
+  const overtimeSedeOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(
+        overtimeEmployeesResolved
+          .map((employee) => employee.sede?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    return values.sort((a, b) => a.localeCompare(b, "es"));
+  }, [overtimeEmployeesResolved]);
   const filteredOvertimeEmployees = useMemo(() => {
     const value = overtimeFilterValue.trim() === "" ? null : Number(overtimeFilterValue);
     const min = overtimeRangeMin.trim() === "" ? null : Number(overtimeRangeMin);
@@ -553,7 +615,10 @@ export const HourlyAnalysis = ({
     const validMin = min !== null && Number.isFinite(min) ? min : null;
     const validMax = max !== null && Number.isFinite(max) ? max : null;
 
-    return overtimeEmployees.filter((employee) => {
+    return overtimeEmployeesResolved.filter((employee) => {
+      if (overtimeSedeFilter !== "all" && (employee.sede ?? "") !== overtimeSedeFilter) {
+        return false;
+      }
       if (overtimeFilterMode === "range") {
         if (validMin !== null && employee.workedHours < validMin) return false;
         if (validMax !== null && employee.workedHours > validMax) return false;
@@ -569,12 +634,59 @@ export const HourlyAnalysis = ({
       return true;
     });
   }, [
-    overtimeEmployees,
+    overtimeEmployeesResolved,
+    overtimeSedeFilter,
     overtimeFilterMode,
     overtimeFilterValue,
     overtimeRangeMin,
     overtimeRangeMax,
   ]);
+
+  const handleExportOvertimeXlsx = async () => {
+    if (filteredOvertimeEmployees.length === 0) return;
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Jornada extendida");
+    sheet.columns = [
+      { header: "Cedula", key: "employeeId", width: 18 },
+      { header: "Nombre", key: "employeeName", width: 34 },
+      { header: "Sede", key: "sede", width: 20 },
+      { header: "Departamento", key: "department", width: 22 },
+      { header: "Fecha", key: "workedDate", width: 16 },
+      { header: "Horas trabajadas", key: "workedHours", width: 18 },
+    ];
+
+    filteredOvertimeEmployees.forEach((employee) => {
+      const rawId = employee.employeeId?.toString().trim() ?? "";
+      const numericId = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
+      sheet.addRow({
+        employeeId: numericId,
+        employeeName: employee.employeeName,
+        sede: employee.sede ?? "",
+        department: employee.department ?? employee.lineName ?? "",
+        workedDate: employee.workedDate ?? hourlyData?.attendanceDateUsed ?? selectedDate,
+        workedHours: Number(employee.workedHours.toFixed(2)),
+      });
+    });
+
+    const header = sheet.getRow(1);
+    header.font = { bold: true };
+    header.alignment = { vertical: "middle", horizontal: "center" };
+    sheet.getColumn("employeeId").numFmt = "0";
+    sheet.getColumn("workedHours").numFmt = "0.00";
+
+    const dateKey = selectedDate || new Date().toISOString().slice(0, 10);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `jornada-extendida-${dateKey}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div
@@ -591,7 +703,7 @@ export const HourlyAnalysis = ({
             Analisis por hora
           </div>
           <h3 className="mt-1 text-lg font-semibold text-slate-900">
-            Desglose horario con color de mapa de calor
+            Desglose horario
           </h3>
           <p className="mt-1 text-xs text-slate-600">
             Filtra por linea para enfocar el comportamiento horario en todas las sedes.
@@ -603,7 +715,12 @@ export const HourlyAnalysis = ({
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+        <div
+          className={`grid gap-3 sm:grid-cols-2 ${
+            showTimeFilters ? "lg:grid-cols-5" : "lg:grid-cols-2"
+          }`}
+        >
         <label className="block">
           <span className="text-xs font-semibold text-slate-700">Fecha</span>
           <input
@@ -632,54 +749,58 @@ export const HourlyAnalysis = ({
           </select>
         </label>
 
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Intervalo</span>
-          <select
-            value={bucketMinutes}
-            onChange={(e) => setBucketMinutes(Number(e.target.value))}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          >
-            {bucketOptions.map((minutes) => (
-              <option key={`bucket-${minutes}`} value={minutes}>
-                {minutes} minutos
-              </option>
-            ))}
-          </select>
-        </label>
+        {showTimeFilters && (
+          <>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-700">Intervalo</span>
+              <select
+                value={bucketMinutes}
+                onChange={(e) => setBucketMinutes(Number(e.target.value))}
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              >
+                {bucketOptions.map((minutes) => (
+                  <option key={`bucket-${minutes}`} value={minutes}>
+                    {minutes} minutos
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Desde (HH:mm)</span>
-          <input
-            type="time"
-            step={minuteRangeStepSeconds}
-            value={minuteToTime(minuteRangeStart)}
-            onChange={(e) => {
-              const nextStart = parseTimeToMinute(e.target.value);
-              setMinuteRangeStart(nextStart);
-              setMinuteRangeEnd((prev) => (prev < nextStart ? nextStart : prev));
-            }}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          />
-        </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-700">Desde (HH:mm)</span>
+              <input
+                type="time"
+                step={minuteRangeStepSeconds}
+                value={minuteToTime(minuteRangeStart)}
+                onChange={(e) => {
+                  const nextStart = parseTimeToMinute(e.target.value);
+                  setMinuteRangeStart(nextStart);
+                  setMinuteRangeEnd((prev) => (prev < nextStart ? nextStart : prev));
+                }}
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              />
+            </label>
 
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Hasta (HH:mm)</span>
-          <input
-            type="time"
-            step={minuteRangeStepSeconds}
-            value={minuteToTime(minuteRangeEnd)}
-            onChange={(e) => {
-              const nextEnd = parseTimeToMinute(e.target.value);
-              setMinuteRangeEnd(nextEnd);
-              setMinuteRangeStart((prev) => (prev > nextEnd ? nextEnd : prev));
-            }}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          />
-        </label>
-      </div>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-700">Hasta (HH:mm)</span>
+              <input
+                type="time"
+                step={minuteRangeStepSeconds}
+                value={minuteToTime(minuteRangeEnd)}
+                onChange={(e) => {
+                  const nextEnd = parseTimeToMinute(e.target.value);
+                  setMinuteRangeEnd(nextEnd);
+                  setMinuteRangeStart((prev) => (prev > nextEnd ? nextEnd : prev));
+                }}
+                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+              />
+            </label>
+          </>
+        )}
+        </div>
 
-      <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="mt-4 border-t border-slate-200/70 pt-4">
+          <div className="mb-2 flex items-center justify-between gap-3">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
             Sedes
           </span>
@@ -714,48 +835,51 @@ export const HourlyAnalysis = ({
         </div>
         <p className="mt-2 text-[11px] text-slate-500">
           {selectedSedes.length === 0
-            ? "Sin selección manual: se usan todas las sedes."
+            ? "Sin seleccion manual: se usan todas las sedes."
             : `${selectedSedes.length} sede(s) seleccionada(s).`}
         </p>
-      </div>
-
-      <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Comparar
-            </p>
-            <p className="text-sm font-semibold text-slate-900">Compara dos dias</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCompareEnabled((prev) => !prev)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
-              compareEnabled
-                ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
-                : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
-            }`}
-          >
-            {compareEnabled ? "Comparando" : "Comparar"}
-          </button>
         </div>
-
-        {compareEnabled && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-700">Fecha a comparar</span>
-              <input
-                type="date"
-                value={compareDate}
-                onChange={(e) => setCompareDate(e.target.value)}
-                min={availableDateRange.min}
-                max={availableDateRange.max}
-                className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-              />
-            </label>
-          </div>
-        )}
       </div>
+
+      {showMapSection && (
+        <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Comparar
+              </p>
+              <p className="text-sm font-semibold text-slate-900">Compara dos dias</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompareEnabled((prev) => !prev)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+                compareEnabled
+                  ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
+                  : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+              }`}
+            >
+              {compareEnabled ? "Comparando" : "Comparar"}
+            </button>
+          </div>
+
+          {compareEnabled && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-700">Fecha a comparar</span>
+                <input
+                  type="date"
+                  value={compareDate}
+                  onChange={(e) => setCompareDate(e.target.value)}
+                  min={availableDateRange.min}
+                  max={availableDateRange.max}
+                  className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-800">
@@ -836,32 +960,38 @@ export const HourlyAnalysis = ({
             </div>
           </div>
 
-          <div className="mb-6 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setHourlySection("map")}
-              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
-                hourlySection === "map"
-                  ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
-                  : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
-              }`}
-            >
-              Mapa por hora
-            </button>
-            <button
-              type="button"
-              onClick={() => setHourlySection("overtime")}
-              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
-                hourlySection === "overtime"
-                  ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/70"
-                  : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
-              }`}
-            >
-              Jornada extendida
-            </button>
-          </div>
+          {showSectionToggle && (
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              {showMapSection && (
+                <button
+                  type="button"
+                  onClick={() => setHourlySection("map")}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+                    hourlySection === "map"
+                      ? "bg-mercamio-50 text-mercamio-700 ring-1 ring-mercamio-200/70"
+                      : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+                  }`}
+                >
+                  Mapa por hora
+                </button>
+              )}
+              {showOvertimeSection && (
+                <button
+                  type="button"
+                  onClick={() => setHourlySection("overtime")}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] transition-all ${
+                    hourlySection === "overtime"
+                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/70"
+                      : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+                  }`}
+                >
+                  Jornada extendida
+                </button>
+              )}
+            </div>
+          )}
 
-          {hourlySection === "overtime" && (
+          {showOvertimeSection && hourlySection === "overtime" && (
             <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -871,13 +1001,22 @@ export const HourlyAnalysis = ({
                   Filtra por total de horas trabajadas
                 </p>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
                   {filteredOvertimeEmployees.length} empleado(s)
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void handleExportOvertimeXlsx()}
+                  disabled={filteredOvertimeEmployees.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700 transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Exportar Excel
+                </button>
               </div>
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Tipo de filtro</span>
                   <select
@@ -895,6 +1034,21 @@ export const HourlyAnalysis = ({
                     <option value="lt">Menor que</option>
                     <option value="eq">Igual a</option>
                     <option value="range">Rango</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Sede</span>
+                  <select
+                    value={overtimeSedeFilter}
+                    onChange={(e) => setOvertimeSedeFilter(e.target.value)}
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  >
+                    <option value="all">Todas</option>
+                    {overtimeSedeOptions.map((sede) => (
+                      <option key={sede} value={sede}>
+                        {sede}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 {overtimeFilterMode === "range" ? (
@@ -942,12 +1096,13 @@ export const HourlyAnalysis = ({
                   No hay empleados para ese filtro de horas.
                 </p>
               ) : (
-                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-                  <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
+                    <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1">#</span>
-                    <span className="col-span-6">Empleado</span>
+                    <span className="col-span-4">Empleado</span>
+                    <span className="col-span-3">Sede</span>
                     <span className="col-span-2 text-right">Horas</span>
-                    <span className="col-span-3 text-right">Linea</span>
+                    <span className="col-span-2 text-right">Departamento</span>
                   </div>
                   {filteredOvertimeEmployees.map((employee, index) => (
                     <div
@@ -957,14 +1112,17 @@ export const HourlyAnalysis = ({
                       <span className="col-span-1 text-xs font-semibold text-slate-500">
                         {index + 1}
                       </span>
-                      <span className="col-span-6 font-semibold text-slate-900">
+                      <span className="col-span-4 font-semibold text-slate-900">
                         {employee.employeeName}
+                      </span>
+                      <span className="col-span-3 text-xs font-semibold text-slate-700">
+                        {employee.sede ?? "-"}
                       </span>
                       <span className="col-span-2 text-right text-xs font-semibold text-amber-700">
                         {employee.workedHours.toFixed(2)}h
                       </span>
-                      <span className="col-span-3 text-right text-xs font-semibold text-sky-700">
-                        {employee.lineName ?? "-"}
+                      <span className="col-span-2 text-right text-xs font-semibold text-sky-700">
+                        {employee.department ?? employee.lineName ?? "-"}
                       </span>
                     </div>
                   ))}
@@ -973,7 +1131,7 @@ export const HourlyAnalysis = ({
             </div>
           )}
 
-          {hourlySection === "map" && (
+          {showMapSection && hourlySection === "map" && (
             <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -1069,7 +1227,7 @@ export const HourlyAnalysis = ({
             </div>
           )}
 
-          {hourlySection === "map" && (activeHours.length > 0 ? (
+          {showMapSection && hourlySection === "map" && (activeHours.length > 0 ? (
             <div className="space-y-3">
               {activeHours.map((slot) => {
                 const heatRatio = computeHeatRatio(
@@ -1112,3 +1270,5 @@ export const HourlyAnalysis = ({
     </div>
   );
 };
+
+

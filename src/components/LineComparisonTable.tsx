@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { formatCOP, formatHours, hasLaborDataForLine } from "@/lib/calc";
 import { DailyProductivity, LineMetrics } from "@/types";
 
@@ -26,16 +26,8 @@ type LineTotals = {
   hours: number;
 };
 
-const sortLinesBySales = (
-  lines: LineWithMetrics[],
-  totalsByLine: Map<string, LineTotals>,
-) => {
-  return [...lines].sort((a, b) => {
-    const aSales = totalsByLine.get(a.id)?.sales ?? 0;
-    const bSales = totalsByLine.get(b.id)?.sales ?? 0;
-    return bSales - aSales;
-  });
-};
+type SortMetric = "sales" | "salesPerHour" | "hours";
+type SortOrder = "asc" | "desc";
 
 const buildSedeNameMap = (sedes: Array<{ id: string; name: string }>) =>
   new Map(sedes.map((sede) => [sede.id, sede.name]));
@@ -129,6 +121,8 @@ export const LineComparisonTable = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [customOrder, setCustomOrder] = useState<string[] | null>(null);
+  const [sortMetric, setSortMetric] = useState<SortMetric>("sales");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   useEffect(() => {
     const validDefault = defaultSedeIds.filter((id) => allSedeIds.includes(id));
@@ -185,18 +179,42 @@ export const LineComparisonTable = ({
   }, [lineSedeMetrics, lines]);
 
   const enrichedLines = useMemo(() => lines.map((line) => ({ ...line })), [lines]);
-  const defaultSortedLines = useMemo(
-    () => sortLinesBySales(enrichedLines, totalsByLine),
-    [enrichedLines, totalsByLine],
-  );
 
   const sortedLines = useMemo(() => {
-    if (!customOrder) return defaultSortedLines;
-    const map = new Map(defaultSortedLines.map((line) => [line.id, line]));
-    return customOrder
-      .map((id) => map.get(id))
-      .filter((line): line is LineWithMetrics => line !== undefined);
-  }, [customOrder, defaultSortedLines]);
+    const source = customOrder
+      ? customOrder
+          .map((id) => enrichedLines.find((line) => line.id === id))
+          .filter((line): line is LineWithMetrics => line !== undefined)
+      : [...enrichedLines];
+
+    return [...source].sort((a, b) => {
+      const aTotals = totalsByLine.get(a.id) ?? { sales: 0, hours: 0 };
+      const bTotals = totalsByLine.get(b.id) ?? { sales: 0, hours: 0 };
+      const aSalesPerHour =
+        hasLaborDataForLine(a.id) && aTotals.hours > 0
+          ? aTotals.sales / 1_000_000 / aTotals.hours
+          : 0;
+      const bSalesPerHour =
+        hasLaborDataForLine(b.id) && bTotals.hours > 0
+          ? bTotals.sales / 1_000_000 / bTotals.hours
+          : 0;
+
+      const aValue =
+        sortMetric === "sales"
+          ? aTotals.sales
+          : sortMetric === "hours"
+            ? aTotals.hours
+            : aSalesPerHour;
+      const bValue =
+        sortMetric === "sales"
+          ? bTotals.sales
+          : sortMetric === "hours"
+            ? bTotals.hours
+            : bSalesPerHour;
+
+      return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
+    });
+  }, [customOrder, enrichedLines, sortMetric, sortOrder, totalsByLine]);
 
   const toggleSede = useCallback((sedeId: string) => {
     setSelectedSedeIds((prev) =>
@@ -260,6 +278,16 @@ export const LineComparisonTable = ({
   const handleResetOrder = useCallback(() => {
     setCustomOrder(null);
   }, []);
+
+  const handleSortToggle = useCallback((metric: SortMetric) => {
+    if (sortMetric === metric) {
+      setSortOrder((prevOrder) => (prevOrder === "asc" ? "desc" : "asc"));
+    } else {
+      setSortMetric(metric);
+      setSortOrder("desc");
+    }
+    setCustomOrder(null);
+  }, [sortMetric]);
 
   if (sortedLines.length === 0) {
     return (
@@ -337,6 +365,7 @@ export const LineComparisonTable = ({
             );
           })}
         </div>
+
       </div>
 
       <div className="-mx-1 mt-3 overflow-x-auto sm:mx-0 sm:mt-6">
@@ -349,13 +378,55 @@ export const LineComparisonTable = ({
                 Linea
               </th>
               <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">
-                Ventas
+                <div className="flex items-center gap-2">
+                  <span>Ventas</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSortToggle("sales")}
+                    className={`rounded p-0.5 ${sortMetric === "sales" ? "text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
+                    aria-label="Cambiar orden de ventas"
+                  >
+                    {sortMetric === "sales" && sortOrder === "asc" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
               </th>
               <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">
-                Vta/Hr
+                <div className="flex items-center gap-2">
+                  <span>Vta/Hr</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSortToggle("salesPerHour")}
+                    className={`rounded p-0.5 ${sortMetric === "salesPerHour" ? "text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
+                    aria-label="Cambiar orden de Vta/Hr"
+                  >
+                    {sortMetric === "salesPerHour" && sortOrder === "asc" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
               </th>
               <th className="px-2 py-1.5 text-left font-semibold sm:px-4 sm:py-2">
-                Horas
+                <div className="flex items-center gap-2">
+                  <span>Horas</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSortToggle("hours")}
+                    className={`rounded p-0.5 ${sortMetric === "hours" ? "text-blue-700" : "text-slate-400 hover:text-slate-700"}`}
+                    aria-label="Cambiar orden de horas"
+                  >
+                    {sortMetric === "hours" && sortOrder === "asc" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
               </th>
             </tr>
           </thead>

@@ -3960,6 +3960,7 @@ export default function Home() {
                 availableSedes={orderedSedes}
                 defaultDate={dateRange.end}
                 defaultSede={selectedSede || undefined}
+                sections={["map"]}
               />
             ) : viewMode === "m2" ? (
               <M2MetricsSection

@@ -175,13 +175,20 @@ const compactDateToISO = (value: string | null | undefined): string | null => {
 const EMPLOYEE_ID_COLUMN_CANDIDATES = [
   "identificacion",
   "cedula",
+  "cedula_empleado",
+  "cedula_colaborador",
   "documento",
+  "documento_empleado",
+  "documento_colaborador",
   "id_empleado",
   "codigo_empleado",
   "codigo",
   "nit",
+  "dni",
   "num_documento",
   "numero_documento",
+  "nro_documento",
+  "documento_numero",
 ] as const;
 
 const EMPLOYEE_NAME_COLUMN_CANDIDATES = [
@@ -197,6 +204,21 @@ const EMPLOYEE_NAME_COLUMN_CANDIDATES = [
   "nombre",
   "funcionario",
 ] as const;
+
+const pickAttendanceColumn = (
+  columns: Set<string>,
+  candidates: readonly string[],
+  fuzzyTokens: readonly string[],
+): string | null => {
+  const exact = candidates.find((col) => columns.has(col));
+  if (exact) return exact;
+
+  const fuzzy = Array.from(columns).find((col) => {
+    if (col.includes("tipo")) return false;
+    return fuzzyTokens.some((token) => col.includes(token));
+  });
+  return fuzzy ?? null;
+};
 
 const isSafeSqlIdentifier = (value: string): boolean =>
   /^[a-z_][a-z0-9_]*$/.test(value);
@@ -549,21 +571,33 @@ const fetchHourlyData = async (
       }
 
       if (attendanceColumns.has("total_laborado_horas")) {
-        const employeeIdColumn =
-          EMPLOYEE_ID_COLUMN_CANDIDATES.find((col) => attendanceColumns.has(col)) ??
-          null;
-        const employeeNameColumn =
-          EMPLOYEE_NAME_COLUMN_CANDIDATES.find((col) => attendanceColumns.has(col)) ??
-          null;
+        const employeeNameColumn = pickAttendanceColumn(
+          attendanceColumns,
+          EMPLOYEE_NAME_COLUMN_CANDIDATES,
+          ["nombre", "emplead", "trabajador", "colaborador", "funcionario"],
+        );
         const firstNameColumn = attendanceColumns.has("nombres")
           ? "nombres"
           : null;
         const lastNameColumn = attendanceColumns.has("apellidos")
           ? "apellidos"
           : null;
-        const employeeIdIdentifier = employeeIdColumn
-          ? toSafeIdentifier(employeeIdColumn)
-          : null;
+        const employeeIdColumns = Array.from(
+          new Set([
+            ...EMPLOYEE_ID_COLUMN_CANDIDATES.filter((col) =>
+              attendanceColumns.has(col),
+            ),
+            ...Array.from(attendanceColumns).filter((col) => {
+              if (col.includes("tipo")) return false;
+              return ["cedula", "ident", "document", "doc", "dni", "nit"].some(
+                (token) => col.includes(token),
+              );
+            }),
+          ]),
+        );
+        const employeeIdIdentifiers = employeeIdColumns
+          .map((col) => toSafeIdentifier(col))
+          .filter((value): value is string => Boolean(value));
         const employeeNameIdentifier = employeeNameColumn
           ? toSafeIdentifier(employeeNameColumn)
           : null;
@@ -575,14 +609,20 @@ const fetchHourlyData = async (
           : null;
 
         if (
-          employeeIdIdentifier ||
+          employeeIdIdentifiers.length > 0 ||
           employeeNameIdentifier ||
           firstNameIdentifier ||
           lastNameIdentifier
         ) {
-          const employeeIdExpr = employeeIdIdentifier
-            ? `NULLIF(TRIM(CAST(${employeeIdIdentifier} AS text)), '')`
-            : "NULL::text";
+          const employeeIdExpr =
+            employeeIdIdentifiers.length > 0
+              ? `COALESCE(${employeeIdIdentifiers
+                  .map(
+                    (identifier) =>
+                      `NULLIF(TRIM(BOTH '"' FROM CAST(${identifier} AS text)), '')`,
+                  )
+                  .join(", ")})`
+              : "NULL::text";
           const employeeNameExpr = employeeNameIdentifier
             ? `NULLIF(TRIM(CAST(${employeeNameIdentifier} AS text)), '')`
             : firstNameIdentifier || lastNameIdentifier
@@ -609,6 +649,7 @@ const fetchHourlyData = async (
             SELECT
               ${employeeIdExpr} AS employee_id,
               ${employeeNameExpr} AS employee_name,
+              NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
               departamento,
               COALESCE(SUM(total_laborado_horas), 0) AS total_hours
             FROM asistencia_horas
@@ -619,7 +660,7 @@ const fetchHourlyData = async (
                   ? `AND ${buildNormalizeSedeSql("sede")} = ANY($2::text[])`
                   : "AND 1=0"
               }
-            GROUP BY 1, 2, 3
+            GROUP BY 1, 2, 3, 4
             ORDER BY total_hours DESC
           `;
           const overtimeParams: unknown[] = [attendanceDateUsed];
@@ -631,20 +672,11 @@ const fetchHourlyData = async (
           const lineNameById = new Map<string, string>(
             LINE_TABLES.map((line) => [line.id, line.name]),
           );
-          const overtimeByEmployee = new Map<
-            string,
-            {
-              employeeId: string | null;
-              employeeName: string;
-              workedHours: number;
-              lineNames: Set<string>;
-            }
-          >();
-
           for (const row of overtimeResult.rows ?? []) {
             const typedRow = row as {
               employee_id: string | null;
               employee_name: string | null;
+              sede: string | null;
               departamento: string;
               total_hours: string | number;
             };
@@ -655,45 +687,23 @@ const fetchHourlyData = async (
             const employeeNameRaw = typedRow.employee_name?.trim() || "";
             const employeeName =
               employeeNameRaw || employeeId || "Empleado sin nombre";
-            const employeeKey = `${employeeId ?? "__no_id__"}::${employeeName}`;
             const workedHours = parseHoursValue(typedRow.total_hours);
-
-            const current = overtimeByEmployee.get(employeeKey);
-            if (current) {
-              current.workedHours += workedHours;
-              if (lineId) {
-                current.lineNames.add(lineNameById.get(lineId) ?? lineId);
-              }
+            if (workedHours <= 0) {
               continue;
             }
 
-            const lineNames = new Set<string>();
-            if (lineId) {
-              lineNames.add(lineNameById.get(lineId) ?? lineId);
-            }
-
-            overtimeByEmployee.set(employeeKey, {
+            overtimeEmployees.push({
               employeeId,
               employeeName,
               workedHours,
-              lineNames,
+              lineName: lineId ? lineNameById.get(lineId) ?? lineId : undefined,
+              sede: typedRow.sede?.trim() || undefined,
+              department: typedRow.departamento?.trim() || undefined,
+              workedDate: attendanceDateUsed,
             });
           }
 
-          overtimeEmployees = Array.from(overtimeByEmployee.values())
-            .filter((employee) => employee.workedHours > 0)
-            .sort((a, b) => b.workedHours - a.workedHours)
-            .map((employee) => ({
-              employeeId: employee.employeeId,
-              employeeName: employee.employeeName,
-              workedHours: employee.workedHours,
-              lineName:
-                employee.lineNames.size === 1
-                  ? Array.from(employee.lineNames)[0]
-                  : employee.lineNames.size > 1
-                    ? "Varias lineas"
-                    : undefined,
-            }));
+          overtimeEmployees.sort((a, b) => b.workedHours - a.workedHours);
         }
       }
     } catch (error) {

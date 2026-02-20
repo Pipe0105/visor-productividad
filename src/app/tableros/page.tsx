@@ -77,7 +77,7 @@ export default function TablerosPage() {
           Selecciona a donde quieres ingresar.
         </p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <button
             type="button"
             onClick={() => router.push("/")}
@@ -106,6 +106,21 @@ export default function TablerosPage() {
             </span>
             <span className="mt-1 block text-xs text-slate-600">
               Proximamente: indicadores de rentabilidad.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/jornada-extendida")}
+            className="group w-full rounded-2xl border border-rose-300/80 bg-linear-to-br from-rose-100 via-white to-pink-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(244,63,94,0.4)] transition-all hover:-translate-y-0.5 hover:border-rose-400 hover:shadow-[0_22px_44px_-26px_rgba(244,63,94,0.5)]"
+          >
+            <span className="inline-flex rounded-full border border-rose-300/80 bg-rose-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-800">
+              Jornada
+            </span>
+            <span className="mt-3 block text-sm font-semibold tracking-wide">
+              Jornada extendida
+            </span>
+            <span className="mt-1 block text-xs text-slate-600">
+              Empleados con horas extra por sede y fecha.
             </span>
           </button>
         </div>

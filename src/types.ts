@@ -43,6 +43,9 @@ export interface OvertimeEmployee {
   employeeName: string;
   workedHours: number;
   lineName?: string;
+  sede?: string;
+  department?: string;
+  workedDate?: string;
 }
 
 export interface HourlyAnalysisData {
