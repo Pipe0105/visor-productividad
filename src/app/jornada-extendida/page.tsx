@@ -118,6 +118,7 @@ export default function JornadaExtendidaPage() {
             sections={["overtime"]}
             defaultSection="overtime"
             showTimeFilters={false}
+            enableOvertimeDateRange
           />
         )}
       </div>

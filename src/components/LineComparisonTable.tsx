@@ -455,6 +455,24 @@ export const LineComparisonTable = ({
                   };
                 })
                 .sort((a, b) => b.sales - a.sales);
+              const selectedSedeCount = orderedSedeDetails.length;
+              const averageSales =
+                selectedSedeCount > 0
+                  ? orderedSedeDetails.reduce((sum, detail) => sum + detail.sales, 0) /
+                    selectedSedeCount
+                  : 0;
+              const averageHours =
+                selectedSedeCount > 0
+                  ? orderedSedeDetails.reduce((sum, detail) => sum + detail.hours, 0) /
+                    selectedSedeCount
+                  : 0;
+              const averageSalesPerHour =
+                selectedSedeCount > 0
+                  ? orderedSedeDetails.reduce(
+                      (sum, detail) => sum + detail.salesPerHour,
+                      0,
+                    ) / selectedSedeCount
+                  : 0;
 
               return (
                 <Fragment key={line.id}>
@@ -546,6 +564,18 @@ export const LineComparisonTable = ({
                                 </span>
                               </div>
                             ))}
+                            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-2 rounded-xl border border-slate-300/80 bg-slate-100 px-3 py-2 text-xs font-semibold">
+                              <span className="text-slate-800">Promedio ({selectedSedeCount} sedes)</span>
+                              <span className="text-right text-slate-900">
+                                {formatCOP(averageSales)}
+                              </span>
+                              <span className="text-right text-slate-900">
+                                {averageSalesPerHour.toFixed(3)}
+                              </span>
+                              <span className="text-right text-slate-800">
+                                {formatHours(averageHours)}h
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </td>

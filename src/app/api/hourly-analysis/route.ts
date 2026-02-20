@@ -330,6 +330,8 @@ const fetchHourlyData = async (
   lineFilter: string | null,
   bucketMinutes: number,
   selectedSedes: string[],
+  overtimeDateStart?: string | null,
+  overtimeDateEnd?: string | null,
 ): Promise<HourlyAnalysisData> => {
   const pool = await getDbPool();
   const client = await pool.connect();
@@ -468,39 +470,6 @@ const fetchHourlyData = async (
         (attendanceDateResult.rows?.[0] as { attendance_date?: string })
           ?.attendance_date ?? null;
 
-      if (!attendanceDateUsed) {
-        return {
-          date: dateISO,
-          scopeLabel: lineFilter
-            ? `${selectedScopeLabel} - ${
-                selectedLineTables.find((line) => line.id === lineFilter)?.name ??
-                lineFilter
-              }`
-            : selectedScopeLabel,
-          attendanceDateUsed: null,
-          salesDateUsed: compactDateToISO(salesDateCompact),
-          bucketMinutes,
-          overtimeEmployees: [],
-          hours: Array.from({ length: 1440 / bucketMinutes }, (_, index) => {
-            const slotStartMinute = index * bucketMinutes;
-            return {
-              hour: Math.floor(slotStartMinute / 60),
-              slotStartMinute,
-              slotEndMinute: (slotStartMinute + bucketMinutes) % 1440,
-              label: buildSlotLabel(slotStartMinute, bucketMinutes),
-              totalSales: 0,
-              employeesPresent: 0,
-              employeesByLine: {},
-              lines: selectedLineTables.map((lt) => ({
-                lineId: lt.id,
-                lineName: lt.name,
-                sales: 0,
-              })),
-            };
-          }),
-        };
-      }
-
       const attendanceQuery = `
         SELECT
           hora_entrada,
@@ -531,44 +500,46 @@ const fetchHourlyData = async (
       const attendanceColumnSet = new Set(
         attendanceColumns.map((col) => normalizeColumnName(col)),
       );
-      const attendanceParams: unknown[] = [attendanceDateUsed];
-      if (selectedSedeConfigs.length > 0) {
-        attendanceParams.push(selectedAttendanceNames);
-      }
-      const attendanceResult = await client.query(attendanceQuery, attendanceParams);
+      if (attendanceDateUsed) {
+        const attendanceParams: unknown[] = [attendanceDateUsed];
+        if (selectedSedeConfigs.length > 0) {
+          attendanceParams.push(selectedAttendanceNames);
+        }
+        const attendanceResult = await client.query(attendanceQuery, attendanceParams);
 
-      if (attendanceResult.rows) {
-        for (const row of attendanceResult.rows) {
-          const typedRow = row as {
-            hora_entrada: unknown;
-            hora_intermedia1: unknown;
-            hora_intermedia2: unknown;
-            hora_salida: unknown;
-            departamento: string;
-          };
+        if (attendanceResult.rows) {
+          for (const row of attendanceResult.rows) {
+            const typedRow = row as {
+              hora_entrada: unknown;
+              hora_intermedia1: unknown;
+              hora_intermedia2: unknown;
+              hora_salida: unknown;
+              departamento: string;
+            };
 
-          const lineId = resolveLineId(typedRow.departamento);
-          if (!lineId) continue;
+            const lineId = resolveLineId(typedRow.departamento);
+            if (!lineId) continue;
 
-          const slots = computePresenceSlots(
-            typedRow.hora_entrada,
-            typedRow.hora_intermedia1,
-            typedRow.hora_intermedia2,
-            typedRow.hora_salida,
-            bucketMinutes,
-          );
-
-          for (const slotStartMinute of slots) {
-            presenceByHour.set(
-              slotStartMinute,
-              (presenceByHour.get(slotStartMinute) ?? 0) + 1,
+            const slots = computePresenceSlots(
+              typedRow.hora_entrada,
+              typedRow.hora_intermedia1,
+              typedRow.hora_intermedia2,
+              typedRow.hora_salida,
+              bucketMinutes,
             );
 
-            if (!presenceByHourByLine.has(slotStartMinute)) {
-              presenceByHourByLine.set(slotStartMinute, new Map());
+            for (const slotStartMinute of slots) {
+              presenceByHour.set(
+                slotStartMinute,
+                (presenceByHour.get(slotStartMinute) ?? 0) + 1,
+              );
+
+              if (!presenceByHourByLine.has(slotStartMinute)) {
+                presenceByHourByLine.set(slotStartMinute, new Map());
+              }
+              const linePresenceMap = presenceByHourByLine.get(slotStartMinute)!;
+              linePresenceMap.set(lineId, (linePresenceMap.get(lineId) ?? 0) + 1);
             }
-            const linePresenceMap = presenceByHourByLine.get(slotStartMinute)!;
-            linePresenceMap.set(lineId, (linePresenceMap.get(lineId) ?? 0) + 1);
           }
         }
       }
@@ -653,25 +624,29 @@ const fetchHourlyData = async (
                    ''
                  )`
               : "NULL::text";
+          const overtimeStart = overtimeDateStart ?? attendanceDateUsed ?? dateISO;
+          const overtimeEnd = overtimeDateEnd ?? overtimeStart;
           const overtimeQuery = `
             SELECT
               ${employeeIdExpr} AS employee_id,
               ${employeeNameExpr} AS employee_name,
               NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
               departamento,
+              fecha::date::text AS worked_date,
               COALESCE(SUM(total_laborado_horas), 0) AS total_hours
             FROM asistencia_horas
-            WHERE fecha::date = $1::date
+            WHERE fecha::date >= $1::date
+              AND fecha::date <= $2::date
               AND departamento IS NOT NULL
               ${
                 selectedSedeConfigs.length > 0
-                  ? `AND ${buildNormalizeSedeSql("sede")} = ANY($2::text[])`
+                  ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
                   : "AND 1=0"
               }
-            GROUP BY 1, 2, 3, 4
-            ORDER BY total_hours DESC
+            GROUP BY 1, 2, 3, 4, 5
+            ORDER BY worked_date DESC, total_hours DESC
           `;
-          const overtimeParams: unknown[] = [attendanceDateUsed];
+          const overtimeParams: unknown[] = [overtimeStart, overtimeEnd];
           if (selectedSedeConfigs.length > 0) {
             overtimeParams.push(selectedAttendanceNames);
           }
@@ -686,6 +661,7 @@ const fetchHourlyData = async (
               employee_name: string | null;
               sede: string | null;
               departamento: string;
+              worked_date: string;
               total_hours: string | number;
             };
             const lineId = resolveLineId(typedRow.departamento);
@@ -707,7 +683,7 @@ const fetchHourlyData = async (
               lineName: lineId ? lineNameById.get(lineId) ?? lineId : undefined,
               sede: typedRow.sede?.trim() || undefined,
               department: typedRow.departamento?.trim() || undefined,
-              workedDate: attendanceDateUsed,
+              workedDate: typedRow.worked_date,
             });
           }
 
@@ -813,6 +789,8 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date");
+  const overtimeDateStartParam = url.searchParams.get("overtimeDateStart");
+  const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
@@ -831,6 +809,37 @@ export async function GET(request: Request) {
     return withSession(
       NextResponse.json(
         { error: "Formato de fecha invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
+    );
+  }
+
+  if (overtimeDateStartParam && !/^\d{4}-\d{2}-\d{2}$/.test(overtimeDateStartParam)) {
+    return withSession(
+      NextResponse.json(
+        { error: "Formato de overtimeDateStart invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
+    );
+  }
+
+  if (overtimeDateEndParam && !/^\d{4}-\d{2}-\d{2}$/.test(overtimeDateEndParam)) {
+    return withSession(
+      NextResponse.json(
+        { error: "Formato de overtimeDateEnd invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
+    );
+  }
+
+  if (
+    overtimeDateStartParam &&
+    overtimeDateEndParam &&
+    overtimeDateStartParam > overtimeDateEndParam
+  ) {
+    return withSession(
+      NextResponse.json(
+        { error: "overtimeDateStart no puede ser mayor que overtimeDateEnd." },
         { status: 400 },
       ),
     );
@@ -862,6 +871,8 @@ export async function GET(request: Request) {
       lineParam,
       bucketMinutes,
       sedeParams,
+      overtimeDateStartParam,
+      overtimeDateEndParam,
     );
 
     return withSession(

@@ -16,6 +16,7 @@ interface HourlyAnalysisProps {
   sections?: Array<"map" | "overtime">;
   defaultSection?: "map" | "overtime";
   showTimeFilters?: boolean;
+  enableOvertimeDateRange?: boolean;
 }
 
 const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
@@ -213,6 +214,7 @@ export const HourlyAnalysis = ({
   sections = ["map", "overtime"],
   defaultSection = "map",
   showTimeFilters = true,
+  enableOvertimeDateRange = false,
 }: HourlyAnalysisProps) => {
   const enabledSections = useMemo(() => {
     const unique = Array.from(new Set(sections));
@@ -244,6 +246,10 @@ export const HourlyAnalysis = ({
   const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
   const [overtimeSedeFilter, setOvertimeSedeFilter] = useState("all");
+  const [overtimePersonFilter, setOvertimePersonFilter] = useState("");
+  const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
+  const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
+  const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -287,7 +293,27 @@ export const HourlyAnalysis = ({
 
   const showMapSection = enabledSections.includes("map");
   const showOvertimeSection = enabledSections.includes("overtime");
+  const isOvertimeOnlyMode = showOvertimeSection && !showMapSection;
   const showSectionToggle = enabledSections.length > 1;
+
+  useEffect(() => {
+    if (!enableOvertimeDateRange || !isOvertimeOnlyMode) return;
+    if (!overtimeDateStart && selectedDate) setOvertimeDateStart(selectedDate);
+    if (!overtimeDateEnd && selectedDate) setOvertimeDateEnd(selectedDate);
+  }, [
+    enableOvertimeDateRange,
+    isOvertimeOnlyMode,
+    overtimeDateEnd,
+    overtimeDateStart,
+    selectedDate,
+  ]);
+
+  useEffect(() => {
+    if (!enableOvertimeDateRange || !isOvertimeOnlyMode) return;
+    if (overtimeDateEnd) {
+      setSelectedDate(overtimeDateEnd);
+    }
+  }, [enableOvertimeDateRange, isOvertimeOnlyMode, overtimeDateEnd]);
 
   const toggleSede = (sedeName: string) => {
     setSelectedSedes((prev) =>
@@ -310,12 +336,15 @@ export const HourlyAnalysis = ({
     lineId: string,
     currentBucketMinutes: number,
     sedeNames: string[],
+    overtimeDateRange?: { start: string; end: string },
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams({ date });
     if (lineId) params.set("line", lineId);
     params.set("bucketMinutes", String(currentBucketMinutes));
     sedeNames.forEach((sede) => params.append("sede", sede));
+    if (overtimeDateRange?.start) params.set("overtimeDateStart", overtimeDateRange.start);
+    if (overtimeDateRange?.end) params.set("overtimeDateEnd", overtimeDateRange.end);
 
     const res = await fetch(`/api/hourly-analysis?${params.toString()}`, { signal });
     const json = (await res.json()) as HourlyAnalysisData | { error?: string };
@@ -343,6 +372,12 @@ export const HourlyAnalysis = ({
       selectedLine,
       bucketMinutes,
       selectedSedes,
+      enableOvertimeDateRange && isOvertimeOnlyMode
+        ? {
+            start: overtimeDateStart || selectedDate,
+            end: overtimeDateEnd || selectedDate,
+          }
+        : undefined,
       controller.signal,
     )
       .then((data) => {
@@ -357,7 +392,16 @@ export const HourlyAnalysis = ({
       });
 
     return () => controller.abort();
-  }, [selectedDate, selectedLine, bucketMinutes, selectedSedes]);
+  }, [
+    selectedDate,
+    selectedLine,
+    bucketMinutes,
+    selectedSedes,
+    enableOvertimeDateRange,
+    isOvertimeOnlyMode,
+    overtimeDateStart,
+    overtimeDateEnd,
+  ]);
 
   useEffect(() => {
     if (!compareEnabled || !compareDate) {
@@ -374,6 +418,7 @@ export const HourlyAnalysis = ({
       selectedLine,
       bucketMinutes,
       selectedSedes,
+      undefined,
       controller.signal,
     )
       .then((data) => {
@@ -615,9 +660,17 @@ export const HourlyAnalysis = ({
     const validMin = min !== null && Number.isFinite(min) ? min : null;
     const validMax = max !== null && Number.isFinite(max) ? max : null;
 
-    return overtimeEmployeesResolved.filter((employee) => {
+    const filtered = overtimeEmployeesResolved.filter((employee) => {
       if (overtimeSedeFilter !== "all" && (employee.sede ?? "") !== overtimeSedeFilter) {
         return false;
+      }
+      if (overtimePersonFilter.trim() !== "") {
+        const term = overtimePersonFilter.trim().toLowerCase();
+        const name = employee.employeeName.toLowerCase();
+        const id = (employee.employeeId ?? "").toString().toLowerCase();
+        if (!name.includes(term) && !id.includes(term)) {
+          return false;
+        }
       }
       if (overtimeFilterMode === "range") {
         if (validMin !== null && employee.workedHours < validMin) return false;
@@ -633,9 +686,22 @@ export const HourlyAnalysis = ({
         return Math.abs(employee.workedHours - validValue) < 0.005;
       return true;
     });
+
+    return filtered.sort((a, b) => {
+      const aDateTs = a.workedDate ? new Date(a.workedDate).getTime() : 0;
+      const bDateTs = b.workedDate ? new Date(b.workedDate).getTime() : 0;
+      if (aDateTs !== bDateTs) {
+        return overtimeDateOrder === "recent"
+          ? bDateTs - aDateTs
+          : aDateTs - bDateTs;
+      }
+      return b.workedHours - a.workedHours;
+    });
   }, [
     overtimeEmployeesResolved,
     overtimeSedeFilter,
+    overtimePersonFilter,
+    overtimeDateOrder,
     overtimeFilterMode,
     overtimeFilterValue,
     overtimeRangeMin,
@@ -675,7 +741,10 @@ export const HourlyAnalysis = ({
     sheet.getColumn("employeeId").numFmt = "0";
     sheet.getColumn("workedHours").numFmt = "0.00";
 
-    const dateKey = selectedDate || new Date().toISOString().slice(0, 10);
+    const dateKey =
+      enableOvertimeDateRange && isOvertimeOnlyMode && overtimeDateStart && overtimeDateEnd
+        ? `${overtimeDateStart}_a_${overtimeDateEnd}`
+        : selectedDate || new Date().toISOString().slice(0, 10);
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1016,7 +1085,42 @@ export const HourlyAnalysis = ({
                 </button>
               </div>
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-4">
+              {enableOvertimeDateRange && isOvertimeOnlyMode && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700">Fecha desde</span>
+                    <input
+                      type="date"
+                      value={overtimeDateStart}
+                      min={availableDateRange.min}
+                      max={availableDateRange.max}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setOvertimeDateStart(next);
+                        setOvertimeDateEnd((prev) => (prev && prev < next ? next : prev));
+                      }}
+                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700">Fecha hasta</span>
+                    <input
+                      type="date"
+                      value={overtimeDateEnd}
+                      min={availableDateRange.min}
+                      max={availableDateRange.max}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setOvertimeDateEnd(next);
+                        setOvertimeDateStart((prev) => (prev && prev > next ? next : prev));
+                      }}
+                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-5">
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Tipo de filtro</span>
                   <select
@@ -1037,6 +1141,19 @@ export const HourlyAnalysis = ({
                   </select>
                 </label>
                 <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Fecha</span>
+                  <select
+                    value={overtimeDateOrder}
+                    onChange={(e) =>
+                      setOvertimeDateOrder(e.target.value as "recent" | "old")
+                    }
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  >
+                    <option value="recent">Mas reciente</option>
+                    <option value="old">Mas lejana</option>
+                  </select>
+                </label>
+                <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
                   <select
                     value={overtimeSedeFilter}
@@ -1050,6 +1167,16 @@ export const HourlyAnalysis = ({
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Persona</span>
+                  <input
+                    type="text"
+                    value={overtimePersonFilter}
+                    onChange={(e) => setOvertimePersonFilter(e.target.value)}
+                    placeholder="Nombre o cedula"
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  />
                 </label>
                 {overtimeFilterMode === "range" ? (
                   <>
@@ -1099,24 +1226,28 @@ export const HourlyAnalysis = ({
                   <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
                     <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1">#</span>
-                    <span className="col-span-4">Empleado</span>
-                    <span className="col-span-3">Sede</span>
+                    <span className="col-span-3">Empleado</span>
+                    <span className="col-span-2">Sede</span>
+                    <span className="col-span-2">Fecha</span>
                     <span className="col-span-2 text-right">Horas</span>
                     <span className="col-span-2 text-right">Departamento</span>
                   </div>
                   {filteredOvertimeEmployees.map((employee, index) => (
                     <div
-                      key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}`}
+                      key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`}
                       className="grid grid-cols-12 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"
                     >
                       <span className="col-span-1 text-xs font-semibold text-slate-500">
                         {index + 1}
                       </span>
-                      <span className="col-span-4 font-semibold text-slate-900">
+                      <span className="col-span-3 font-semibold text-slate-900">
                         {employee.employeeName}
                       </span>
-                      <span className="col-span-3 text-xs font-semibold text-slate-700">
+                      <span className="col-span-2 text-xs font-semibold text-slate-700">
                         {employee.sede ?? "-"}
+                      </span>
+                      <span className="col-span-2 text-xs font-semibold text-slate-700">
+                        {employee.workedDate ?? "-"}
                       </span>
                       <span className="col-span-2 text-right text-xs font-semibold text-amber-700">
                         {employee.workedHours.toFixed(2)}h
