@@ -8,7 +8,8 @@ import {
 import { BRANCH_LOCATIONS } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
-const ALLOWED_SEDE_SET = new Set(BRANCH_LOCATIONS);
+const ALL_SEDES_VALUE = "Todas";
+const ALLOWED_SEDE_SET = new Set([...BRANCH_LOCATIONS, ALL_SEDES_VALUE]);
 
 const resolveValidSede = (value?: string | null) => {
   if (typeof value !== "string") return null;

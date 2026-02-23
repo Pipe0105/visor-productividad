@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { BRANCH_LOCATIONS } from "@/lib/constants";
 
+const ALL_SEDES_VALUE = "Todas";
+
 type UserRow = {
   id: string;
   username: string;
@@ -571,6 +573,7 @@ export default function AdminUsuariosPage() {
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="">Seleccionar sede</option>
+                    <option value={ALL_SEDES_VALUE}>Todas</option>
                     {BRANCH_LOCATIONS.map((sede) => (
                       <option key={sede} value={sede}>
                         {sede}
