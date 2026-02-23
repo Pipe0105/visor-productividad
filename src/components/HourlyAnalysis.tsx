@@ -884,6 +884,17 @@ export const HourlyAnalysis = ({
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedSedes([])}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+              selectedSedes.length === 0
+                ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
+                : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            Todas
+          </button>
           {availableSedes.map((sede) => {
             const selected = selectedSedes.includes(sede.name);
             return (

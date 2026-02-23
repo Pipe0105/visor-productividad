@@ -85,13 +85,8 @@ export default function JornadaExtendidaPage() {
             : null;
 
         setAvailableDates(dates);
-        if (forcedSede) {
-          setAvailableSedes([forcedSede]);
-          setDefaultSede(forcedSede.name);
-        } else {
-          setAvailableSedes(resolvedSedes);
-          setDefaultSede(undefined);
-        }
+        setAvailableSedes(resolvedSedes);
+        setDefaultSede(forcedSede?.name);
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;

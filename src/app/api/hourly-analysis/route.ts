@@ -830,10 +830,7 @@ export async function GET(request: Request) {
   const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
-  const forcedSedeConfig =
-    findSedeConfigByName(session.user.sede) ??
-    resolveUsernameSedeConfig(session.user.username);
-  const effectiveSedeParams = forcedSedeConfig ? [forcedSedeConfig.name] : sedeParams;
+  const effectiveSedeParams = sedeParams;
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
   const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
 
