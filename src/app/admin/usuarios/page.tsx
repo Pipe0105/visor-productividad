@@ -14,11 +14,13 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { BRANCH_LOCATIONS } from "@/lib/constants";
 
 type UserRow = {
   id: string;
   username: string;
   role: "admin" | "user";
+  sede: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -39,6 +41,7 @@ type UserFormState = {
   id?: string;
   username: string;
   role: "admin" | "user";
+  sede: string;
   password: string;
   is_active: boolean;
 };
@@ -46,6 +49,7 @@ type UserFormState = {
 const emptyForm: UserFormState = {
   username: "",
   role: "user",
+  sede: "",
   password: "",
   is_active: true,
 };
@@ -65,6 +69,28 @@ const formatRelativeTime = (isoDate: string) => {
 
   const absDays = Math.round(absHours / 24);
   return rtf.format(Math.round(diffMs / 86400000), "day");
+};
+
+const normalizeSedeKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, " ");
+
+const inferSedeFromUsername = (username?: string | null) => {
+  if (!username) return null;
+  const normalized = username.trim().toLowerCase();
+  if (!normalized.startsWith("sede_")) return null;
+  const raw = normalized.replace(/^sede_/, "").replace(/_/g, " ");
+  const rawKey = normalizeSedeKey(raw);
+
+  const match = BRANCH_LOCATIONS.find((sede) => {
+    const sedeKey = normalizeSedeKey(sede);
+    return sedeKey === rawKey || sedeKey.includes(rawKey) || rawKey.includes(sedeKey);
+  });
+  return match ?? null;
 };
 
 export default function AdminUsuariosPage() {
@@ -138,6 +164,7 @@ export default function AdminUsuariosPage() {
       id: user.id,
       username: user.username,
       role: user.role,
+      sede: user.sede ?? inferSedeFromUsername(user.username) ?? "",
       password: "",
       is_active: user.is_active,
     });
@@ -153,9 +180,14 @@ export default function AdminUsuariosPage() {
     setSaving(true);
     setError(null);
     try {
+      if (formState.role === "user" && !formState.sede) {
+        throw new Error("Debes seleccionar una sede para usuarios de rol user.");
+      }
+
       const payload = {
         username: formState.username,
         role: formState.role,
+        sede: formState.role === "admin" ? null : formState.sede || null,
         password: formState.password,
         is_active: formState.is_active,
       };
@@ -336,6 +368,7 @@ export default function AdminUsuariosPage() {
                       <tr className="text-left text-xs uppercase tracking-[0.14em] text-slate-500">
                         <th className="py-2 pr-3">Usuario</th>
                         <th className="py-2 pr-3">Rol</th>
+                        <th className="py-2 pr-3">Sede</th>
                         <th className="py-2 pr-3">Estado</th>
                         <th className="py-2">Acciones</th>
                       </tr>
@@ -361,6 +394,11 @@ export default function AdminUsuariosPage() {
                             >
                               {user.role}
                             </span>
+                          </td>
+                          <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
+                            {user.role === "admin"
+                              ? "-"
+                              : user.sede ?? inferSedeFromUsername(user.username) ?? "-"}
                           </td>
                           <td className="py-3 pr-3">
                             <span
@@ -508,12 +546,36 @@ export default function AdminUsuariosPage() {
                       setFormState((prev) => ({
                         ...prev,
                         role: e.target.value as "admin" | "user",
+                        sede:
+                          e.target.value === "admin" ? "" : prev.sede,
                       }))
                     }
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="user">Usuario</option>
                     <option value="admin">Administrador</option>
+                  </select>
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700">
+                  Sede {formState.role === "user" ? "(obligatoria)" : "(solo user)"}
+                  <select
+                    value={formState.sede}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        sede: e.target.value,
+                      }))
+                    }
+                    disabled={formState.role !== "user"}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Seleccionar sede</option>
+                    {BRANCH_LOCATIONS.map((sede) => (
+                      <option key={sede} value={sede}>
+                        {sede}
+                      </option>
+                    ))}
                   </select>
                 </label>
 

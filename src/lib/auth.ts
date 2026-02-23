@@ -7,6 +7,7 @@ export type AuthUser = {
   id: string;
   username: string;
   role: "admin" | "user";
+  sede: string | null;
   is_active: boolean;
   last_login_at: string | null;
   last_login_ip: string | null;
@@ -133,7 +134,15 @@ export const getUserSession = async (): Promise<
   try {
     const result = await client.query(
       `
-      SELECT u.id, u.username, u.role, u.is_active, u.last_login_at, u.last_login_ip, s.expires_at
+      SELECT
+        u.id,
+        u.username,
+        u.role,
+        to_jsonb(u)->>'sede' AS sede,
+        u.is_active,
+        u.last_login_at,
+        u.last_login_ip,
+        s.expires_at
       FROM app_user_sessions s
       JOIN app_users u ON u.id = s.user_id
       WHERE s.token_hash = $1

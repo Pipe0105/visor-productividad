@@ -91,6 +91,43 @@ const matchSelectedSedeConfigs = (selectedSedes: string[]) => {
   return matched.length > 0 ? matched : SEDE_CONFIGS;
 };
 
+const findSedeConfigByName = (sedeName?: string | null) => {
+  if (!sedeName) return null;
+  const normalizedTarget = normalizeSedeName(sedeName);
+  return (
+    SEDE_CONFIGS.find((cfg) => {
+      const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+      return aliasPool.some(
+        (alias) =>
+          normalizedTarget === alias ||
+          normalizedTarget.includes(alias) ||
+          alias.includes(normalizedTarget),
+      );
+    }) ?? null
+  );
+};
+
+const resolveUsernameSedeConfig = (username?: string | null) => {
+  if (!username) return null;
+  const normalized = username.trim().toLowerCase();
+  if (!normalized.startsWith("sede_")) return null;
+
+  const rawSede = normalized.replace(/^sede_/, "").replace(/_/g, " ");
+  const normalizedRawSede = normalizeSedeName(rawSede);
+
+  return (
+    SEDE_CONFIGS.find((cfg) => {
+      const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+      return aliasPool.some(
+        (alias) =>
+          normalizedRawSede === alias ||
+          normalizedRawSede.includes(alias) ||
+          alias.includes(normalizedRawSede),
+      );
+    }) ?? null
+  );
+};
+
 const resolveLineId = (depto: string): string | undefined => {
   const normalized = normalizeDepto(depto);
   if (!normalized) return undefined;
@@ -793,6 +830,10 @@ export async function GET(request: Request) {
   const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
+  const forcedSedeConfig =
+    findSedeConfigByName(session.user.sede) ??
+    resolveUsernameSedeConfig(session.user.username);
+  const effectiveSedeParams = forcedSedeConfig ? [forcedSedeConfig.name] : sedeParams;
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
   const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
 
@@ -870,7 +911,7 @@ export async function GET(request: Request) {
       dateParam,
       lineParam,
       bucketMinutes,
-      sedeParams,
+      effectiveSedeParams,
       overtimeDateStartParam,
       overtimeDateEndParam,
     );

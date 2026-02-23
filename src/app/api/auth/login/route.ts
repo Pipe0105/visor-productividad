@@ -24,9 +24,15 @@ export async function POST(req: Request) {
     try {
       const result = await client.query(
         `
-        SELECT id, username, role, is_active, password_hash
-        FROM app_users
-        WHERE username = $1
+        SELECT
+          u.id,
+          u.username,
+          u.role,
+          to_jsonb(u)->>'sede' AS sede,
+          u.is_active,
+          u.password_hash
+        FROM app_users u
+        WHERE u.username = $1
         LIMIT 1
         `,
         [username],
@@ -43,6 +49,7 @@ export async function POST(req: Request) {
         id: string;
         username: string;
         role: "admin" | "user";
+        sede: string | null;
         is_active: boolean;
         password_hash: string;
       };
@@ -88,6 +95,7 @@ export async function POST(req: Request) {
           id: user.id,
           username: user.username,
           role: user.role,
+          sede: user.sede,
         },
       });
       response.cookies.set(

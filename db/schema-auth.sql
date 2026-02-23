@@ -9,11 +9,14 @@ CREATE TABLE IF NOT EXISTS app_users (
   username text NOT NULL UNIQUE,
   password_hash text NOT NULL,
   role text NOT NULL CHECK (role IN ('admin', 'user')),
+  sede text,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   last_login_at timestamptz,
-  last_login_ip inet
+  last_login_ip inet,
+  CONSTRAINT app_users_user_sede_required
+    CHECK (role <> 'user' OR (sede IS NOT NULL AND btrim(sede) <> ''))
 );
 
 CREATE TABLE IF NOT EXISTS app_user_sessions (

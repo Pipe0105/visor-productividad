@@ -14,6 +14,14 @@ type ApiResponse = {
   error?: string;
 };
 
+const normalizeSedeKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, " ");
+
 export default function JornadaExtendidaPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -21,6 +29,7 @@ export default function JornadaExtendidaPage() {
   const [error, setError] = useState<string | null>(null);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableSedes, setAvailableSedes] = useState<Sede[]>([]);
+  const [defaultSede, setDefaultSede] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let isMounted = true;
@@ -31,6 +40,20 @@ export default function JornadaExtendidaPage() {
       setError(null);
 
       try {
+        const meResponse = await fetch("/api/auth/me", {
+          signal: controller.signal,
+        });
+        if (meResponse.status === 401) {
+          router.replace("/login");
+          return;
+        }
+        const mePayload = (await meResponse.json()) as {
+          user?: { sede?: string | null };
+        };
+        const forcedSedeKey = mePayload.user?.sede
+          ? normalizeSedeKey(mePayload.user.sede)
+          : null;
+
         const response = await fetch("/api/productivity", {
           signal: controller.signal,
         });
@@ -50,9 +73,25 @@ export default function JornadaExtendidaPage() {
         const dates = Array.from(
           new Set((payload.dailyData ?? []).map((item) => item.date)),
         ).sort();
+        const resolvedSedes =
+          payload.sedes && payload.sedes.length > 0 ? payload.sedes : DEFAULT_SEDES;
+        const forcedSede =
+          forcedSedeKey
+            ? resolvedSedes.find((sede) => {
+                const idKey = normalizeSedeKey(sede.id || sede.name);
+                const nameKey = normalizeSedeKey(sede.name);
+                return idKey === forcedSedeKey || nameKey === forcedSedeKey;
+              })
+            : null;
 
         setAvailableDates(dates);
-        setAvailableSedes(payload.sedes && payload.sedes.length > 0 ? payload.sedes : DEFAULT_SEDES);
+        if (forcedSede) {
+          setAvailableSedes([forcedSede]);
+          setDefaultSede(forcedSede.name);
+        } else {
+          setAvailableSedes(resolvedSedes);
+          setDefaultSede(undefined);
+        }
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -115,6 +154,7 @@ export default function JornadaExtendidaPage() {
             availableDates={availableDates}
             availableSedes={availableSedes}
             defaultDate={defaultDate}
+            defaultSede={defaultSede}
             sections={["overtime"]}
             defaultSection="overtime"
             showTimeFilters={false}
