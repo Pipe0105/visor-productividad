@@ -35,6 +35,27 @@ const SEDE_CONFIGS = [
   { name: "Guaduales", centro: "003", empresa: "mtodo", attendanceNames: ["guaduales"], aliases: ["guaduales"] },
   { name: "Bogota", centro: "001", empresa: "bogota", attendanceNames: ["bogota", "merkmios bogota"], aliases: ["bogota", "bogot", "merkmios bogota", "merkmios bogot"] },
   { name: "Chia", centro: "002", empresa: "bogota", attendanceNames: ["chia", "merkmios chia"], aliases: ["chia", "chi", "ch a", "merkmios chia"] },
+  {
+    name: "Planta Desposte Mixto",
+    centro: "999",
+    empresa: "mercamio",
+    attendanceNames: ["planta desposte mixto"],
+    aliases: ["planta desposte mixto", "planta desposte"],
+  },
+  {
+    name: "Panificadora",
+    centro: "998",
+    empresa: "mercamio",
+    attendanceNames: ["panificadora"],
+    aliases: ["panificadora"],
+  },
+  {
+    name: "Planta Desprese Pollo",
+    centro: "997",
+    empresa: "mercamio",
+    attendanceNames: ["planta desprese pollo"],
+    aliases: ["planta desprese pollo", "desprese pollo"],
+  },
 ] as const;
 
 const DEPARTAMENTO_TO_LINE: Record<string, string> = {
@@ -51,6 +72,7 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   "surtidor a pollo y pescado": "pollo y pescado",
   asadero: "asadero",
   "pollo asado": "asadero",
+  "planta de produccion": "industria",
 };
 
 const normalizeDepto = (depto: string): string => {

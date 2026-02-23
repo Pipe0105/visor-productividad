@@ -189,6 +189,8 @@ const DEPARTAMENTO_TO_LINE: Record<string, string> = {
   // Asadero
   asadero: "asadero",
   "pollo asado": "asadero",
+  // Planta
+  "planta de produccion": "industria",
 };
 
 // Normaliza el nombre del departamento para mapear a línea
@@ -262,6 +264,11 @@ const normalizeSedeAsistencia = (sede: string): string => {
     return SEDE_ASISTENCIA_TO_SYSTEM[normalized];
   }
   if (normalized.includes("floralia")) return "Floralia";
+  if (normalized.includes("panificadora")) return "Panificadora";
+  if (normalized.includes("planta desprese pollo"))
+    return "Planta Desprese Pollo";
+  if (normalized.includes("planta desposte mixto"))
+    return "Planta Desposte Mixto";
   return sede?.trim() || "";
 };
 

@@ -69,6 +69,15 @@ const normalizeSedeValue = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, " ");
 
+const PPT_SEDE_KEYS = new Set([
+  "panificadora",
+  "planta desposte mixto",
+  "planta desprese pollo",
+]);
+
+const isPptSede = (sedeName: string) =>
+  PPT_SEDE_KEYS.has(normalizeSedeValue(sedeName));
+
 const HourlyLoadingSkeleton = () => (
   <div className="space-y-3 animate-pulse">
     {Array.from({ length: 14 }).map((_, i) => (
@@ -322,6 +331,57 @@ export const HourlyAnalysis = ({
         : [...prev, sedeName],
     );
   };
+
+  const pptSedeNames = useMemo(
+    () => availableSedes.map((sede) => sede.name).filter((name) => isPptSede(name)),
+    [availableSedes],
+  );
+
+  const isPptSelected = useMemo(
+    () =>
+      pptSedeNames.length > 0 &&
+      pptSedeNames.every((name) => selectedSedes.includes(name)),
+    [pptSedeNames, selectedSedes],
+  );
+
+  const togglePptSedes = () => {
+    if (pptSedeNames.length === 0) return;
+    setSelectedSedes((prev) => {
+      const allSelected = pptSedeNames.every((name) => prev.includes(name));
+      if (allSelected) {
+        return prev.filter((name) => !pptSedeNames.includes(name));
+      }
+      const next = new Set(prev);
+      pptSedeNames.forEach((name) => next.add(name));
+      return Array.from(next);
+    });
+  };
+
+  const sedeFilterButtons = useMemo(() => {
+    const buttons: Array<
+      | { key: string; label: string; type: "single"; sedeName: string }
+      | { key: string; label: string; type: "ppt" }
+    > = [];
+    let pptAdded = false;
+
+    for (const sede of availableSedes) {
+      if (isPptSede(sede.name)) {
+        if (!pptAdded) {
+          buttons.push({ key: "ppt", label: "PPT", type: "ppt" });
+          pptAdded = true;
+        }
+        continue;
+      }
+      buttons.push({
+        key: sede.id,
+        label: sede.name,
+        type: "single",
+        sedeName: sede.name,
+      });
+    }
+
+    return buttons;
+  }, [availableSedes]);
 
   const toggleAllSedes = () => {
     setSelectedSedes((prev) =>
@@ -895,20 +955,28 @@ export const HourlyAnalysis = ({
           >
             Todas
           </button>
-          {availableSedes.map((sede) => {
-            const selected = selectedSedes.includes(sede.name);
+          {sedeFilterButtons.map((button) => {
+            const selected =
+              button.type === "ppt"
+                ? isPptSelected
+                : selectedSedes.includes(button.sedeName);
+            const onClick =
+              button.type === "ppt"
+                ? togglePptSedes
+                : () => toggleSede(button.sedeName);
+
             return (
               <button
-                key={sede.id}
+                key={button.key}
                 type="button"
-                onClick={() => toggleSede(sede.name)}
+                onClick={onClick}
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
                   selected
                     ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
                     : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
                 }`}
               >
-                {sede.name}
+                {button.label}
               </button>
             );
           })}
