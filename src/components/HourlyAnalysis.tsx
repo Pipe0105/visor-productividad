@@ -55,6 +55,18 @@ const parseTimeToMinute = (value: string) => {
   return hours * 60 + minutes;
 };
 
+const OVERTIME_QUICK_RANGE_OPTIONS: Array<{
+  value: string;
+  label: string;
+  min: number;
+  max: number;
+}> = Array.from({ length: 16 }, (_value, hour) => ({
+  value: `${hour}-${hour + 1}`,
+  label: `${hour} - ${hour + 1} horas`,
+  min: hour,
+  max: hour + 1,
+}));
+
 const minuteToTime = (value: number) => {
   const safe = Math.max(0, Math.min(1439, value));
   const hour = Math.floor(safe / 60);
@@ -250,14 +262,11 @@ export const HourlyAnalysis = ({
   const [hourlySection, setHourlySection] = useState<"map" | "overtime">(
     enabledSections.includes(defaultSection) ? defaultSection : enabledSections[0],
   );
-  const [overtimeFilterMode, setOvertimeFilterMode] = useState<
-    "gte" | "lte" | "gt" | "lt" | "eq" | "range"
-  >("gte");
-  const [overtimeFilterValue, setOvertimeFilterValue] = useState("8");
   const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
   const [overtimeSedeFilter, setOvertimeSedeFilter] = useState("all");
-  const [overtimePersonFilter, setOvertimePersonFilter] = useState("");
+  const [overtimePersonFilter, setOvertimePersonFilter] = useState("all");
+  const [overtimeQuickRange, setOvertimeQuickRange] = useState("custom");
   const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
   const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
@@ -737,11 +746,24 @@ export const HourlyAnalysis = ({
     );
     return values.sort((a, b) => a.localeCompare(b, "es"));
   }, [overtimeEmployeesResolved]);
+  const overtimePersonOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(
+        overtimeEmployeesResolved
+          .map((employee) => {
+            const id = employee.employeeId?.toString().trim() ?? "";
+            const name = employee.employeeName.trim();
+            if (!name) return "";
+            return id ? `${name} | ${id}` : name;
+          })
+          .filter(Boolean),
+      ),
+    );
+    return values.sort((a, b) => a.localeCompare(b, "es"));
+  }, [overtimeEmployeesResolved]);
   const filteredOvertimeEmployees = useMemo(() => {
-    const value = overtimeFilterValue.trim() === "" ? null : Number(overtimeFilterValue);
     const min = overtimeRangeMin.trim() === "" ? null : Number(overtimeRangeMin);
     const max = overtimeRangeMax.trim() === "" ? null : Number(overtimeRangeMax);
-    const validValue = value !== null && Number.isFinite(value) ? value : null;
     const validMin = min !== null && Number.isFinite(min) ? min : null;
     const validMax = max !== null && Number.isFinite(max) ? max : null;
 
@@ -749,26 +771,15 @@ export const HourlyAnalysis = ({
       if (overtimeSedeFilter !== "all" && (employee.sede ?? "") !== overtimeSedeFilter) {
         return false;
       }
-      if (overtimePersonFilter.trim() !== "") {
-        const term = overtimePersonFilter.trim().toLowerCase();
-        const name = employee.employeeName.toLowerCase();
-        const id = (employee.employeeId ?? "").toString().toLowerCase();
-        if (!name.includes(term) && !id.includes(term)) {
-          return false;
-        }
+      if (overtimePersonFilter !== "all") {
+        const selected = overtimePersonFilter.toLowerCase();
+        const id = employee.employeeId?.toString().trim() ?? "";
+        const name = employee.employeeName.trim();
+        const employeeKey = id ? `${name} | ${id}`.toLowerCase() : name.toLowerCase();
+        if (employeeKey !== selected) return false;
       }
-      if (overtimeFilterMode === "range") {
-        if (validMin !== null && employee.workedHours < validMin) return false;
-        if (validMax !== null && employee.workedHours > validMax) return false;
-        return true;
-      }
-      if (validValue === null) return true;
-      if (overtimeFilterMode === "gt") return employee.workedHours > validValue;
-      if (overtimeFilterMode === "gte") return employee.workedHours >= validValue;
-      if (overtimeFilterMode === "lt") return employee.workedHours < validValue;
-      if (overtimeFilterMode === "lte") return employee.workedHours <= validValue;
-      if (overtimeFilterMode === "eq")
-        return Math.abs(employee.workedHours - validValue) < 0.005;
+      if (validMin !== null && employee.workedHours < validMin) return false;
+      if (validMax !== null && employee.workedHours > validMax) return false;
       return true;
     });
 
@@ -787,11 +798,17 @@ export const HourlyAnalysis = ({
     overtimeSedeFilter,
     overtimePersonFilter,
     overtimeDateOrder,
-    overtimeFilterMode,
-    overtimeFilterValue,
     overtimeRangeMin,
     overtimeRangeMax,
   ]);
+
+  useEffect(() => {
+    if (overtimePersonFilter === "all") return;
+    const available = new Set(overtimePersonOptions.map((value) => value.toLowerCase()));
+    if (!available.has(overtimePersonFilter.toLowerCase())) {
+      setOvertimePersonFilter("all");
+    }
+  }, [overtimePersonFilter, overtimePersonOptions]);
 
   const handleExportOvertimeXlsx = async () => {
     if (filteredOvertimeEmployees.length === 0) return;
@@ -1224,26 +1241,7 @@ export const HourlyAnalysis = ({
                 </div>
               )}
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-5">
-                <label className="block">
-                  <span className="text-xs font-semibold text-slate-700">Tipo de filtro</span>
-                  <select
-                    value={overtimeFilterMode}
-                    onChange={(e) =>
-                      setOvertimeFilterMode(
-                        e.target.value as "gte" | "lte" | "gt" | "lt" | "eq" | "range",
-                      )
-                    }
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                  >
-                    <option value="gte">Mayor o igual que</option>
-                    <option value="gt">Mayor que</option>
-                    <option value="lte">Menor o igual que</option>
-                    <option value="lt">Menor que</option>
-                    <option value="eq">Igual a</option>
-                    <option value="range">Rango</option>
-                  </select>
-                </label>
+              <div className="mt-3 grid gap-3 sm:grid-cols-6">
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Fecha</span>
                   <select
@@ -1273,53 +1271,75 @@ export const HourlyAnalysis = ({
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-700">Persona</span>
-                  <input
-                    type="text"
+                  <span className="text-xs font-semibold text-slate-700">Empleado</span>
+                  <select
                     value={overtimePersonFilter}
                     onChange={(e) => setOvertimePersonFilter(e.target.value)}
-                    placeholder="Nombre o cedula"
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  >
+                    <option value="all">Todos</option>
+                    {overtimePersonOptions.map((person) => (
+                      <option key={person} value={person}>
+                        {person}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Rango rapido
+                  </span>
+                  <select
+                    value={overtimeQuickRange}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setOvertimeQuickRange(value);
+                      if (value === "custom") return;
+                      const selected = OVERTIME_QUICK_RANGE_OPTIONS.find(
+                        (option) => option.value === value,
+                      );
+                      if (!selected) return;
+                      setOvertimeRangeMin(String(selected.min));
+                      setOvertimeRangeMax(String(selected.max));
+                    }}
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  >
+                    <option value="custom">Personalizado</option>
+                    {OVERTIME_QUICK_RANGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Horas min</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={overtimeRangeMin}
+                    onChange={(e) => {
+                      setOvertimeQuickRange("custom");
+                      setOvertimeRangeMin(e.target.value);
+                    }}
                     className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
                   />
                 </label>
-                {overtimeFilterMode === "range" ? (
-                  <>
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-700">Horas min</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={overtimeRangeMin}
-                        onChange={(e) => setOvertimeRangeMin(e.target.value)}
-                        className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-700">Horas max</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={overtimeRangeMax}
-                        onChange={(e) => setOvertimeRangeMax(e.target.value)}
-                        className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                      />
-                    </label>
-                  </>
-                ) : (
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-semibold text-slate-700">Horas</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={overtimeFilterValue}
-                      onChange={(e) => setOvertimeFilterValue(e.target.value)}
-                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                    />
-                  </label>
-                )}
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">Horas max</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={overtimeRangeMax}
+                    onChange={(e) => {
+                      setOvertimeQuickRange("custom");
+                      setOvertimeRangeMax(e.target.value);
+                    }}
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  />
+                </label>
               </div>
 
               {filteredOvertimeEmployees.length === 0 ? (
