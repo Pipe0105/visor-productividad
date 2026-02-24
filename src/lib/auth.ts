@@ -8,6 +8,7 @@ export type AuthUser = {
   username: string;
   role: "admin" | "user";
   sede: string | null;
+  allowedLines: string[] | null;
   is_active: boolean;
   last_login_at: string | null;
   last_login_ip: string | null;
@@ -139,6 +140,7 @@ export const getUserSession = async (): Promise<
         u.username,
         u.role,
         to_jsonb(u)->>'sede' AS sede,
+        to_jsonb(u)->'allowed_lines' AS "allowedLines",
         u.is_active,
         u.last_login_at,
         u.last_login_ip,

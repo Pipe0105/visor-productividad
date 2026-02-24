@@ -11,6 +11,7 @@ import type { HourlyAnalysisData } from "@/types";
 interface HourlyAnalysisProps {
   availableDates: string[];
   availableSedes: Sede[];
+  allowedLineIds?: string[];
   defaultDate?: string;
   defaultSede?: string;
   sections?: Array<"map" | "overtime">;
@@ -218,6 +219,7 @@ const HourBar = ({
 export const HourlyAnalysis = ({
   availableDates,
   availableSedes,
+  allowedLineIds,
   defaultDate,
   defaultSede,
   sections = ["map", "overtime"],
@@ -272,14 +274,32 @@ export const HourlyAnalysis = ({
     return { min: sorted[0], max: sorted[sorted.length - 1] };
   }, [availableDates]);
 
+  const allowedLineSet = useMemo(
+    () =>
+      new Set(
+        (allowedLineIds ?? [])
+          .map((line) => line.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    [allowedLineIds],
+  );
+  const hasLineRestriction = allowedLineSet.size > 0;
+
   const lineOptions = useMemo(() => {
-    const fallback = DEFAULT_LINES.map((line) => ({ id: line.id, name: line.name }));
+    const fallback = DEFAULT_LINES
+      .map((line) => ({ id: line.id, name: line.name }))
+      .filter((line) =>
+        hasLineRestriction ? allowedLineSet.has(line.id.toLowerCase()) : true,
+      );
     if (!hourlyData) return fallback;
 
     const map = new Map<string, string>();
     fallback.forEach((line) => map.set(line.id, line.name));
     hourlyData.hours.forEach((slot) => {
       slot.lines.forEach((line) => {
+        if (hasLineRestriction && !allowedLineSet.has(line.lineId.toLowerCase())) {
+          return;
+        }
         if (!map.has(line.lineId)) {
           map.set(line.lineId, line.lineName);
         }
@@ -287,7 +307,11 @@ export const HourlyAnalysis = ({
     });
 
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [hourlyData]);
+  }, [allowedLineSet, hasLineRestriction, hourlyData]);
+  const effectiveSelectedLine =
+    hasLineRestriction && selectedLine && !allowedLineSet.has(selectedLine.toLowerCase())
+      ? ""
+      : selectedLine;
 
   useEffect(() => {
     const available = new Set(availableSedes.map((s) => s.name));
@@ -429,7 +453,7 @@ export const HourlyAnalysis = ({
 
     fetchHourly(
       selectedDate,
-      selectedLine,
+      effectiveSelectedLine,
       bucketMinutes,
       selectedSedes,
       enableOvertimeDateRange && isOvertimeOnlyMode
@@ -454,7 +478,7 @@ export const HourlyAnalysis = ({
     return () => controller.abort();
   }, [
     selectedDate,
-    selectedLine,
+    effectiveSelectedLine,
     bucketMinutes,
     selectedSedes,
     enableOvertimeDateRange,
@@ -475,7 +499,7 @@ export const HourlyAnalysis = ({
 
     fetchHourly(
       compareDate,
-      selectedLine,
+      effectiveSelectedLine,
       bucketMinutes,
       selectedSedes,
       undefined,
@@ -491,7 +515,7 @@ export const HourlyAnalysis = ({
       });
 
     return () => controller.abort();
-  }, [compareEnabled, compareDate, selectedLine, bucketMinutes, selectedSedes]);
+  }, [compareEnabled, compareDate, effectiveSelectedLine, bucketMinutes, selectedSedes]);
 
   const rangedHours = useMemo(() => {
     if (!hourlyData) return [];
@@ -680,7 +704,8 @@ export const HourlyAnalysis = ({
   };
 
   const selectedLineLabel =
-    selectedLine && lineOptions.find((line) => line.id === selectedLine)?.name;
+    effectiveSelectedLine &&
+    lineOptions.find((line) => line.id === effectiveSelectedLine)?.name;
   const overtimeEmployees = hourlyData?.overtimeEmployees ?? [];
   const overtimeEmployeesResolved = useMemo(() => {
     if (overtimeEmployees.length === 0) return [];
@@ -865,7 +890,7 @@ export const HourlyAnalysis = ({
         <label className="block">
           <span className="text-xs font-semibold text-slate-700">Linea</span>
           <select
-            value={selectedLine}
+            value={effectiveSelectedLine}
             onChange={(e) => setSelectedLine(e.target.value)}
             className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
           >

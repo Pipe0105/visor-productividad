@@ -134,6 +134,40 @@ const LINE_TABLES: Array<{
   { id: "asadero", name: "Asadero", table: "ventas_asadero" },
 ];
 
+const normalizeLineId = (value: string) => value.trim().toLowerCase();
+const LINE_ID_SET = new Set(LINE_TABLES.map((line) => normalizeLineId(line.id)));
+
+const resolveSessionAllowedLineIds = (allowedLines: string[] | null | undefined) => {
+  if (!Array.isArray(allowedLines) || allowedLines.length === 0) {
+    return [] as string[];
+  }
+  const normalized = Array.from(
+    new Set(
+      allowedLines
+        .map((line) => (typeof line === "string" ? normalizeLineId(line) : ""))
+        .filter(Boolean),
+    ),
+  );
+  return normalized.filter((line) => LINE_ID_SET.has(line));
+};
+
+const filterDailyDataByAllowedLines = (
+  dailyData: DailyProductivity[],
+  allowedLineIds: string[],
+) => {
+  if (allowedLineIds.length === 0) {
+    return dailyData;
+  }
+  const allowedSet = new Set(allowedLineIds.map(normalizeLineId));
+
+  return dailyData
+    .map((item) => ({
+      ...item,
+      lines: item.lines.filter((line) => allowedSet.has(normalizeLineId(line.id))),
+    }))
+    .filter((item) => item.lines.length > 0);
+};
+
 // Mapeo de centro_operacion + empresa_bd a nombre de sede
 // Clave: "numero|empresa" -> Nombre de sede
 const SEDE_NAMES: Record<string, string> = {
@@ -272,14 +306,21 @@ const normalizeSedeAsistencia = (sede: string): string => {
   return sede?.trim() || "";
 };
 
-const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
+const fetchAllProductivityData = async (
+  allowedLineIds: string[] = [],
+): Promise<DailyProductivity[]> => {
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
     const isDev = process.env.NODE_ENV !== "production";
     const dailyDataMap = new Map<string, DailyProductivity>();
+    const allowedSet = new Set(allowedLineIds.map(normalizeLineId));
+    const lineTables =
+      allowedSet.size > 0
+        ? LINE_TABLES.filter((line) => allowedSet.has(normalizeLineId(line.id)))
+        : LINE_TABLES;
 
-    for (const line of LINE_TABLES) {
+    for (const line of lineTables) {
       try {
         // Consulta que agrupa por fecha, centro_operacion y empresa_bd
         const query = `
@@ -430,6 +471,10 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
             filasSkipped++;
             continue;
           }
+          if (allowedSet.size > 0 && !allowedSet.has(normalizeLineId(lineId))) {
+            filasSkipped++;
+            continue;
+          }
 
           const key = `${fecha}_${sedeName}`;
           let dailyData = dailyDataMap.get(key);
@@ -489,7 +534,7 @@ const fetchAllProductivityData = async (): Promise<DailyProductivity[]> => {
     const result: DailyProductivity[] = [];
     for (const dailyData of dailyDataMap.values()) {
       // Asegurar que todas las líneas estén presentes (incluso con ventas 0)
-      for (const line of LINE_TABLES) {
+      for (const line of lineTables) {
         if (!dailyData.lines.find((l) => l.id === line.id)) {
           dailyData.lines.push({
             id: line.id,
@@ -543,6 +588,10 @@ export async function GET(request: Request) {
     );
     return response;
   };
+  const allowedLineIds =
+    session.user.role === "admin"
+      ? []
+      : resolveSessionAllowedLineIds(session.user.allowedLines);
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
     const retryAfterSeconds = Math.ceil((limitedUntil - Date.now()) / 1000);
@@ -561,11 +610,15 @@ export async function GET(request: Request) {
   }
   const cached = await readCache();
   if (cached && cached.length > 0) {
-    return withSession(buildCacheResponse(cached));
+    const scopedCached = filterDailyDataByAllowedLines(cached, allowedLineIds);
+    return withSession(buildCacheResponse(scopedCached));
   }
   try {
     await testDbConnection();
-    const dailyData = await fetchAllProductivityData();
+    const dailyData = filterDailyDataByAllowedLines(
+      await fetchAllProductivityData(allowedLineIds),
+      allowedLineIds,
+    );
     if (dailyData.length > 0) {
       return withSession(
         NextResponse.json(

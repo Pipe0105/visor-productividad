@@ -2630,6 +2630,7 @@ export default function Home() {
   const [username, setUsername] = useState<string | null>(null);
   const [prefsReady, setPrefsReady] = useState(false);
   const [pendingSedeKey, setPendingSedeKey] = useState<string | null>(null);
+  const [allowedLineIds, setAllowedLineIds] = useState<string[]>([]);
   const [appliedUserDefault, setAppliedUserDefault] = useState(false);
   const router = useRouter();
 
@@ -2656,6 +2657,18 @@ export default function Home() {
     if (!normalized.startsWith("sede_")) return null;
     const raw = normalized.replace(/^sede_/, "").replace(/_/g, " ");
     return normalizeSedeKey(raw);
+  }, []);
+
+  const resolveAllowedLineIds = useCallback((value?: string[] | null) => {
+    if (!Array.isArray(value) || value.length === 0) return [];
+    const fallbackIds = new Set(DEFAULT_LINES.map((line) => line.id));
+    return Array.from(
+      new Set(
+        value
+          .map((line) => (typeof line === "string" ? line.trim().toLowerCase() : ""))
+          .filter((line) => fallbackIds.has(line)),
+      ),
+    );
   }, []);
 
   // Cargar preferencias desde localStorage después de montar
@@ -2765,8 +2778,18 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Cargar datos
-  const { dailyDataSet, availableSedes, isLoading, error } =
+  const { dailyDataSet: rawDailyDataSet, availableSedes, isLoading, error } =
     useProductivityData();
+  const dailyDataSet = useMemo(() => {
+    if (isAdmin || allowedLineIds.length === 0) return rawDailyDataSet;
+    const allowedSet = new Set(allowedLineIds);
+    return rawDailyDataSet
+      .map((item) => ({
+        ...item,
+        lines: item.lines.filter((line) => allowedSet.has(line.id.toLowerCase())),
+      }))
+      .filter((item) => item.lines.length > 0);
+  }, [allowedLineIds, isAdmin, rawDailyDataSet]);
   const orderedSedes = useMemo(() => {
     const hidden = new Set(["adm", "cedicavasa"]);
     const filtered = availableSedes.filter(
@@ -3063,12 +3086,13 @@ export default function Home() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { role?: string; username?: string };
+          user?: { role?: string; username?: string; allowedLines?: string[] | null };
         };
         if (!isMounted) return;
         setIsAdmin(payload.user?.role === "admin");
         setUsername(payload.user?.username ?? null);
         setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
+        setAllowedLineIds(resolveAllowedLineIds(payload.user?.allowedLines));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
@@ -3084,7 +3108,7 @@ export default function Home() {
       isMounted = false;
       controller.abort();
     };
-  }, [router]);
+  }, [resolveAllowedLineIds, resolveUsernameSedeKey, router]);
 
   const handleCompaniesChange = useCallback((value: string[]) => {
     const next = value.slice(0, 2);
@@ -3960,6 +3984,7 @@ export default function Home() {
                 availableSedes={orderedSedes}
                 defaultDate={dateRange.end}
                 defaultSede={selectedSede || undefined}
+                allowedLineIds={!isAdmin ? allowedLineIds : undefined}
                 sections={["map"]}
               />
             ) : viewMode === "m2" ? (

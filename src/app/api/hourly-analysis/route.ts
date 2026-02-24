@@ -22,6 +22,21 @@ const LINE_TABLES = [
 ] as const;
 
 const LINE_IDS = new Set<string>(LINE_TABLES.map((line) => line.id));
+const normalizeLineId = (value: string) => value.trim().toLowerCase();
+
+const resolveSessionAllowedLineIds = (allowedLines: string[] | null | undefined) => {
+  if (!Array.isArray(allowedLines) || allowedLines.length === 0) {
+    return [] as string[];
+  }
+  const allowed = new Set(Array.from(LINE_IDS).map(normalizeLineId));
+  return Array.from(
+    new Set(
+      allowedLines
+        .map((line) => (typeof line === "string" ? normalizeLineId(line) : ""))
+        .filter((line) => allowed.has(line)),
+    ),
+  );
+};
 
 const SEDE_CONFIGS = [
   { name: "Calle 5ta", centro: "001", empresa: "mercamio", attendanceNames: ["la 5a", "calle 5ta"], aliases: ["calle 5ta", "la 5a", "la 5"] },
@@ -389,6 +404,7 @@ const fetchHourlyData = async (
   lineFilter: string | null,
   bucketMinutes: number,
   selectedSedes: string[],
+  allowedLineIds: string[] = [],
   overtimeDateStart?: string | null,
   overtimeDateEnd?: string | null,
 ): Promise<HourlyAnalysisData> => {
@@ -397,9 +413,14 @@ const fetchHourlyData = async (
 
   try {
     const dateCompact = dateISO.split("-").join("");
+    const allowedSet = new Set(allowedLineIds.map(normalizeLineId));
+    const allowedLineTables =
+      allowedSet.size > 0
+        ? LINE_TABLES.filter((line) => allowedSet.has(normalizeLineId(line.id)))
+        : LINE_TABLES;
     const selectedLineTables = lineFilter
-      ? LINE_TABLES.filter((line) => line.id === lineFilter)
-      : LINE_TABLES;
+      ? allowedLineTables.filter((line) => line.id === lineFilter)
+      : allowedLineTables;
     const selectedSedeConfigs = matchSelectedSedeConfigs(selectedSedes);
     const selectedScopeLabel =
       selectedSedeConfigs.length === 0 || selectedSedeConfigs.length === SEDE_CONFIGS.length
@@ -578,6 +599,9 @@ const fetchHourlyData = async (
 
             const lineId = resolveLineId(typedRow.departamento);
             if (!lineId) continue;
+            if (allowedSet.size > 0 && !allowedSet.has(normalizeLineId(lineId))) {
+              continue;
+            }
 
             const slots = computePresenceSlots(
               typedRow.hora_entrada,
@@ -724,6 +748,9 @@ const fetchHourlyData = async (
               total_hours: string | number;
             };
             const lineId = resolveLineId(typedRow.departamento);
+            if (allowedSet.size > 0 && lineId && !allowedSet.has(normalizeLineId(lineId))) {
+              continue;
+            }
             if (lineFilter && lineId !== lineFilter) continue;
 
             const employeeId = typedRow.employee_id?.trim() || null;
@@ -829,6 +856,11 @@ export async function GET(request: Request) {
     );
     return response;
   };
+  const allowedLineIds =
+    session.user.role === "admin"
+      ? []
+      : resolveSessionAllowedLineIds(session.user.allowedLines);
+  const allowedLineSet = new Set(allowedLineIds.map(normalizeLineId));
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {
     const retryAfterSeconds = Math.ceil((limitedUntil - Date.now()) / 1000);
@@ -913,6 +945,18 @@ export async function GET(request: Request) {
       ),
     );
   }
+  if (
+    lineParam &&
+    allowedLineSet.size > 0 &&
+    !allowedLineSet.has(normalizeLineId(lineParam))
+  ) {
+    return withSession(
+      NextResponse.json(
+        { error: "No tienes permisos para consultar esa linea." },
+        { status: 403 },
+      ),
+    );
+  }
 
   const allowedBuckets = new Set([60, 30, 20, 15, 10]);
   if (!allowedBuckets.has(bucketMinutes)) {
@@ -931,6 +975,7 @@ export async function GET(request: Request) {
       lineParam,
       bucketMinutes,
       effectiveSedeParams,
+      allowedLineIds,
       overtimeDateStartParam,
       overtimeDateEndParam,
     );
@@ -954,4 +999,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

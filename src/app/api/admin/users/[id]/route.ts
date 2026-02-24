@@ -5,11 +5,12 @@ import {
   hashPassword,
   requireAdminSession,
 } from "@/lib/auth";
-import { BRANCH_LOCATIONS } from "@/lib/constants";
+import { ALLOWED_LINE_IDS, BRANCH_LOCATIONS } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
 const ALL_SEDES_VALUE = "Todas";
 const ALLOWED_SEDE_SET = new Set([...BRANCH_LOCATIONS, ALL_SEDES_VALUE]);
+const ALLOWED_LINE_SET = new Set(ALLOWED_LINE_IDS);
 
 const resolveValidSede = (value?: string | null) => {
   if (typeof value !== "string") return null;
@@ -33,6 +34,48 @@ const hasSedeColumn = async (client: {
   return (result.rows?.length ?? 0) > 0;
 };
 
+const hasAllowedLinesColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'allowed_lines'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
+const resolveValidAllowedLines = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return { ok: false as const, error: "Las lineas permitidas no son válidas." };
+  }
+
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((line) => (typeof line === "string" ? line.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+
+  const invalid = normalized.filter((line) => !ALLOWED_LINE_SET.has(line));
+  if (invalid.length > 0) {
+    return { ok: false as const, error: "Hay lineas no válidas en la selección." };
+  }
+
+  return { ok: true as const, value: normalized };
+};
+
 export async function PATCH(req: Request, { params }: Params) {
   const session = await requireAdminSession();
   if (!session) {
@@ -52,6 +95,7 @@ export async function PATCH(req: Request, { params }: Params) {
     username?: string;
     role?: "admin" | "user";
     sede?: string | null;
+    allowedLines?: string[] | null;
     is_active?: boolean;
     password?: string;
   };
@@ -59,11 +103,13 @@ export async function PATCH(req: Request, { params }: Params) {
   const client = await (await getDbPool()).connect();
   try {
     const sedeEnabled = await hasSedeColumn(client);
+    const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const currentResult = await client.query(
       `
       SELECT
         u.role,
-        to_jsonb(u)->>'sede' AS sede
+        to_jsonb(u)->>'sede' AS sede,
+        to_jsonb(u)->'allowed_lines' AS "allowedLines"
       FROM app_users u
       WHERE id = $1
       LIMIT 1
@@ -80,11 +126,19 @@ export async function PATCH(req: Request, { params }: Params) {
     const currentUser = currentResult.rows[0] as {
       role: "admin" | "user";
       sede: string | null;
+      allowedLines: string[] | null;
     };
+    const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
 
     if (typeof body.sede === "string" && !resolveValidSede(body.sede)) {
       return NextResponse.json(
         { error: "La sede no es valida." },
+        { status: 400 },
+      );
+    }
+    if (!allowedLinesResult.ok) {
+      return NextResponse.json(
+        { error: allowedLinesResult.error },
         { status: 400 },
       );
     }
@@ -97,6 +151,10 @@ export async function PATCH(req: Request, { params }: Params) {
         : typeof body.sede === "string"
           ? resolveValidSede(body.sede)
           : currentUser.sede;
+    const nextAllowedLines =
+      body.allowedLines === undefined
+        ? currentUser.allowedLines
+        : allowedLinesResult.value;
 
     if (nextRole === "user" && !nextSede) {
       return NextResponse.json(
@@ -109,6 +167,15 @@ export async function PATCH(req: Request, { params }: Params) {
         {
           error:
             "Falta aplicar migracion de sede en app_users (db/migrations/20260220_user_sede.sql).",
+        },
+        { status: 400 },
+      );
+    }
+    if (!allowedLinesEnabled && body.allowedLines !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de lineas permitidas en app_users (db/migrations/20260224_user_allowed_lines.sql).",
         },
         { status: 400 },
       );
@@ -131,9 +198,15 @@ export async function PATCH(req: Request, { params }: Params) {
       if (body.role === "admin" && body.sede === undefined) {
         addUpdate("sede", null);
       }
+      if (allowedLinesEnabled && body.role === "admin" && body.allowedLines === undefined) {
+        addUpdate("allowed_lines", null);
+      }
     }
     if (sedeEnabled && body.sede !== undefined) {
       addUpdate("sede", nextSede);
+    }
+    if (allowedLinesEnabled && body.allowedLines !== undefined) {
+      addUpdate("allowed_lines", nextRole === "admin" ? null : nextAllowedLines);
     }
     if (typeof body.is_active === "boolean") {
       addUpdate("is_active", body.is_active);
@@ -164,7 +237,7 @@ export async function PATCH(req: Request, { params }: Params) {
       UPDATE app_users
       SET ${updates.join(", ")}
       WHERE id = $${idx}
-      RETURNING id, username, role, sede, is_active, created_at, updated_at, last_login_at, last_login_ip
+      RETURNING id, username, role, sede, allowed_lines AS "allowedLines", is_active, created_at, updated_at, last_login_at, last_login_ip
       `,
       values,
     );

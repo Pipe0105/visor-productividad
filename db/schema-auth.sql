@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS app_users (
   password_hash text NOT NULL,
   role text NOT NULL CHECK (role IN ('admin', 'user')),
   sede text,
+  allowed_lines text[],
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),

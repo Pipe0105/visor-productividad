@@ -14,7 +14,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { BRANCH_LOCATIONS } from "@/lib/constants";
+import { BRANCH_LOCATIONS, DEFAULT_LINES } from "@/lib/constants";
 
 const ALL_SEDES_VALUE = "Todas";
 
@@ -23,6 +23,7 @@ type UserRow = {
   username: string;
   role: "admin" | "user";
   sede: string | null;
+  allowedLines: string[] | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,7 @@ type UserFormState = {
   username: string;
   role: "admin" | "user";
   sede: string;
+  allowedLines: string[];
   password: string;
   is_active: boolean;
 };
@@ -52,6 +54,7 @@ const emptyForm: UserFormState = {
   username: "",
   role: "user",
   sede: "",
+  allowedLines: [],
   password: "",
   is_active: true,
 };
@@ -93,6 +96,15 @@ const inferSedeFromUsername = (username?: string | null) => {
     return sedeKey === rawKey || sedeKey.includes(rawKey) || rawKey.includes(sedeKey);
   });
   return match ?? null;
+};
+
+const lineLabelById = new Map(DEFAULT_LINES.map((line) => [line.id, line.name]));
+
+const formatAllowedLines = (allowedLines: string[] | null) => {
+  if (!allowedLines || allowedLines.length === 0) return "Todas";
+  return allowedLines
+    .map((lineId) => lineLabelById.get(lineId) ?? lineId)
+    .join(", ");
 };
 
 export default function AdminUsuariosPage() {
@@ -167,6 +179,7 @@ export default function AdminUsuariosPage() {
       username: user.username,
       role: user.role,
       sede: user.sede ?? inferSedeFromUsername(user.username) ?? "",
+      allowedLines: user.allowedLines ?? [],
       password: "",
       is_active: user.is_active,
     });
@@ -190,6 +203,12 @@ export default function AdminUsuariosPage() {
         username: formState.username,
         role: formState.role,
         sede: formState.role === "admin" ? null : formState.sede || null,
+        allowedLines:
+          formState.role === "admin"
+            ? null
+            : formState.allowedLines.length > 0
+              ? formState.allowedLines
+              : null,
         password: formState.password,
         is_active: formState.is_active,
       };
@@ -371,6 +390,7 @@ export default function AdminUsuariosPage() {
                         <th className="py-2 pr-3">Usuario</th>
                         <th className="py-2 pr-3">Rol</th>
                         <th className="py-2 pr-3">Sede</th>
+                        <th className="py-2 pr-3">Lineas</th>
                         <th className="py-2 pr-3">Estado</th>
                         <th className="py-2">Acciones</th>
                       </tr>
@@ -401,6 +421,9 @@ export default function AdminUsuariosPage() {
                             {user.role === "admin"
                               ? "-"
                               : user.sede ?? inferSedeFromUsername(user.username) ?? "-"}
+                          </td>
+                          <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
+                            {user.role === "admin" ? "-" : formatAllowedLines(user.allowedLines)}
                           </td>
                           <td className="py-3 pr-3">
                             <span
@@ -595,6 +618,37 @@ export default function AdminUsuariosPage() {
                     }
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
+                  Lineas permitidas (vacío = todas)
+                  <div className="mt-1.5 grid max-h-32 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 shadow-sm sm:grid-cols-3">
+                    {DEFAULT_LINES.map((line) => {
+                      const checked = formState.allowedLines.includes(line.id);
+                      return (
+                        <label
+                          key={line.id}
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={formState.role !== "user"}
+                            onChange={() =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                allowedLines: checked
+                                  ? prev.allowedLines.filter((id) => id !== line.id)
+                                  : [...prev.allowedLines, line.id],
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200 disabled:cursor-not-allowed"
+                          />
+                          <span>{line.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </label>
               </div>
 

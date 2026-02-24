@@ -15,6 +15,30 @@ type MarginDbRow = {
   utilidad_bruta: string | number | null;
 };
 
+const ALLOWED_MARGIN_LINES = new Set([
+  "cajas",
+  "fruver",
+  "industria",
+  "carnes",
+  "pollo y pescado",
+  "asadero",
+]);
+
+const normalizeLineId = (value: string) => value.trim().toLowerCase();
+
+const resolveSessionAllowedLineIds = (allowedLines: string[] | null | undefined) => {
+  if (!Array.isArray(allowedLines) || allowedLines.length === 0) {
+    return [] as string[];
+  }
+  return Array.from(
+    new Set(
+      allowedLines
+        .map((line) => (typeof line === "string" ? normalizeLineId(line) : ""))
+        .filter((line) => ALLOWED_MARGIN_LINES.has(line)),
+    ),
+  );
+};
+
 type MarginRow = {
   date: string;
   empresa: string;
@@ -110,9 +134,10 @@ const resolveSedeName = (centroOperacion: string, empresa: string) => {
   return `${empresaLabel} ${cleanCenter}`;
 };
 
-const queryMargins = async (): Promise<MarginRow[]> => {
+const queryMargins = async (allowedLineIds: string[] = []): Promise<MarginRow[]> => {
   const pool = await getDbPool();
   const client = await pool.connect();
+  const allowedSet = new Set(allowedLineIds.map(normalizeLineId));
 
   try {
     const result = await client.query(
@@ -146,11 +171,12 @@ const queryMargins = async (): Promise<MarginRow[]> => {
     return rows
       .map((row) => {
         const sede = resolveSedeName(row.centro_operacion, row.empresa);
+        const normalizedLineId = normalizeLineId(row.id_linea1 || "sin_linea");
         return {
           date: row.fecha,
           empresa: row.empresa.trim() || "sin_empresa",
           sede,
-          lineaId: row.id_linea1 || "sin_linea",
+          lineaId: normalizedLineId,
           lineaName: row.nombre_linea1 || row.id_linea1 || "Sin linea",
           ventaSinIva: toNumber(row.venta_sin_iva),
           iva: toNumber(row.iva),
@@ -159,6 +185,9 @@ const queryMargins = async (): Promise<MarginRow[]> => {
           utilidadBruta: toNumber(row.utilidad_bruta),
         };
       })
+      .filter((row) =>
+        allowedSet.size === 0 ? true : allowedSet.has(normalizeLineId(row.lineaId)),
+      )
       .filter((row) => !HIDDEN_SEDES.has(normalizeKey(row.sede)));
   } finally {
     client.release();
@@ -201,7 +230,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await queryMargins();
+    const allowedLineIds =
+      session.user.role === "admin"
+        ? []
+        : resolveSessionAllowedLineIds(session.user.allowedLines);
+    const rows = await queryMargins(allowedLineIds);
     const sedes = Array.from(new Set(rows.map((row) => row.sede))).map(
       (name) => ({
         id: name,

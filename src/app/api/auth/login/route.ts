@@ -29,6 +29,7 @@ export async function POST(req: Request) {
           u.username,
           u.role,
           to_jsonb(u)->>'sede' AS sede,
+          to_jsonb(u)->'allowed_lines' AS "allowedLines",
           u.is_active,
           u.password_hash
         FROM app_users u
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
         username: string;
         role: "admin" | "user";
         sede: string | null;
+        allowedLines: string[] | null;
         is_active: boolean;
         password_hash: string;
       };
@@ -96,6 +98,7 @@ export async function POST(req: Request) {
           username: user.username,
           role: user.role,
           sede: user.sede,
+          allowedLines: user.allowedLines,
         },
       });
       response.cookies.set(

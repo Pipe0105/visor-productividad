@@ -57,3 +57,6 @@ export const DEFAULT_LINES: Array<Pick<LineMetrics, "id" | "name">> = [
   { id: "asadero", name: "Asadero" },
 ];
 
+export const ALLOWED_LINE_IDS = DEFAULT_LINES.map((line) => line.id);
+export const ALLOWED_LINE_SET = new Set<string>(ALLOWED_LINE_IDS);
+

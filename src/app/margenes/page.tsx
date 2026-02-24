@@ -7,6 +7,7 @@ import {
   DEFAULT_SEDES,
   SEDE_GROUPS,
   SEDE_ORDER,
+  DEFAULT_LINES,
   Sede,
 } from "@/lib/constants";
 import { formatCOP } from "@/lib/calc";
@@ -100,6 +101,8 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]/g, "");
 
+const ALLOWED_LINE_SET = new Set(DEFAULT_LINES.map((line) => line.id));
+
 const SEDE_ORDER_MAP = new Map(
   SEDE_ORDER.map((name, index) => [normalizeSedeKey(name), index]),
 );
@@ -182,6 +185,7 @@ export default function MargenesPage() {
   const [username, setUsername] = useState<string | null>(null);
   const [prefsReady, setPrefsReady] = useState(false);
   const [pendingSedeKey, setPendingSedeKey] = useState<string | null>(null);
+  const [allowedLineIds, setAllowedLineIds] = useState<string[]>([]);
   const [appliedUserDefault, setAppliedUserDefault] = useState(false);
   const [rows, setRows] = useState<MarginRow[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
@@ -208,6 +212,17 @@ export default function MargenesPage() {
     return normalizeSedeKey(raw);
   };
 
+  const resolveAllowedLineIds = (value?: string[] | null) => {
+    if (!Array.isArray(value) || value.length === 0) return [];
+    return Array.from(
+      new Set(
+        value
+          .map((line) => (typeof line === "string" ? line.trim().toLowerCase() : ""))
+          .filter((line) => ALLOWED_LINE_SET.has(line)),
+      ),
+    );
+  };
+
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
@@ -223,11 +238,12 @@ export default function MargenesPage() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { username?: string };
+          user?: { username?: string; allowedLines?: string[] | null };
         };
         if (!isMounted) return;
         setUsername(payload.user?.username ?? null);
         setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
+        setAllowedLineIds(resolveAllowedLineIds(payload.user?.allowedLines));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       } finally {
@@ -314,6 +330,11 @@ export default function MargenesPage() {
     () => new Set(selectedSedeIds),
     [selectedSedeIds],
   );
+  const allowedLineIdSet = useMemo(() => new Set(allowedLineIds), [allowedLineIds]);
+  const scopedRows = useMemo(() => {
+    if (allowedLineIdSet.size === 0) return rows;
+    return rows.filter((row) => allowedLineIdSet.has(row.lineaId.toLowerCase()));
+  }, [allowedLineIdSet, rows]);
 
   const filteredSedes = useMemo(() => {
     if (selectedSedeIds.length === 0) return orderedSedes;
@@ -321,8 +342,11 @@ export default function MargenesPage() {
   }, [orderedSedes, selectedSedeIdSet, selectedSedeIds.length]);
 
   const availableDates = useMemo(
-    () => Array.from(new Set(rows.map((item) => item.date))).sort((a, b) => a.localeCompare(b)),
-    [rows],
+    () =>
+      Array.from(new Set(scopedRows.map((item) => item.date))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [scopedRows],
   );
 
   useEffect(() => {
@@ -421,7 +445,7 @@ export default function MargenesPage() {
         ? date >= dateRange.start && date <= dateRange.end
         : false;
 
-    rows.forEach((row) => {
+    scopedRows.forEach((row) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
       if (selectedLineIdSet.size > 0 && !selectedLineIdSet.has(row.lineaId)) return;
 
@@ -448,7 +472,7 @@ export default function MargenesPage() {
     });
 
     return { dayMap, rangeMap, monthMap, totalDay, totalRange, totalMonth };
-  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
+  }, [dateRange.end, dateRange.start, scopedRows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
 
   const marginsByLine = useMemo(() => {
     const dayMap = new Map<string, Totals>();
@@ -463,7 +487,7 @@ export default function MargenesPage() {
         ? date >= dateRange.start && date <= dateRange.end
         : false;
 
-    rows.forEach((row) => {
+    scopedRows.forEach((row) => {
       if (selectedSedeIdSet.size > 0 && !selectedSedeIdSet.has(row.sede)) return;
       if (selectedLineIdSet.size > 0 && !selectedLineIdSet.has(row.lineaId)) return;
 
@@ -487,7 +511,7 @@ export default function MargenesPage() {
     });
 
     return { dayMap, rangeMap, monthMap };
-  }, [dateRange.end, dateRange.start, rows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
+  }, [dateRange.end, dateRange.start, scopedRows, selectedDay, selectedLineIdSet, selectedSedeIdSet]);
 
   const rangeTotals = useMemo(() => {
     const totals = cloneTotals();
@@ -496,8 +520,14 @@ export default function MargenesPage() {
   }, [marginsBySede.rangeMap]);
 
   const orderedLineItems = useMemo(() => {
-    const byId = new Map(lineOptions.map((line) => [line.id, line.name]));
-    rows.forEach((row) => {
+    const byId = new Map(
+      lineOptions
+        .filter((line) =>
+          allowedLineIdSet.size > 0 ? allowedLineIdSet.has(line.id.toLowerCase()) : true,
+        )
+        .map((line) => [line.id, line.name]),
+    );
+    scopedRows.forEach((row) => {
       if (!byId.has(row.lineaId)) {
         byId.set(row.lineaId, row.lineaName || row.lineaId);
       }
@@ -514,7 +544,14 @@ export default function MargenesPage() {
         }) ||
         a.id.localeCompare(b.id, "es", { numeric: true, sensitivity: "base" }),
       );
-  }, [lineOptions, rows]);
+  }, [allowedLineIdSet, lineOptions, scopedRows]);
+
+  useEffect(() => {
+    if (allowedLineIdSet.size === 0) return;
+    setSelectedLineIds((prev) =>
+      prev.filter((lineId) => allowedLineIdSet.has(lineId.toLowerCase())),
+    );
+  }, [allowedLineIdSet]);
 
   const visibleLineItems = useMemo(() => {
     if (selectedLineIds.length === 0) return orderedLineItems;
