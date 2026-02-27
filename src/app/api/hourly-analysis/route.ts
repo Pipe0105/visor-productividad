@@ -904,6 +904,20 @@ export async function GET(request: Request) {
     session.user.role === "admin"
       ? []
       : resolveSessionAllowedLineIds(session.user.allowedLines);
+  const allowedDashboards = session.user.allowedDashboards;
+  if (
+    session.user.role !== "admin" &&
+    Array.isArray(allowedDashboards) &&
+    !allowedDashboards.includes("productividad") &&
+    !allowedDashboards.includes("jornada-extendida")
+  ) {
+    return withSession(
+      NextResponse.json(
+        { error: "No tienes permisos para este tablero." },
+        { status: 403 },
+      ),
+    );
+  }
   const allowedLineSet = new Set(allowedLineIds.map(normalizeLineId));
   const limitedUntil = checkRateLimit(request);
   if (limitedUntil) {

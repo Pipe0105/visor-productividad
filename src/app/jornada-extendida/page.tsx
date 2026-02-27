@@ -48,8 +48,21 @@ export default function JornadaExtendidaPage() {
           return;
         }
         const mePayload = (await meResponse.json()) as {
-          user?: { sede?: string | null };
+          user?: {
+            role?: string;
+            sede?: string | null;
+            allowedDashboards?: string[] | null;
+          };
         };
+        const isUserAdmin = mePayload.user?.role === "admin";
+        if (
+          !isUserAdmin &&
+          Array.isArray(mePayload.user?.allowedDashboards) &&
+          !mePayload.user?.allowedDashboards.includes("jornada-extendida")
+        ) {
+          router.replace("/tableros");
+          return;
+        }
         const forcedSedeKey = mePayload.user?.sede
           ? normalizeSedeKey(mePayload.user.sede)
           : null;

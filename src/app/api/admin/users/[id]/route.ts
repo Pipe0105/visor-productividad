@@ -11,6 +11,11 @@ type Params = { params: Promise<{ id: string }> };
 const ALL_SEDES_VALUE = "Todas";
 const ALLOWED_SEDE_SET = new Set([...BRANCH_LOCATIONS, ALL_SEDES_VALUE]);
 const ALLOWED_LINE_SET = new Set(ALLOWED_LINE_IDS);
+const ALLOWED_DASHBOARD_SET = new Set([
+  "productividad",
+  "margenes",
+  "jornada-extendida",
+]);
 
 const resolveValidSede = (value?: string | null) => {
   if (typeof value !== "string") return null;
@@ -49,6 +54,21 @@ const hasAllowedLinesColumn = async (client: {
   return (result.rows?.length ?? 0) > 0;
 };
 
+const hasAllowedDashboardsColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'allowed_dashboards'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
 const resolveValidAllowedLines = (value: unknown) => {
   if (value === undefined || value === null) {
     return { ok: true as const, value: null as string[] | null };
@@ -76,6 +96,39 @@ const resolveValidAllowedLines = (value: unknown) => {
   return { ok: true as const, value: normalized };
 };
 
+const resolveValidAllowedDashboards = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Los tableros permitidos no son válidos.",
+    };
+  }
+
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((board) => (typeof board === "string" ? board.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+
+  const invalid = normalized.filter((board) => !ALLOWED_DASHBOARD_SET.has(board));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay tableros no válidos en la selección.",
+    };
+  }
+
+  return { ok: true as const, value: normalized };
+};
+
 export async function PATCH(req: Request, { params }: Params) {
   const session = await requireAdminSession();
   if (!session) {
@@ -96,6 +149,7 @@ export async function PATCH(req: Request, { params }: Params) {
     role?: "admin" | "user";
     sede?: string | null;
     allowedLines?: string[] | null;
+    allowedDashboards?: string[] | null;
     is_active?: boolean;
     password?: string;
   };
@@ -104,12 +158,14 @@ export async function PATCH(req: Request, { params }: Params) {
   try {
     const sedeEnabled = await hasSedeColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
+    const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const currentResult = await client.query(
       `
       SELECT
         u.role,
         to_jsonb(u)->>'sede' AS sede,
-        to_jsonb(u)->'allowed_lines' AS "allowedLines"
+        to_jsonb(u)->'allowed_lines' AS "allowedLines",
+        to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards"
       FROM app_users u
       WHERE id = $1
       LIMIT 1
@@ -127,8 +183,10 @@ export async function PATCH(req: Request, { params }: Params) {
       role: "admin" | "user";
       sede: string | null;
       allowedLines: string[] | null;
+      allowedDashboards: string[] | null;
     };
     const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
+    const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
 
     if (typeof body.sede === "string" && !resolveValidSede(body.sede)) {
       return NextResponse.json(
@@ -139,6 +197,12 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!allowedLinesResult.ok) {
       return NextResponse.json(
         { error: allowedLinesResult.error },
+        { status: 400 },
+      );
+    }
+    if (!allowedDashboardsResult.ok) {
+      return NextResponse.json(
+        { error: allowedDashboardsResult.error },
         { status: 400 },
       );
     }
@@ -155,6 +219,10 @@ export async function PATCH(req: Request, { params }: Params) {
       body.allowedLines === undefined
         ? currentUser.allowedLines
         : allowedLinesResult.value;
+    const nextAllowedDashboards =
+      body.allowedDashboards === undefined
+        ? currentUser.allowedDashboards
+        : allowedDashboardsResult.value;
 
     if (nextRole === "user" && !nextSede) {
       return NextResponse.json(
@@ -180,6 +248,15 @@ export async function PATCH(req: Request, { params }: Params) {
         { status: 400 },
       );
     }
+    if (!allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de tableros permitidos en app_users (db/migrations/20260227_user_allowed_dashboards.sql).",
+        },
+        { status: 400 },
+      );
+    }
 
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -201,12 +278,25 @@ export async function PATCH(req: Request, { params }: Params) {
       if (allowedLinesEnabled && body.role === "admin" && body.allowedLines === undefined) {
         addUpdate("allowed_lines", null);
       }
+      if (
+        allowedDashboardsEnabled &&
+        body.role === "admin" &&
+        body.allowedDashboards === undefined
+      ) {
+        addUpdate("allowed_dashboards", null);
+      }
     }
     if (sedeEnabled && body.sede !== undefined) {
       addUpdate("sede", nextSede);
     }
     if (allowedLinesEnabled && body.allowedLines !== undefined) {
       addUpdate("allowed_lines", nextRole === "admin" ? null : nextAllowedLines);
+    }
+    if (allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
+      addUpdate(
+        "allowed_dashboards",
+        nextRole === "admin" ? null : nextAllowedDashboards,
+      );
     }
     if (typeof body.is_active === "boolean") {
       addUpdate("is_active", body.is_active);
@@ -237,7 +327,7 @@ export async function PATCH(req: Request, { params }: Params) {
       UPDATE app_users
       SET ${updates.join(", ")}
       WHERE id = $${idx}
-      RETURNING id, username, role, sede, allowed_lines AS "allowedLines", is_active, created_at, updated_at, last_login_at, last_login_ip
+      RETURNING id, username, role, sede, allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at, last_login_at, last_login_ip
       `,
       values,
     );

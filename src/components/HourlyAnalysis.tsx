@@ -296,6 +296,9 @@ export const HourlyAnalysis = ({
   const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] = useState("all");
   const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
   const [overtimeAlertOnly, setOvertimeAlertOnly] = useState(false);
+  const [overtimeExcludedIds, setOvertimeExcludedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [overtimeQuickRange, setOvertimeQuickRange] = useState("custom");
   const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
@@ -902,9 +905,25 @@ export const HourlyAnalysis = ({
       }).length,
     [filteredOvertimeEmployees],
   );
+  const getOvertimeEmployeeKey = (employee: OvertimeEmployee) =>
+    `${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`;
+  const toggleExcludeEmployee = (employeeKey: string) => {
+    setOvertimeExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(employeeKey)) {
+        next.delete(employeeKey);
+      } else {
+        next.add(employeeKey);
+      }
+      return next;
+    });
+  };
 
   const handleExportOvertimeXlsx = async () => {
-    if (filteredOvertimeEmployees.length === 0) return;
+    const exportEmployees = filteredOvertimeEmployees.filter(
+      (employee) => !overtimeExcludedIds.has(getOvertimeEmployeeKey(employee)),
+    );
+    if (exportEmployees.length === 0) return;
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Jornada extendida");
@@ -923,7 +942,7 @@ export const HourlyAnalysis = ({
       { header: "Horas trabajadas", key: "workedHours", width: 18 },
     ];
 
-    filteredOvertimeEmployees.forEach((employee) => {
+    exportEmployees.forEach((employee) => {
       const rawId = employee.employeeId?.toString().trim() ?? "";
       const numericId = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
       sheet.addRow({
@@ -1516,8 +1535,9 @@ export const HourlyAnalysis = ({
                 </p>
               ) : (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-                  <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <div className="grid grid-cols-13 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1">#</span>
+                    <span className="col-span-1 text-center">Excel</span>
                     <span className="col-span-3">Empleado</span>
                     <span className="col-span-1">Sede</span>
                     <span className="col-span-2">Fecha</span>
@@ -1527,22 +1547,34 @@ export const HourlyAnalysis = ({
                     <span className="col-span-1">Incid.</span>
                     <span className="col-span-1 text-center">Depto.</span>
                   </div>
-                  {filteredOvertimeEmployees.map((employee, index) => (
-                    <div
-                      key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`}
-                      className={`grid grid-cols-12 items-start gap-2 border-b border-slate-100 px-3 py-2 text-[12px] last:border-b-0 ${
-                        ((employee.marksCount ?? 0) % 2 !== 0 ||
-                          (employee.incident ?? "").toLowerCase().includes("no marco"))
-                          ? "bg-amber-50/70"
-                          : ""
-                      }`}
-                    >
-                      <span className="col-span-1 text-xs font-semibold text-slate-500">
-                        {index + 1}
-                      </span>
-                      <span className="col-span-3 font-semibold text-slate-900 leading-tight">
-                        {employee.employeeName}
-                      </span>
+                  {filteredOvertimeEmployees.map((employee, index) => {
+                    const employeeKey = getOvertimeEmployeeKey(employee);
+                    const isExcluded = overtimeExcludedIds.has(employeeKey);
+                    return (
+                      <div
+                        key={employeeKey}
+                        className={`grid grid-cols-13 items-start gap-2 border-b border-slate-100 px-3 py-2 text-[12px] last:border-b-0 ${
+                          ((employee.marksCount ?? 0) % 2 !== 0 ||
+                            (employee.incident ?? "").toLowerCase().includes("no marco"))
+                            ? "bg-amber-50/70"
+                            : ""
+                        }`}
+                      >
+                        <span className="col-span-1 text-xs font-semibold text-slate-500">
+                          {index + 1}
+                        </span>
+                        <span className="col-span-1 flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={isExcluded}
+                            onChange={() => toggleExcludeEmployee(employeeKey)}
+                            className="h-4 w-4 accent-rose-600"
+                            aria-label="Excluir del Excel"
+                          />
+                        </span>
+                        <span className="col-span-3 font-semibold text-slate-900 leading-tight">
+                          {employee.employeeName}
+                        </span>
                       <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight">
                         {employee.sede ?? "-"}
                       </span>
@@ -1561,11 +1593,12 @@ export const HourlyAnalysis = ({
                       <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight break-words">
                         {employee.incident ?? "-"}
                       </span>
-                      <span className="col-span-1 text-center text-xs font-semibold text-sky-700 leading-tight break-words">
-                        {employee.department ?? employee.lineName ?? "-"}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="col-span-1 text-center text-xs font-semibold text-sky-700 leading-tight break-words">
+                          {employee.department ?? employee.lineName ?? "-"}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

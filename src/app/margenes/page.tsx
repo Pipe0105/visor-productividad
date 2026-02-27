@@ -238,9 +238,23 @@ export default function MargenesPage() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { username?: string; allowedLines?: string[] | null };
+          user?: {
+            role?: string;
+            username?: string;
+            allowedLines?: string[] | null;
+            allowedDashboards?: string[] | null;
+          };
         };
         if (!isMounted) return;
+        const isUserAdmin = payload.user?.role === "admin";
+        if (
+          !isUserAdmin &&
+          Array.isArray(payload.user?.allowedDashboards) &&
+          !payload.user?.allowedDashboards.includes("margenes")
+        ) {
+          router.replace("/tableros");
+          return;
+        }
         setUsername(payload.user?.username ?? null);
         setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
         setAllowedLineIds(resolveAllowedLineIds(payload.user?.allowedLines));

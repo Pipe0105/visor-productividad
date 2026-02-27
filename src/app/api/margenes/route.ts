@@ -230,10 +230,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    const allowedLineIds =
-      session.user.role === "admin"
-        ? []
-        : resolveSessionAllowedLineIds(session.user.allowedLines);
+  const allowedLineIds =
+    session.user.role === "admin"
+      ? []
+      : resolveSessionAllowedLineIds(session.user.allowedLines);
+  const allowedDashboards = session.user.allowedDashboards;
+  if (
+    session.user.role !== "admin" &&
+    Array.isArray(allowedDashboards) &&
+    !allowedDashboards.includes("margenes")
+  ) {
+    return withSession(
+      NextResponse.json(
+        { error: "No tienes permisos para este tablero." },
+        { status: 403 },
+      ),
+    );
+  }
     const rows = await queryMargins(allowedLineIds);
     const sedes = Array.from(new Set(rows.map((row) => row.sede))).map(
       (name) => ({

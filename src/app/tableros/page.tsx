@@ -8,6 +8,7 @@ export default function TablerosPage() {
   const [ready, setReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSwitchingUser, setIsSwitchingUser] = useState(false);
+  const [allowedDashboards, setAllowedDashboards] = useState<string[] | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -24,10 +25,11 @@ export default function TablerosPage() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { role?: string };
+          user?: { role?: string; allowedDashboards?: string[] | null };
         };
         if (!isMounted) return;
         setIsAdmin(payload.user?.role === "admin");
+        setAllowedDashboards(payload.user?.allowedDashboards ?? null);
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -64,6 +66,49 @@ export default function TablerosPage() {
     );
   }
 
+  const dashboards = [
+    {
+      id: "productividad",
+      title: "Productividad",
+      subtitle: "Tablero productividad",
+      description: "Ventas, horas, margen y comparativos por sede.",
+      href: "/",
+      badge: "Productividad",
+      classes:
+        "border-blue-300/80 bg-linear-to-br from-blue-100 via-white to-cyan-100 text-slate-900 shadow-[0_18px_35px_-30px_rgba(37,99,235,0.45)] hover:border-blue-400 hover:shadow-[0_22px_44px_-26px_rgba(37,99,235,0.55)]",
+      badgeClasses:
+        "border-blue-300/80 bg-blue-200/75 text-blue-800",
+    },
+    {
+      id: "margenes",
+      title: "Margenes",
+      subtitle: "Tablero margenes",
+      description: "Proximamente: indicadores de rentabilidad.",
+      href: "/margenes",
+      badge: "Margenes",
+      classes:
+        "border-amber-300/80 bg-linear-to-br from-amber-100 via-white to-orange-100 text-slate-900 shadow-[0_18px_35px_-30px_rgba(245,158,11,0.45)] hover:border-amber-400 hover:shadow-[0_22px_44px_-26px_rgba(245,158,11,0.55)]",
+      badgeClasses:
+        "border-amber-300/80 bg-amber-200/75 text-amber-800",
+    },
+    {
+      id: "jornada-extendida",
+      title: "Jornada",
+      subtitle: "Jornada extendida",
+      description: "Empleados con horas extra por sede y fecha.",
+      href: "/jornada-extendida",
+      badge: "Jornada",
+      classes:
+        "border-rose-300/80 bg-linear-to-br from-rose-100 via-white to-pink-100 text-slate-900 shadow-[0_18px_35px_-30px_rgba(244,63,94,0.4)] hover:border-rose-400 hover:shadow-[0_22px_44px_-26px_rgba(244,63,94,0.5)]",
+      badgeClasses:
+        "border-rose-300/80 bg-rose-200/75 text-rose-800",
+    },
+  ];
+  const visibleDashboards =
+    isAdmin || allowedDashboards === null
+      ? dashboards
+      : dashboards.filter((board) => allowedDashboards.includes(board.id));
+
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-12 text-foreground">
       <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-slate-200/70 bg-white p-7 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
@@ -89,51 +134,26 @@ export default function TablerosPage() {
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className="group w-full rounded-2xl border border-blue-300/80 bg-linear-to-br from-blue-100 via-white to-cyan-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(37,99,235,0.45)] transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-[0_22px_44px_-26px_rgba(37,99,235,0.55)]"
-          >
-            <span className="inline-flex rounded-full border border-blue-300/80 bg-blue-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Productividad
-            </span>
-            <span className="mt-3 block text-sm font-semibold tracking-wide">
-              Tablero productividad
-            </span>
-            <span className="mt-1 block text-xs text-slate-600">
-              Ventas, horas, margen y comparativos por sede.
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/margenes")}
-            className="group w-full rounded-2xl border border-amber-300/80 bg-linear-to-br from-amber-100 via-white to-orange-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(245,158,11,0.45)] transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-[0_22px_44px_-26px_rgba(245,158,11,0.55)]"
-          >
-            <span className="inline-flex rounded-full border border-amber-300/80 bg-amber-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-800">
-              Margenes
-            </span>
-            <span className="mt-3 block text-sm font-semibold tracking-wide">
-              Tablero margenes
-            </span>
-            <span className="mt-1 block text-xs text-slate-600">
-              Proximamente: indicadores de rentabilidad.
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/jornada-extendida")}
-            className="group w-full rounded-2xl border border-rose-300/80 bg-linear-to-br from-rose-100 via-white to-pink-100 px-5 py-5 text-left text-slate-900 shadow-[0_18px_35px_-30px_rgba(244,63,94,0.4)] transition-all hover:-translate-y-0.5 hover:border-rose-400 hover:shadow-[0_22px_44px_-26px_rgba(244,63,94,0.5)]"
-          >
-            <span className="inline-flex rounded-full border border-rose-300/80 bg-rose-200/75 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-800">
-              Jornada
-            </span>
-            <span className="mt-3 block text-sm font-semibold tracking-wide">
-              Jornada extendida
-            </span>
-            <span className="mt-1 block text-xs text-slate-600">
-              Empleados con horas extra por sede y fecha.
-            </span>
-          </button>
+          {visibleDashboards.map((board) => (
+            <button
+              key={board.id}
+              type="button"
+              onClick={() => router.push(board.href)}
+              className={`group w-full rounded-2xl border px-5 py-5 text-left transition-all hover:-translate-y-0.5 ${board.classes}`}
+            >
+              <span
+                className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${board.badgeClasses}`}
+              >
+                {board.badge}
+              </span>
+              <span className="mt-3 block text-sm font-semibold tracking-wide">
+                {board.subtitle}
+              </span>
+              <span className="mt-1 block text-xs text-slate-600">
+                {board.description}
+              </span>
+            </button>
+          ))}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-4">

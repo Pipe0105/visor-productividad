@@ -10,6 +10,11 @@ import { ALLOWED_LINE_IDS, BRANCH_LOCATIONS } from "@/lib/constants";
 const ALL_SEDES_VALUE = "Todas";
 const ALLOWED_SEDE_SET = new Set([...BRANCH_LOCATIONS, ALL_SEDES_VALUE]);
 const ALLOWED_LINE_SET = new Set(ALLOWED_LINE_IDS);
+const ALLOWED_DASHBOARD_SET = new Set([
+  "productividad",
+  "margenes",
+  "jornada-extendida",
+]);
 
 const resolveValidSede = (value?: string | null) => {
   const trimmed = value?.trim();
@@ -47,6 +52,21 @@ const hasAllowedLinesColumn = async (client: {
   return (result.rows?.length ?? 0) > 0;
 };
 
+const hasAllowedDashboardsColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'allowed_dashboards'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
 const resolveValidAllowedLines = (value: unknown) => {
   if (value === undefined || value === null) {
     return { ok: true as const, value: null as string[] | null };
@@ -69,6 +89,39 @@ const resolveValidAllowedLines = (value: unknown) => {
   const invalid = normalized.filter((line) => !ALLOWED_LINE_SET.has(line));
   if (invalid.length > 0) {
     return { ok: false as const, error: "Hay lineas no válidas en la selección." };
+  }
+
+  return { ok: true as const, value: normalized };
+};
+
+const resolveValidAllowedDashboards = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Los tableros permitidos no son válidos.",
+    };
+  }
+
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((board) => (typeof board === "string" ? board.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+
+  const invalid = normalized.filter((board) => !ALLOWED_DASHBOARD_SET.has(board));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay tableros no válidos en la selección.",
+    };
   }
 
   return { ok: true as const, value: normalized };
@@ -98,6 +151,7 @@ export async function GET() {
         u.role,
         to_jsonb(u)->>'sede' AS sede,
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
+        to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
         u.is_active,
         u.created_at,
         u.updated_at,
@@ -133,6 +187,7 @@ export async function POST(req: Request) {
     role?: "admin" | "user";
     sede?: string | null;
     allowedLines?: string[] | null;
+    allowedDashboards?: string[] | null;
   };
 
   const username = body.username?.trim();
@@ -140,6 +195,7 @@ export async function POST(req: Request) {
   const role = body.role ?? "user";
   const sede = resolveValidSede(body.sede);
   const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
+  const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
 
   if (!username || password.length < 8) {
     return NextResponse.json(
@@ -165,13 +221,21 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (!allowedDashboardsResult.ok) {
+    return NextResponse.json(
+      { error: allowedDashboardsResult.error },
+      { status: 400 },
+    );
+  }
 
   const passwordHash = await hashPassword(password);
   const client = await (await getDbPool()).connect();
   try {
     const sedeEnabled = await hasSedeColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
+    const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const allowedLines = role === "admin" ? null : allowedLinesResult.value;
+    const allowedDashboards = role === "admin" ? null : allowedDashboardsResult.value;
 
     if (!sedeEnabled && role === "user") {
       return NextResponse.json(
@@ -191,22 +255,31 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    if (!allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de tableros permitidos en app_users (db/migrations/20260227_user_allowed_dashboards.sql).",
+        },
+        { status: 400 },
+      );
+    }
 
-    const result = sedeEnabled && allowedLinesEnabled
+    const result = sedeEnabled && allowedLinesEnabled && allowedDashboardsEnabled
       ? await client.query(
           `
-          INSERT INTO app_users (username, password_hash, role, sede, allowed_lines)
-          VALUES ($1, $2, $3, $4, $5)
-          RETURNING id, username, role, sede, allowed_lines AS "allowedLines", is_active, created_at, updated_at
+          INSERT INTO app_users (username, password_hash, role, sede, allowed_lines, allowed_dashboards)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id, username, role, sede, allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at
           `,
-          [username, passwordHash, role, role === "admin" ? null : sede, allowedLines],
+          [username, passwordHash, role, role === "admin" ? null : sede, allowedLines, allowedDashboards],
         )
       : sedeEnabled
         ? await client.query(
             `
             INSERT INTO app_users (username, password_hash, role, sede)
             VALUES ($1, $2, $3, $4)
-            RETURNING id, username, role, sede, NULL::jsonb AS "allowedLines", is_active, created_at, updated_at
+            RETURNING id, username, role, sede, NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
             `,
             [username, passwordHash, role, role === "admin" ? null : sede],
           )
@@ -214,7 +287,7 @@ export async function POST(req: Request) {
           `
           INSERT INTO app_users (username, password_hash, role)
           VALUES ($1, $2, $3)
-          RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedLines", is_active, created_at, updated_at
+          RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
           `,
           [username, passwordHash, role],
         );

@@ -24,6 +24,7 @@ type UserRow = {
   role: "admin" | "user";
   sede: string | null;
   allowedLines: string[] | null;
+  allowedDashboards: string[] | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -46,6 +47,7 @@ type UserFormState = {
   role: "admin" | "user";
   sede: string;
   allowedLines: string[];
+  allowedDashboards: string[];
   password: string;
   is_active: boolean;
 };
@@ -55,6 +57,7 @@ const emptyForm: UserFormState = {
   role: "user",
   sede: "",
   allowedLines: [],
+  allowedDashboards: [],
   password: "",
   is_active: true,
 };
@@ -99,11 +102,25 @@ const inferSedeFromUsername = (username?: string | null) => {
 };
 
 const lineLabelById = new Map(DEFAULT_LINES.map((line) => [line.id, line.name]));
+const DASHBOARD_OPTIONS = [
+  { id: "productividad", label: "Productividad" },
+  { id: "margenes", label: "Margenes" },
+  { id: "jornada-extendida", label: "Jornada extendida" },
+];
+const dashboardLabelById = new Map(
+  DASHBOARD_OPTIONS.map((board) => [board.id, board.label]),
+);
 
 const formatAllowedLines = (allowedLines: string[] | null) => {
   if (!allowedLines || allowedLines.length === 0) return "Todas";
   return allowedLines
     .map((lineId) => lineLabelById.get(lineId) ?? lineId)
+    .join(", ");
+};
+const formatAllowedDashboards = (allowedDashboards: string[] | null) => {
+  if (!allowedDashboards || allowedDashboards.length === 0) return "Todos";
+  return allowedDashboards
+    .map((boardId) => dashboardLabelById.get(boardId) ?? boardId)
     .join(", ");
 };
 
@@ -180,6 +197,7 @@ export default function AdminUsuariosPage() {
       role: user.role,
       sede: user.sede ?? inferSedeFromUsername(user.username) ?? "",
       allowedLines: user.allowedLines ?? [],
+      allowedDashboards: user.allowedDashboards ?? [],
       password: "",
       is_active: user.is_active,
     });
@@ -208,6 +226,12 @@ export default function AdminUsuariosPage() {
             ? null
             : formState.allowedLines.length > 0
               ? formState.allowedLines
+              : null,
+        allowedDashboards:
+          formState.role === "admin"
+            ? null
+            : formState.allowedDashboards.length > 0
+              ? formState.allowedDashboards
               : null,
         password: formState.password,
         is_active: formState.is_active,
@@ -391,6 +415,7 @@ export default function AdminUsuariosPage() {
                         <th className="py-2 pr-3">Rol</th>
                         <th className="py-2 pr-3">Sede</th>
                         <th className="py-2 pr-3">Lineas</th>
+                        <th className="py-2 pr-3">Tableros</th>
                         <th className="py-2 pr-3">Estado</th>
                         <th className="py-2">Acciones</th>
                       </tr>
@@ -424,6 +449,11 @@ export default function AdminUsuariosPage() {
                           </td>
                           <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
                             {user.role === "admin" ? "-" : formatAllowedLines(user.allowedLines)}
+                          </td>
+                          <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
+                            {user.role === "admin"
+                              ? "-"
+                              : formatAllowedDashboards(user.allowedDashboards)}
                           </td>
                           <td className="py-3 pr-3">
                             <span
@@ -618,6 +648,37 @@ export default function AdminUsuariosPage() {
                     }
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
+                  Tableros permitidos (vacío = todos)
+                  <div className="mt-1.5 grid max-h-28 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 shadow-sm sm:grid-cols-3">
+                    {DASHBOARD_OPTIONS.map((board) => {
+                      const checked = formState.allowedDashboards.includes(board.id);
+                      return (
+                        <label
+                          key={board.id}
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={formState.role !== "user"}
+                            onChange={() =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                allowedDashboards: checked
+                                  ? prev.allowedDashboards.filter((id) => id !== board.id)
+                                  : [...prev.allowedDashboards, board.id],
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200 disabled:cursor-not-allowed"
+                          />
+                          <span>{board.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </label>
 
                 <label className="block text-sm font-medium text-slate-700 sm:col-span-2">

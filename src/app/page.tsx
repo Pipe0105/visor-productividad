@@ -3103,10 +3103,24 @@ export default function Home() {
         }
         if (!response.ok) return;
         const payload = (await response.json()) as {
-          user?: { role?: string; username?: string; allowedLines?: string[] | null };
+          user?: {
+            role?: string;
+            username?: string;
+            allowedLines?: string[] | null;
+            allowedDashboards?: string[] | null;
+          };
         };
         if (!isMounted) return;
-        setIsAdmin(payload.user?.role === "admin");
+        const isUserAdmin = payload.user?.role === "admin";
+        if (
+          !isUserAdmin &&
+          Array.isArray(payload.user?.allowedDashboards) &&
+          !payload.user?.allowedDashboards.includes("productividad")
+        ) {
+          router.replace("/tableros");
+          return;
+        }
+        setIsAdmin(isUserAdmin);
         setUsername(payload.user?.username ?? null);
         setPendingSedeKey(resolveUsernameSedeKey(payload.user?.username));
         setAllowedLineIds(resolveAllowedLineIds(payload.user?.allowedLines));
