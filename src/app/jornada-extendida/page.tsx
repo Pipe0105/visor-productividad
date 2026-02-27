@@ -153,6 +153,10 @@ export default function JornadaExtendidaPage() {
             sections={["overtime"]}
             defaultSection="overtime"
             showTimeFilters={false}
+            showTopDateFilter={false}
+            showTopLineFilter={false}
+            showSedeFilters={false}
+            showDepartmentFilterInOvertime
             enableOvertimeDateRange
           />
         )}

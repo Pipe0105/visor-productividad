@@ -17,6 +17,10 @@ interface HourlyAnalysisProps {
   sections?: Array<"map" | "overtime">;
   defaultSection?: "map" | "overtime";
   showTimeFilters?: boolean;
+  showTopDateFilter?: boolean;
+  showTopLineFilter?: boolean;
+  showSedeFilters?: boolean;
+  showDepartmentFilterInOvertime?: boolean;
   enableOvertimeDateRange?: boolean;
 }
 
@@ -36,6 +40,19 @@ const getHeatColor = (ratioPercent: number) => {
 
 const formatProductivity = (value: number) =>
   value.toFixed(3);
+
+const formatHoursBase60 = (value: number) => {
+  if (!Number.isFinite(value)) return "0.00";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  let hours = Math.floor(abs);
+  let minutes = Math.round((abs - hours) * 60);
+  if (minutes >= 60) {
+    hours += 1;
+    minutes = 0;
+  }
+  return `${sign}${hours}.${String(minutes).padStart(2, "0")}`;
+};
 
 const calcVtaHr = (sales: number, laborHours: number) =>
   laborHours > 0 ? sales / 1_000_000 / laborHours : 0;
@@ -237,6 +254,10 @@ export const HourlyAnalysis = ({
   sections = ["map", "overtime"],
   defaultSection = "map",
   showTimeFilters = true,
+  showTopDateFilter = true,
+  showTopLineFilter = true,
+  showSedeFilters = true,
+  showDepartmentFilterInOvertime = false,
   enableOvertimeDateRange = false,
 }: HourlyAnalysisProps) => {
   const enabledSections = useMemo(() => {
@@ -265,7 +286,10 @@ export const HourlyAnalysis = ({
   const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
   const [overtimeSedeFilter, setOvertimeSedeFilter] = useState("all");
-  const [overtimePersonFilter, setOvertimePersonFilter] = useState("all");
+  const [overtimePersonFilter, setOvertimePersonFilter] = useState("");
+  const [overtimeDepartmentFilter, setOvertimeDepartmentFilter] = useState("all");
+  const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] = useState("all");
+  const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
   const [overtimeQuickRange, setOvertimeQuickRange] = useState("custom");
   const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
@@ -761,6 +785,27 @@ export const HourlyAnalysis = ({
     );
     return values.sort((a, b) => a.localeCompare(b, "es"));
   }, [overtimeEmployeesResolved]);
+  const overtimeDepartmentOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(
+        overtimeEmployeesResolved
+          .map((employee) => employee.department?.trim() ?? "")
+          .filter(Boolean),
+      ),
+    );
+    return values.sort((a, b) => a.localeCompare(b, "es"));
+  }, [overtimeEmployeesResolved]);
+  const hasEmployeeTypeData = useMemo(
+    () =>
+      overtimeEmployeesResolved.some(
+        (employee) => employee.employeeType?.trim() ?? "",
+      ),
+    [overtimeEmployeesResolved],
+  );
+  const overtimeEmployeeTypeOptions = useMemo(
+    () => ["36 horas", "Tiempo completo", "Medio tiempo"],
+    [],
+  );
   const filteredOvertimeEmployees = useMemo(() => {
     const min = overtimeRangeMin.trim() === "" ? null : Number(overtimeRangeMin);
     const max = overtimeRangeMax.trim() === "" ? null : Number(overtimeRangeMax);
@@ -771,12 +816,35 @@ export const HourlyAnalysis = ({
       if (overtimeSedeFilter !== "all" && (employee.sede ?? "") !== overtimeSedeFilter) {
         return false;
       }
-      if (overtimePersonFilter !== "all") {
-        const selected = overtimePersonFilter.toLowerCase();
+      if (
+        overtimeDepartmentFilter !== "all" &&
+        (employee.department ?? "") !== overtimeDepartmentFilter
+      ) {
+        return false;
+      }
+      if (overtimeMarksFilter !== "all") {
+        const marks = employee.marksCount ?? 0;
+        if (marks !== Number(overtimeMarksFilter)) return false;
+      }
+      if (hasEmployeeTypeData && overtimeEmployeeTypeFilter !== "all") {
+        const employeeType = employee.employeeType?.trim() ?? "";
+        if (employeeType.toLowerCase() !== overtimeEmployeeTypeFilter.toLowerCase()) {
+          return false;
+        }
+      }
+      const selected = overtimePersonFilter.trim().toLowerCase();
+      if (selected) {
         const id = employee.employeeId?.toString().trim() ?? "";
         const name = employee.employeeName.trim();
         const employeeKey = id ? `${name} | ${id}`.toLowerCase() : name.toLowerCase();
-        if (employeeKey !== selected) return false;
+        const idKey = id.toLowerCase();
+        if (
+          !employeeKey.includes(selected) &&
+          !name.toLowerCase().includes(selected) &&
+          (!idKey || !idKey.includes(selected))
+        ) {
+          return false;
+        }
       }
       if (validMin !== null && employee.workedHours < validMin) return false;
       if (validMax !== null && employee.workedHours > validMax) return false;
@@ -796,19 +864,15 @@ export const HourlyAnalysis = ({
   }, [
     overtimeEmployeesResolved,
     overtimeSedeFilter,
+    overtimeDepartmentFilter,
+    overtimeEmployeeTypeFilter,
+    overtimeMarksFilter,
+    hasEmployeeTypeData,
     overtimePersonFilter,
     overtimeDateOrder,
     overtimeRangeMin,
     overtimeRangeMax,
   ]);
-
-  useEffect(() => {
-    if (overtimePersonFilter === "all") return;
-    const available = new Set(overtimePersonOptions.map((value) => value.toLowerCase()));
-    if (!available.has(overtimePersonFilter.toLowerCase())) {
-      setOvertimePersonFilter("all");
-    }
-  }, [overtimePersonFilter, overtimePersonOptions]);
 
   const handleExportOvertimeXlsx = async () => {
     if (filteredOvertimeEmployees.length === 0) return;
@@ -886,41 +950,46 @@ export const HourlyAnalysis = ({
         </div>
       </div>
 
-      <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
-        <div
-          className={`grid gap-3 sm:grid-cols-2 ${
-            showTimeFilters ? "lg:grid-cols-5" : "lg:grid-cols-2"
-          }`}
-        >
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Fecha</span>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            min={availableDateRange.min}
-            max={availableDateRange.max}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-700">Linea</span>
-          <select
-            value={effectiveSelectedLine}
-            onChange={(e) => setSelectedLine(e.target.value)}
-            className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+      {(showTopDateFilter || showTopLineFilter || showTimeFilters) && (
+        <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+          <div
+            className={`grid gap-3 sm:grid-cols-2 ${
+              showTimeFilters ? "lg:grid-cols-5" : "lg:grid-cols-2"
+            }`}
           >
-            <option value="">Todas las lineas</option>
-            {lineOptions.map((line) => (
-              <option key={line.id} value={line.id}>
-                {line.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            {showTopDateFilter && (
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-700">Fecha</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              min={availableDateRange.min}
+              max={availableDateRange.max}
+              className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            />
+          </label>
+            )}
 
-        {showTimeFilters && (
+            {showTopLineFilter && (
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-700">Linea</span>
+            <select
+              value={effectiveSelectedLine}
+              onChange={(e) => setSelectedLine(e.target.value)}
+              className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-mercamio-300 focus:outline-none focus:ring-2 focus:ring-mercamio-100"
+            >
+              <option value="">Todas las lineas</option>
+              {lineOptions.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {line.name}
+                </option>
+              ))}
+            </select>
+          </label>
+            )}
+
+            {showTimeFilters && (
           <>
             <label className="block">
               <span className="text-xs font-semibold text-slate-700">Intervalo</span>
@@ -967,69 +1036,72 @@ export const HourlyAnalysis = ({
               />
             </label>
           </>
-        )}
+            )}
+          </div>
         </div>
+      )}
 
-        <div className="mt-4 border-t border-slate-200/70 pt-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Sedes
-          </span>
-          <button
-            type="button"
-            onClick={toggleAllSedes}
-            className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700 transition-all hover:border-slate-300"
-          >
-            {selectedSedes.length === availableSedes.length
-              ? "Quitar todas"
-              : "Seleccionar todas"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedSedes([])}
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
-              selectedSedes.length === 0
-                ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
-                : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
-            }`}
-          >
-            Todas
-          </button>
-          {sedeFilterButtons.map((button) => {
-            const selected =
-              button.type === "ppt"
-                ? isPptSelected
-                : selectedSedes.includes(button.sedeName);
-            const onClick =
-              button.type === "ppt"
-                ? togglePptSedes
-                : () => toggleSede(button.sedeName);
-
-            return (
+      {showSedeFilters && (
+          <div className="mt-4 border-t border-slate-200/70 pt-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Sedes
+              </span>
               <button
-                key={button.key}
                 type="button"
-                onClick={onClick}
+                onClick={toggleAllSedes}
+                className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700 transition-all hover:border-slate-300"
+              >
+                {selectedSedes.length === availableSedes.length
+                  ? "Quitar todas"
+                  : "Seleccionar todas"}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedSedes([])}
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
-                  selected
+                  selectedSedes.length === 0
                     ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
                     : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
                 }`}
               >
-                {button.label}
+                Todas
               </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-[11px] text-slate-500">
-          {selectedSedes.length === 0
-            ? "Sin seleccion manual: se usan todas las sedes."
-            : `${selectedSedes.length} sede(s) seleccionada(s).`}
-        </p>
-        </div>
-      </div>
+              {sedeFilterButtons.map((button) => {
+                const selected =
+                  button.type === "ppt"
+                    ? isPptSelected
+                    : selectedSedes.includes(button.sedeName);
+                const onClick =
+                  button.type === "ppt"
+                    ? togglePptSedes
+                    : () => toggleSede(button.sedeName);
+
+                return (
+                  <button
+                    key={button.key}
+                    type="button"
+                    onClick={onClick}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      selected
+                        ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-300 shadow-sm"
+                        : "border-slate-200/70 bg-slate-50 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {button.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              {selectedSedes.length === 0
+                ? "Sin seleccion manual: se usan todas las sedes."
+                : `${selectedSedes.length} sede(s) seleccionada(s).`}
+            </p>
+          </div>
+        )}
 
       {showMapSection && (
         <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
@@ -1241,7 +1313,11 @@ export const HourlyAnalysis = ({
                 </div>
               )}
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-6">
+              <div
+                className={`mt-3 grid gap-3 ${
+                  showDepartmentFilterInOvertime ? "sm:grid-cols-9" : "sm:grid-cols-8"
+                }`}
+              >
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Fecha</span>
                   <select
@@ -1271,47 +1347,85 @@ export const HourlyAnalysis = ({
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-700">Empleado</span>
-                  <select
+                  <span className="text-xs font-semibold text-slate-700">
+                    Empleado
+                  </span>
+                  <input
+                    list="overtime-person-options"
                     value={overtimePersonFilter}
-                    onChange={(e) => setOvertimePersonFilter(e.target.value)}
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                  >
-                    <option value="all">Todos</option>
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setOvertimePersonFilter(next === "Todos" ? "" : next);
+                    }}
+                    placeholder="Nombre o cedula"
+                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all placeholder:text-slate-400 focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  />
+                  <datalist id="overtime-person-options">
+                    <option value="Todos" />
                     {overtimePersonOptions.map((person) => (
-                      <option key={person} value={person}>
-                        {person}
+                      <option key={person} value={person} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Tipo de empleado
+                  </span>
+                  <select
+                    value={overtimeEmployeeTypeFilter}
+                    onChange={(e) => setOvertimeEmployeeTypeFilter(e.target.value)}
+                    className={`mt-1 w-full rounded-full border border-slate-200/70 px-3 py-2 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-100 ${
+                      hasEmployeeTypeData
+                        ? "bg-white/90 text-slate-900 focus:border-rose-300"
+                        : "cursor-not-allowed bg-slate-100 text-slate-500"
+                    }`}
+                    disabled={!hasEmployeeTypeData}
+                  >
+                    <option value="all">
+                      {hasEmployeeTypeData ? "Todos" : "Sin datos"}
+                    </option>
+                    {overtimeEmployeeTypeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">
-                    Rango rapido
+                    Marcaciones
                   </span>
                   <select
-                    value={overtimeQuickRange}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setOvertimeQuickRange(value);
-                      if (value === "custom") return;
-                      const selected = OVERTIME_QUICK_RANGE_OPTIONS.find(
-                        (option) => option.value === value,
-                      );
-                      if (!selected) return;
-                      setOvertimeRangeMin(String(selected.min));
-                      setOvertimeRangeMax(String(selected.max));
-                    }}
+                    value={overtimeMarksFilter}
+                    onChange={(e) => setOvertimeMarksFilter(e.target.value)}
                     className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
                   >
-                    <option value="custom">Personalizado</option>
-                    {OVERTIME_QUICK_RANGE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                    <option value="all">Todas</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
                   </select>
                 </label>
+                {showDepartmentFilterInOvertime && (
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-700">
+                      Departamento
+                    </span>
+                    <select
+                      value={overtimeDepartmentFilter}
+                      onChange={(e) => setOvertimeDepartmentFilter(e.target.value)}
+                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    >
+                      <option value="all">Todos</option>
+                      {overtimeDepartmentOptions.map((department) => (
+                        <option key={department} value={department}>
+                          {department}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Horas min</span>
                   <input
@@ -1347,19 +1461,20 @@ export const HourlyAnalysis = ({
                   No hay empleados para ese filtro de horas.
                 </p>
               ) : (
-                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-                    <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
+                  <div className="grid grid-cols-14 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1">#</span>
                     <span className="col-span-3">Empleado</span>
                     <span className="col-span-2">Sede</span>
                     <span className="col-span-2">Fecha</span>
                     <span className="col-span-2 text-right">Horas</span>
+                    <span className="col-span-2 text-right">Marcaciones</span>
                     <span className="col-span-2 text-right">Departamento</span>
                   </div>
                   {filteredOvertimeEmployees.map((employee, index) => (
                     <div
                       key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`}
-                      className="grid grid-cols-12 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"
+                      className="grid grid-cols-14 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"
                     >
                       <span className="col-span-1 text-xs font-semibold text-slate-500">
                         {index + 1}
@@ -1374,7 +1489,10 @@ export const HourlyAnalysis = ({
                         {employee.workedDate ?? "-"}
                       </span>
                       <span className="col-span-2 text-right text-xs font-semibold text-amber-700">
-                        {employee.workedHours.toFixed(2)}h
+                        {formatHoursBase60(employee.workedHours)}h
+                      </span>
+                      <span className="col-span-2 text-right text-xs font-semibold text-slate-700">
+                        {employee.marksCount ?? 0}
                       </span>
                       <span className="col-span-2 text-right text-xs font-semibold text-sky-700">
                         {employee.department ?? employee.lineName ?? "-"}

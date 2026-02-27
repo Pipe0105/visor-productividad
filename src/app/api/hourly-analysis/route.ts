@@ -716,7 +716,13 @@ const fetchHourlyData = async (
               NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
               departamento,
               fecha::date::text AS worked_date,
-              COALESCE(SUM(total_laborado_horas), 0) AS total_hours
+              COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
+              MAX(
+                (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
+              )::int AS marks_count
             FROM asistencia_horas
             WHERE fecha::date >= $1::date
               AND fecha::date <= $2::date
@@ -746,6 +752,7 @@ const fetchHourlyData = async (
               departamento: string;
               worked_date: string;
               total_hours: string | number;
+              marks_count?: number | null;
             };
             const lineId = resolveLineId(typedRow.departamento);
             if (allowedSet.size > 0 && lineId && !allowedSet.has(normalizeLineId(lineId))) {
@@ -769,6 +776,7 @@ const fetchHourlyData = async (
               lineName: lineId ? lineNameById.get(lineId) ?? lineId : undefined,
               sede: typedRow.sede?.trim() || undefined,
               department: typedRow.departamento?.trim() || undefined,
+              marksCount: Number(typedRow.marks_count ?? 0),
               workedDate: typedRow.worked_date,
             });
           }
