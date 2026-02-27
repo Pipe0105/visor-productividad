@@ -99,7 +99,14 @@ const buildFallbackResponse = (message: string) =>
     },
   );
 
-const HIDDEN_SEDES = new Set(["adm", "cedi-cavasa", "cedicavasa"]);
+const HIDDEN_SEDES = new Set([
+  "adm",
+  "cedi-cavasa",
+  "cedicavasa",
+  "panificadora",
+  "planta desposte mixto",
+  "planta desprese pollo",
+]);
 
 const normalizeSedeKey = (value: string) =>
   value
