@@ -54,6 +54,11 @@ const formatHoursBase60 = (value: number) => {
   return `${sign}${hours}.${String(minutes).padStart(2, "0")}`;
 };
 
+const decimalHoursToMinutes = (value: number) => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 60);
+};
+
 const calcVtaHr = (sales: number, laborHours: number) =>
   laborHours > 0 ? sales / 1_000_000 / laborHours : 0;
 
@@ -290,6 +295,7 @@ export const HourlyAnalysis = ({
   const [overtimeDepartmentFilter, setOvertimeDepartmentFilter] = useState("all");
   const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] = useState("all");
   const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
+  const [overtimeAlertOnly, setOvertimeAlertOnly] = useState(false);
   const [overtimeQuickRange, setOvertimeQuickRange] = useState("custom");
   const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
@@ -848,6 +854,11 @@ export const HourlyAnalysis = ({
       }
       if (validMin !== null && employee.workedHours < validMin) return false;
       if (validMax !== null && employee.workedHours > validMax) return false;
+      if (overtimeAlertOnly) {
+        const minutes = decimalHoursToMinutes(employee.workedHours);
+        const marks = employee.marksCount ?? 0;
+        if (!(minutes > 7 * 60 + 20 && marks !== 4)) return false;
+      }
       return true;
     });
 
@@ -872,7 +883,17 @@ export const HourlyAnalysis = ({
     overtimeDateOrder,
     overtimeRangeMin,
     overtimeRangeMax,
+    overtimeAlertOnly,
   ]);
+  const overtimeAlertCount = useMemo(
+    () =>
+      filteredOvertimeEmployees.filter((employee) => {
+        const minutes = decimalHoursToMinutes(employee.workedHours);
+        const marks = employee.marksCount ?? 0;
+        return minutes > 7 * 60 + 20 && marks !== 4;
+      }).length,
+    [filteredOvertimeEmployees],
+  );
 
   const handleExportOvertimeXlsx = async () => {
     if (filteredOvertimeEmployees.length === 0) return;
@@ -883,8 +904,14 @@ export const HourlyAnalysis = ({
       { header: "Cedula", key: "employeeId", width: 18 },
       { header: "Nombre", key: "employeeName", width: 34 },
       { header: "Sede", key: "sede", width: 20 },
+      { header: "Cargo", key: "role", width: 22 },
+      { header: "Incidencia", key: "incident", width: 18 },
       { header: "Departamento", key: "department", width: 22 },
       { header: "Fecha", key: "workedDate", width: 16 },
+      { header: "Hora entrada", key: "markIn", width: 16 },
+      { header: "Hora intermedia 1", key: "markBreak1", width: 18 },
+      { header: "Hora intermedia 2", key: "markBreak2", width: 18 },
+      { header: "Hora salida", key: "markOut", width: 16 },
       { header: "Horas trabajadas", key: "workedHours", width: 18 },
     ];
 
@@ -895,8 +922,14 @@ export const HourlyAnalysis = ({
         employeeId: numericId,
         employeeName: employee.employeeName,
         sede: employee.sede ?? "",
+        role: employee.role ?? "",
+        incident: employee.incident ?? "",
         department: employee.department ?? employee.lineName ?? "",
         workedDate: employee.workedDate ?? hourlyData?.attendanceDateUsed ?? selectedDate,
+        markIn: employee.markIn ?? "",
+        markBreak1: employee.markBreak1 ?? "",
+        markBreak2: employee.markBreak2 ?? "",
+        markOut: employee.markOut ?? "",
         workedHours: Number(employee.workedHours.toFixed(2)),
       });
     });
@@ -1269,6 +1302,19 @@ export const HourlyAnalysis = ({
                 </span>
                 <button
                   type="button"
+                  onClick={() => setOvertimeAlertOnly((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                    overtimeAlertOnly
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                  }`}
+                >
+                  {overtimeAlertOnly
+                    ? `Personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`
+                    : `Ver personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`}
+                </button>
+                <button
+                  type="button"
                   onClick={() => void handleExportOvertimeXlsx()}
                   disabled={filteredOvertimeEmployees.length === 0}
                   className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700 transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1462,39 +1508,52 @@ export const HourlyAnalysis = ({
                 </p>
               ) : (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-                  <div className="grid grid-cols-14 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1">#</span>
                     <span className="col-span-3">Empleado</span>
-                    <span className="col-span-2">Sede</span>
+                    <span className="col-span-1">Sede</span>
                     <span className="col-span-2">Fecha</span>
-                    <span className="col-span-2 text-right">Horas</span>
-                    <span className="col-span-2 text-right">Marcaciones</span>
-                    <span className="col-span-2 text-right">Departamento</span>
+                    <span className="col-span-1 text-center">Horas</span>
+                    <span className="col-span-1 text-center">Mar.</span>
+                    <span className="col-span-1">Cargo</span>
+                    <span className="col-span-1">Incid.</span>
+                    <span className="col-span-1 text-center">Depto.</span>
                   </div>
                   {filteredOvertimeEmployees.map((employee, index) => (
                     <div
                       key={`${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`}
-                      className="grid grid-cols-14 items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0"
+                      className={`grid grid-cols-12 items-start gap-2 border-b border-slate-100 px-3 py-2 text-[12px] last:border-b-0 ${
+                        ((employee.marksCount ?? 0) % 2 !== 0 ||
+                          (employee.incident ?? "").toLowerCase().includes("no marco"))
+                          ? "bg-amber-50/70"
+                          : ""
+                      }`}
                     >
                       <span className="col-span-1 text-xs font-semibold text-slate-500">
                         {index + 1}
                       </span>
-                      <span className="col-span-3 font-semibold text-slate-900">
+                      <span className="col-span-3 font-semibold text-slate-900 leading-tight">
                         {employee.employeeName}
                       </span>
-                      <span className="col-span-2 text-xs font-semibold text-slate-700">
+                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight">
                         {employee.sede ?? "-"}
                       </span>
-                      <span className="col-span-2 text-xs font-semibold text-slate-700">
+                      <span className="col-span-2 text-xs font-semibold text-slate-700 leading-tight">
                         {employee.workedDate ?? "-"}
                       </span>
-                      <span className="col-span-2 text-right text-xs font-semibold text-amber-700">
+                      <span className="col-span-1 text-center text-xs font-semibold text-amber-700">
                         {formatHoursBase60(employee.workedHours)}h
                       </span>
-                      <span className="col-span-2 text-right text-xs font-semibold text-slate-700">
+                      <span className="col-span-1 text-center text-xs font-semibold text-slate-700">
                         {employee.marksCount ?? 0}
                       </span>
-                      <span className="col-span-2 text-right text-xs font-semibold text-sky-700">
+                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight break-words">
+                        {employee.role ?? "-"}
+                      </span>
+                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight break-words">
+                        {employee.incident ?? "-"}
+                      </span>
+                      <span className="col-span-1 text-center text-xs font-semibold text-sky-700 leading-tight break-words">
                         {employee.department ?? employee.lineName ?? "-"}
                       </span>
                     </div>

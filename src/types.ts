@@ -47,6 +47,12 @@ export interface OvertimeEmployee {
   department?: string;
   employeeType?: string;
   marksCount?: number;
+  role?: string;
+  incident?: string;
+  markIn?: string;
+  markBreak1?: string;
+  markBreak2?: string;
+  markOut?: string;
   workedDate?: string;
 }
 

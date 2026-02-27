@@ -83,9 +83,10 @@ export default function JornadaExtendidaPage() {
                 return idKey === forcedSedeKey || nameKey === forcedSedeKey;
               })
             : null;
+        const visibleSedes = forcedSede ? [forcedSede] : resolvedSedes;
 
         setAvailableDates(dates);
-        setAvailableSedes(resolvedSedes);
+        setAvailableSedes(visibleSedes);
         setDefaultSede(forcedSede?.name);
         setReady(true);
       } catch (err) {

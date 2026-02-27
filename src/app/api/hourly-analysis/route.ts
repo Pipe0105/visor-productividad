@@ -715,6 +715,12 @@ const fetchHourlyData = async (
               ${employeeNameExpr} AS employee_name,
               NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
               departamento,
+              MAX(NULLIF(TRIM(CAST(cargo AS text)), '')) AS cargo,
+              MAX(NULLIF(TRIM(CAST(incidencia AS text)), '')) AS incidencia,
+              MAX(TO_CHAR(hora_entrada, 'HH24:MI:SS')) AS hora_entrada,
+              MAX(TO_CHAR(hora_intermedia1, 'HH24:MI:SS')) AS hora_intermedia1,
+              MAX(TO_CHAR(hora_intermedia2, 'HH24:MI:SS')) AS hora_intermedia2,
+              MAX(TO_CHAR(hora_salida, 'HH24:MI:SS')) AS hora_salida,
               fecha::date::text AS worked_date,
               COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
               MAX(
@@ -732,7 +738,7 @@ const fetchHourlyData = async (
                   ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
                   : "AND 1=0"
               }
-            GROUP BY 1, 2, 3, 4, 5
+            GROUP BY 1, 2, 3, 4, 11
             ORDER BY worked_date DESC, total_hours DESC
           `;
           const overtimeParams: unknown[] = [overtimeStart, overtimeEnd];
@@ -750,6 +756,12 @@ const fetchHourlyData = async (
               employee_name: string | null;
               sede: string | null;
               departamento: string;
+              cargo?: string | null;
+              incidencia?: string | null;
+              hora_entrada?: string | null;
+              hora_intermedia1?: string | null;
+              hora_intermedia2?: string | null;
+              hora_salida?: string | null;
               worked_date: string;
               total_hours: string | number;
               marks_count?: number | null;
@@ -768,6 +780,23 @@ const fetchHourlyData = async (
             if (workedHours <= 0) {
               continue;
             }
+            const role = typedRow.cargo?.trim() || undefined;
+            const roleKey = role
+              ? role
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, " ")
+                  .trim()
+              : "";
+            let employeeType: string | undefined;
+            if (roleKey.includes("36") && roleKey.includes("hora")) {
+              employeeType = "36 horas";
+            } else if (roleKey.includes("medio")) {
+              employeeType = "Medio tiempo";
+            } else {
+              employeeType = "Tiempo completo";
+            }
 
             overtimeEmployees.push({
               employeeId,
@@ -777,6 +806,13 @@ const fetchHourlyData = async (
               sede: typedRow.sede?.trim() || undefined,
               department: typedRow.departamento?.trim() || undefined,
               marksCount: Number(typedRow.marks_count ?? 0),
+              role,
+              employeeType,
+              incident: typedRow.incidencia?.trim() || undefined,
+              markIn: typedRow.hora_entrada?.trim() || undefined,
+              markBreak1: typedRow.hora_intermedia1?.trim() || undefined,
+              markBreak2: typedRow.hora_intermedia2?.trim() || undefined,
+              markOut: typedRow.hora_salida?.trim() || undefined,
               workedDate: typedRow.worked_date,
             });
           }
@@ -892,7 +928,11 @@ export async function GET(request: Request) {
   const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
-  const effectiveSedeParams = sedeParams;
+  const forcedSedeConfig = session.user.sede
+    ? findSedeConfigByName(session.user.sede)
+    : null;
+  const forcedSedeName = forcedSedeConfig?.name ?? session.user.sede ?? null;
+  const effectiveSedeParams = forcedSedeName ? [forcedSedeName] : sedeParams;
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
   const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
 
