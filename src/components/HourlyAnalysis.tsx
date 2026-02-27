@@ -31,6 +31,8 @@ const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
   year: "numeric",
 };
 
+type OvertimeEmployee = NonNullable<HourlyAnalysisData["overtimeEmployees"]>[number];
+
 const getHeatColor = (ratioPercent: number) => {
   if (ratioPercent >= 110) return "#16a34a";
   if (ratioPercent >= 100) return "#facc15";
