@@ -1602,24 +1602,24 @@ export const HourlyAnalysis = ({
                 </p>
               ) : (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-                  <div className="grid grid-cols-12 gap-2 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    <span className="col-span-1 text-center">#</span>
-                    <span className="col-span-1 text-center">Excel</span>
-                    <span className="col-span-3">Empleado</span>
-                    <span className="col-span-1">Sede</span>
-                    <span className="col-span-2">Fecha</span>
-                    <span className="col-span-1 text-center">Horas</span>
-                    <span className="col-span-1 text-center">Mar.</span>
-                    <span className="col-span-1">Cargo</span>
-                    <span className="col-span-1">Incid.</span>
-                    <span className="col-span-1 text-center">Depto.</span>
+                  <div className="grid grid-cols-13 gap-1 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <span className="col-span-1 text-center whitespace-nowrap">#</span>
+                    <span className="col-span-1 text-center whitespace-nowrap">Excel</span>
+                    <span className="col-span-3 whitespace-nowrap">Empleado</span>
+                    <span className="col-span-1 whitespace-nowrap">Sede</span>
+                    <span className="col-span-2 whitespace-nowrap">Fecha</span>
+                    <span className="col-span-1 text-center whitespace-nowrap">Horas</span>
+                    <span className="col-span-1 text-center whitespace-nowrap">Mar.</span>
+                    <span className="col-span-1 whitespace-nowrap">Cargo</span>
+                    <span className="col-span-1 whitespace-nowrap">Incid.</span>
+                    <span className="col-span-1 text-center whitespace-nowrap">Depto.</span>
                   </div>
                   {visibleOvertimeEmployees.map((employee, index) => {
                     const employeeKey = getOvertimeEmployeeKey(employee);
                     return (
                       <div
                         key={employeeKey}
-                        className={`grid grid-cols-12 items-start gap-2 border-b border-slate-100 px-2 py-2 text-[12px] last:border-b-0 ${
+                        className={`grid grid-cols-13 items-start gap-1 border-b border-slate-100 px-2 py-2 text-[12px] last:border-b-0 ${
                           ((employee.marksCount ?? 0) % 2 !== 0 ||
                             (employee.incident ?? "").toLowerCase().includes("no marco"))
                             ? "bg-amber-50/70"
