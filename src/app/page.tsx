@@ -1318,14 +1318,16 @@ const LineTrends = ({
     };
   }, [availableDates]);
   const visibleSedes = useMemo(() => {
-    const hidden = new Set([
-      "adm",
-      "cedi-cavasa",
-      "cedicavasa",
-      "panificadora",
-      "planta desposte mixto",
-      "planta desprese pollo",
-    ]);
+    const hidden = new Set(
+      [
+        "adm",
+        "cedi-cavasa",
+        "cedicavasa",
+        "panificadora",
+        "planta desposte mixto",
+        "planta desprese pollo",
+      ].map(normalizeSedeKey),
+    );
     return sedes.filter((sede) => {
       const idKey = normalizeSedeKey(sede.id);
       const nameKey = normalizeSedeKey(sede.name);
@@ -2796,13 +2798,15 @@ export default function Home() {
       .filter((item) => item.lines.length > 0);
   }, [allowedLineIds, isAdmin, rawDailyDataSet]);
   const orderedSedes = useMemo(() => {
-    const hidden = new Set([
-      "adm",
-      "cedicavasa",
-      "panificadora",
-      "planta desposte mixto",
-      "planta desprese pollo",
-    ]);
+    const hidden = new Set(
+      [
+        "adm",
+        "cedicavasa",
+        "panificadora",
+        "planta desposte mixto",
+        "planta desprese pollo",
+      ].map(normalizeSedeKey),
+    );
     const filtered = availableSedes.filter((sede) => {
       const idKey = normalizeSedeKey(sede.id);
       const nameKey = normalizeSedeKey(sede.name);

@@ -319,13 +319,15 @@ export default function MargenesPage() {
   }, [ready, router]);
 
   const orderedSedes = useMemo(() => {
-    const hidden = new Set([
-      "adm",
-      "cedicavasa",
-      "panificadora",
-      "planta desposte mixto",
-      "planta desprese pollo",
-    ]);
+    const hidden = new Set(
+      [
+        "adm",
+        "cedicavasa",
+        "panificadora",
+        "planta desposte mixto",
+        "planta desprese pollo",
+      ].map(normalizeSedeKey),
+    );
     const filtered = sedes.filter((sede) => {
       const idKey = normalizeSedeKey(sede.id);
       const nameKey = normalizeSedeKey(sede.name);

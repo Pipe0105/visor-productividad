@@ -99,14 +99,23 @@ const buildFallbackResponse = (message: string) =>
     },
   );
 
-const HIDDEN_SEDES = new Set([
-  "adm",
-  "cedi-cavasa",
-  "cedicavasa",
-  "panificadora",
-  "planta desposte mixto",
-  "planta desprese pollo",
-]);
+const HIDDEN_SEDES = new Set(
+  [
+    "adm",
+    "cedi-cavasa",
+    "cedicavasa",
+    "panificadora",
+    "planta desposte mixto",
+    "planta desprese pollo",
+  ].map((value) =>
+    value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .trim(),
+  ),
+);
 
 const normalizeSedeKey = (value: string) =>
   value
