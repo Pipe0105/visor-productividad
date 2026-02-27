@@ -774,7 +774,15 @@ export const HourlyAnalysis = ({
           .filter((value): value is string => Boolean(value)),
       ),
     );
-    return values.sort((a, b) => a.localeCompare(b, "es"));
+    const plantKeywords = ["panificadora", "planta desposte mixto", "planta desprese pollo"];
+    const isPlant = (value: string) =>
+      plantKeywords.some((keyword) => normalizeSedeValue(value).includes(keyword));
+    return values.sort((a, b) => {
+      const aPlant = isPlant(a);
+      const bPlant = isPlant(b);
+      if (aPlant !== bPlant) return aPlant ? 1 : -1;
+      return a.localeCompare(b, "es");
+    });
   }, [overtimeEmployeesResolved]);
   const overtimePersonOptions = useMemo(() => {
     const values = Array.from(
