@@ -937,6 +937,13 @@ export const HourlyAnalysis = ({
       return next;
     });
   };
+  const visibleOvertimeEmployees = useMemo(
+    () =>
+      filteredOvertimeEmployees.filter(
+        (employee) => !overtimeExcludedIds.has(getOvertimeEmployeeKey(employee)),
+      ),
+    [filteredOvertimeEmployees, overtimeExcludedIds],
+  );
 
   const handleExportOvertimeXlsx = async () => {
     const exportEmployees = filteredOvertimeEmployees.filter(
@@ -1344,7 +1351,7 @@ export const HourlyAnalysis = ({
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
-                  {filteredOvertimeEmployees.length} empleado(s)
+                  {visibleOvertimeEmployees.length} empleado(s)
                 </span>
                 <button
                   type="button"
@@ -1359,6 +1366,15 @@ export const HourlyAnalysis = ({
                     ? `Personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`
                     : `Ver personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`}
                 </button>
+                {overtimeExcludedIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOvertimeExcludedIds(new Set())}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Restaurar ocultos
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleExportOvertimeXlsx()}
@@ -1580,7 +1596,7 @@ export const HourlyAnalysis = ({
                 </label>
               </div>
 
-              {filteredOvertimeEmployees.length === 0 ? (
+              {visibleOvertimeEmployees.length === 0 ? (
                 <p className="text-xs text-slate-500">
                   No hay empleados para ese filtro de horas.
                 </p>
@@ -1598,9 +1614,8 @@ export const HourlyAnalysis = ({
                     <span className="col-span-1">Incid.</span>
                     <span className="col-span-1 text-center">Depto.</span>
                   </div>
-                  {filteredOvertimeEmployees.map((employee, index) => {
+                  {visibleOvertimeEmployees.map((employee, index) => {
                     const employeeKey = getOvertimeEmployeeKey(employee);
-                    const isExcluded = overtimeExcludedIds.has(employeeKey);
                     return (
                       <div
                         key={employeeKey}
@@ -1617,7 +1632,7 @@ export const HourlyAnalysis = ({
                         <span className="col-span-1 flex items-center justify-center">
                           <input
                             type="checkbox"
-                            checked={isExcluded}
+                            checked={false}
                             onChange={() => toggleExcludeEmployee(employeeKey)}
                             className="h-4 w-4 accent-rose-600"
                             aria-label="Excluir del Excel"
