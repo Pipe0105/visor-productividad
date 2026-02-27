@@ -292,7 +292,7 @@ export const HourlyAnalysis = ({
   );
   const [overtimeRangeMin, setOvertimeRangeMin] = useState("8");
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
-  const [overtimeSedeFilter, setOvertimeSedeFilter] = useState("all");
+  const [overtimeSedeFilter, setOvertimeSedeFilter] = useState<string[]>([]);
   const [overtimePersonFilter, setOvertimePersonFilter] = useState("");
   const [overtimeDepartmentFilter, setOvertimeDepartmentFilter] = useState("all");
   const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] = useState("all");
@@ -457,6 +457,18 @@ export const HourlyAnalysis = ({
         ? []
         : availableSedes.map((sede) => sede.name),
     );
+  };
+
+  const toggleOvertimeSede = (sedeName: string) => {
+    setOvertimeSedeFilter((prev) =>
+      prev.includes(sedeName)
+        ? prev.filter((name) => name !== sedeName)
+        : [...prev, sedeName],
+    );
+  };
+
+  const clearOvertimeSedeFilter = () => {
+    setOvertimeSedeFilter([]);
   };
 
   const fetchHourly = async (
@@ -771,6 +783,10 @@ export const HourlyAnalysis = ({
       return { ...employee, sede: match.name };
     });
   }, [overtimeEmployees, availableSedes]);
+  const overtimeSedeFilterSet = useMemo(
+    () => new Set(overtimeSedeFilter.map((name) => normalizeSedeValue(name))),
+    [overtimeSedeFilter],
+  );
   const overtimeSedeOptions = useMemo(() => {
     const values = Array.from(
       new Set(
@@ -832,8 +848,9 @@ export const HourlyAnalysis = ({
     const validMax = max !== null && Number.isFinite(max) ? max : null;
 
     const filtered = overtimeEmployeesResolved.filter((employee) => {
-      if (overtimeSedeFilter !== "all" && (employee.sede ?? "") !== overtimeSedeFilter) {
-        return false;
+      if (overtimeSedeFilterSet.size > 0) {
+        const employeeSede = normalizeSedeValue(employee.sede ?? "");
+        if (!overtimeSedeFilterSet.has(employeeSede)) return false;
       }
       if (
         overtimeDepartmentFilter !== "all" &&
@@ -887,7 +904,7 @@ export const HourlyAnalysis = ({
     });
   }, [
     overtimeEmployeesResolved,
-    overtimeSedeFilter,
+    overtimeSedeFilterSet,
     overtimeDepartmentFilter,
     overtimeEmployeeTypeFilter,
     overtimeMarksFilter,
@@ -1408,18 +1425,50 @@ export const HourlyAnalysis = ({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
-                  <select
-                    value={overtimeSedeFilter}
-                    onChange={(e) => setOvertimeSedeFilter(e.target.value)}
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
-                  >
-                    <option value="all">Todas</option>
-                    {overtimeSedeOptions.map((sede) => (
-                      <option key={sede} value={sede}>
-                        {sede}
-                      </option>
-                    ))}
-                  </select>
+                  <details className="group mt-1">
+                    <summary className="flex w-full items-center justify-between rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-100 group-open:border-rose-300 [&::-webkit-details-marker]:hidden">
+                      <span>
+                        {overtimeSedeFilter.length === 0
+                          ? "Todas"
+                          : `${overtimeSedeFilter.length} sede(s)`}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                    </summary>
+                    <div className="mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white/95 p-2 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={clearOvertimeSedeFilter}
+                        className={`w-full rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                          overtimeSedeFilter.length === 0
+                            ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/70"
+                            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      <div className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
+                        {overtimeSedeOptions.map((sede) => {
+                          const checked = overtimeSedeFilter.includes(sede);
+                          return (
+                            <label
+                              key={sede}
+                              className="flex items-start gap-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleOvertimeSede(sede)}
+                                className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-200"
+                              />
+                              <span className="whitespace-normal break-words leading-5">
+                                {sede}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">
