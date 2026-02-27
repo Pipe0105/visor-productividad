@@ -1317,16 +1317,21 @@ const LineTrends = ({
       max: sortedDates[sortedDates.length - 1] ?? "",
     };
   }, [availableDates]);
-  const visibleSedes = useMemo(
-    () =>
-      sedes.filter((sede) => {
-        const id = sede.id.trim().toLowerCase();
-        const name = sede.name.trim().toLowerCase();
-        const hidden = ["adm", "cedi-cavasa"];
-        return !hidden.some((h) => id === h || name === h);
-      }),
-    [sedes],
-  );
+  const visibleSedes = useMemo(() => {
+    const hidden = new Set([
+      "adm",
+      "cedi-cavasa",
+      "cedicavasa",
+      "panificadora",
+      "planta desposte mixto",
+      "planta desprese pollo",
+    ]);
+    return sedes.filter((sede) => {
+      const idKey = normalizeSedeKey(sede.id);
+      const nameKey = normalizeSedeKey(sede.name);
+      return !hidden.has(idKey) && !hidden.has(nameKey);
+    });
+  }, [sedes]);
 
   useEffect(() => {
     setComparisonSedeIds([]);
