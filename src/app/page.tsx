@@ -2791,10 +2791,18 @@ export default function Home() {
       .filter((item) => item.lines.length > 0);
   }, [allowedLineIds, isAdmin, rawDailyDataSet]);
   const orderedSedes = useMemo(() => {
-    const hidden = new Set(["adm", "cedicavasa"]);
-    const filtered = availableSedes.filter(
-      (sede) => !hidden.has(normalizeSedeKey(sede.id)),
-    );
+    const hidden = new Set([
+      "adm",
+      "cedicavasa",
+      "panificadora",
+      "planta desposte mixto",
+      "planta desprese pollo",
+    ]);
+    const filtered = availableSedes.filter((sede) => {
+      const idKey = normalizeSedeKey(sede.id);
+      const nameKey = normalizeSedeKey(sede.name);
+      return !hidden.has(idKey) && !hidden.has(nameKey);
+    });
     return sortSedesByOrder(filtered);
   }, [availableSedes]);
 

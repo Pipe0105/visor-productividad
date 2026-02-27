@@ -318,7 +318,21 @@ export default function MargenesPage() {
     };
   }, [ready, router]);
 
-  const orderedSedes = useMemo(() => sortSedesByOrder(sedes), [sedes]);
+  const orderedSedes = useMemo(() => {
+    const hidden = new Set([
+      "adm",
+      "cedicavasa",
+      "panificadora",
+      "planta desposte mixto",
+      "planta desprese pollo",
+    ]);
+    const filtered = sedes.filter((sede) => {
+      const idKey = normalizeSedeKey(sede.id);
+      const nameKey = normalizeSedeKey(sede.name);
+      return !hidden.has(idKey) && !hidden.has(nameKey);
+    });
+    return sortSedesByOrder(filtered);
+  }, [sedes]);
   const companyOptions = useMemo(() => buildCompanyOptions(), []);
 
   const selectedSedeIds = useMemo(
