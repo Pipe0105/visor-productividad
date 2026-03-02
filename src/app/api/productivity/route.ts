@@ -184,6 +184,44 @@ const filterDailyDataByAllowedLines = (
     .filter((item) => item.lines.length > 0);
 };
 
+const resolveSessionAllowedSedeKeys = (sessionUser: {
+  role: "admin" | "user";
+  sede: string | null;
+  allowedSedes?: string[] | null;
+}) => {
+  if (sessionUser.role === "admin") return null as Set<string> | null;
+  const rawAllowed = Array.isArray(sessionUser.allowedSedes)
+    ? sessionUser.allowedSedes
+    : [];
+  const normalizedAllowed = rawAllowed
+    .map((sede) => normalizeSedeKey(sede))
+    .filter(Boolean);
+  const allKey = normalizeSedeKey("Todas");
+  if (normalizedAllowed.includes(allKey)) {
+    return null as Set<string> | null;
+  }
+  if (normalizedAllowed.length > 0) {
+    return new Set(normalizedAllowed);
+  }
+  if (sessionUser.sede) {
+    return new Set([normalizeSedeKey(sessionUser.sede)]);
+  }
+  return new Set<string>();
+};
+
+const filterDailyDataByAllowedSedes = (
+  dailyData: DailyProductivity[],
+  allowedSedeKeys: Set<string> | null,
+) => {
+  if (!allowedSedeKeys) {
+    return dailyData;
+  }
+  if (allowedSedeKeys.size === 0) {
+    return [];
+  }
+  return dailyData.filter((item) => allowedSedeKeys.has(normalizeSedeKey(item.sede)));
+};
+
 // Mapeo de centro_operacion + empresa_bd a nombre de sede
 // Clave: "numero|empresa" -> Nombre de sede
 const SEDE_NAMES: Record<string, string> = {
@@ -608,6 +646,7 @@ export async function GET(request: Request) {
     session.user.role === "admin"
       ? []
       : resolveSessionAllowedLineIds(session.user.allowedLines);
+  const allowedSedeKeys = resolveSessionAllowedSedeKeys(session.user);
   const allowedDashboards = session.user.allowedDashboards;
   if (
     session.user.role !== "admin" &&
@@ -640,14 +679,20 @@ export async function GET(request: Request) {
   }
   const cached = await readCache();
   if (cached && cached.length > 0) {
-    const scopedCached = filterDailyDataByAllowedLines(cached, allowedLineIds);
+    const scopedCached = filterDailyDataByAllowedSedes(
+      filterDailyDataByAllowedLines(cached, allowedLineIds),
+      allowedSedeKeys,
+    );
     return withSession(buildCacheResponse(scopedCached));
   }
   try {
     await testDbConnection();
-    const dailyData = filterDailyDataByAllowedLines(
-      await fetchAllProductivityData(allowedLineIds),
-      allowedLineIds,
+    const dailyData = filterDailyDataByAllowedSedes(
+      filterDailyDataByAllowedLines(
+        await fetchAllProductivityData(allowedLineIds),
+        allowedLineIds,
+      ),
+      allowedSedeKeys,
     );
     if (dailyData.length > 0) {
       return withSession(

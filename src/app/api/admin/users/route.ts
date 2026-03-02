@@ -295,6 +295,8 @@ export async function POST(req: Request) {
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const allowedSedes = role === "admin" ? null : allowedSedesResult.value;
+    const allowedSedesJson =
+      allowedSedes === null ? null : JSON.stringify(allowedSedes);
     const effectiveSedeForLegacy =
       role === "admin" ? null : allowedSedes?.[0] ?? sede ?? null;
     const allowedLines = role === "admin" ? null : allowedLinesResult.value;
@@ -309,42 +311,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (!allowedLinesEnabled && body.allowedLines !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de lineas permitidas en app_users (db/migrations/20260224_user_allowed_lines.sql).",
-        },
-        { status: 400 },
-      );
-    }
-    if (!allowedSedesEnabled && body.allowedSedes !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de sedes permitidas en app_users (db/migrations/20260302_user_allowed_sedes.sql).",
-        },
-        { status: 400 },
-      );
-    }
-    if (!allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de tableros permitidos en app_users (db/migrations/20260227_user_allowed_dashboards.sql).",
-        },
-        { status: 400 },
-      );
-    }
-
     const result = sedeEnabled && allowedSedesEnabled && allowedLinesEnabled && allowedDashboardsEnabled
       ? await client.query(
           `
           INSERT INTO app_users (username, password_hash, role, sede, allowed_sedes, allowed_lines, allowed_dashboards)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
           RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at
           `,
-          [username, passwordHash, role, effectiveSedeForLegacy, allowedSedes, allowedLines, allowedDashboards],
+          [username, passwordHash, role, effectiveSedeForLegacy, allowedSedesJson, allowedLines, allowedDashboards],
         )
       : sedeEnabled
         ? await client.query(

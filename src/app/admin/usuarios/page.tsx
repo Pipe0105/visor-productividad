@@ -222,6 +222,7 @@ export default function AdminUsuariosPage() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -273,7 +274,7 @@ export default function AdminUsuariosPage() {
       }
 
       closeForm();
-      await loadData();
+      void loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {

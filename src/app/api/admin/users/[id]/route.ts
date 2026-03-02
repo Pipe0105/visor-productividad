@@ -304,34 +304,6 @@ export async function PATCH(req: Request, { params }: Params) {
         { status: 400 },
       );
     }
-    if (!allowedLinesEnabled && body.allowedLines !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de lineas permitidas en app_users (db/migrations/20260224_user_allowed_lines.sql).",
-        },
-        { status: 400 },
-      );
-    }
-    if (!allowedSedesEnabled && body.allowedSedes !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de sedes permitidas en app_users (db/migrations/20260302_user_allowed_sedes.sql).",
-        },
-        { status: 400 },
-      );
-    }
-    if (!allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            "Falta aplicar migracion de tableros permitidos en app_users (db/migrations/20260227_user_allowed_dashboards.sql).",
-        },
-        { status: 400 },
-      );
-    }
-
     const updates: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
@@ -371,10 +343,17 @@ export async function PATCH(req: Request, { params }: Params) {
       addUpdate("sede", nextSede);
     }
     if (allowedSedesEnabled && body.allowedSedes !== undefined) {
-      addUpdate("allowed_sedes", nextRole === "admin" ? null : nextAllowedSedes);
+      updates.push(`allowed_sedes = $${idx++}::jsonb`);
+      values.push(
+        nextRole === "admin" || nextAllowedSedes === null
+          ? null
+          : JSON.stringify(nextAllowedSedes),
+      );
       if (sedeEnabled && body.sede === undefined) {
         addUpdate("sede", nextRole === "admin" ? null : nextAllowedSedes?.[0] ?? nextSede ?? null);
       }
+    } else if (!allowedSedesEnabled && sedeEnabled && body.allowedSedes !== undefined) {
+      addUpdate("sede", nextRole === "admin" ? null : nextAllowedSedes?.[0] ?? nextSede ?? null);
     }
     if (allowedLinesEnabled && body.allowedLines !== undefined) {
       addUpdate("allowed_lines", nextRole === "admin" ? null : nextAllowedLines);
