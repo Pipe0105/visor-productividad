@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HourlyAnalysis } from "@/components/HourlyAnalysis";
 import { DEFAULT_SEDES } from "@/lib/constants";
-import type { DailyProductivity } from "@/types";
 import type { Sede } from "@/lib/constants";
 
 type ApiResponse = {
-  dailyData?: DailyProductivity[];
+  dates?: string[];
   sedes?: Sede[];
+  defaultSede?: string | null;
   error?: string;
 };
 
@@ -46,39 +46,15 @@ export default function JornadaExtendidaPage() {
       setError(null);
 
       try {
-        const meResponse = await fetch("/api/auth/me", {
+        const response = await fetch("/api/jornada-extendida/meta", {
           signal: controller.signal,
         });
-        if (meResponse.status === 401) {
-          router.replace("/login");
-          return;
-        }
-        const mePayload = (await meResponse.json()) as {
-          user?: {
-            role?: string;
-            sede?: string | null;
-            allowedDashboards?: string[] | null;
-          };
-        };
-        const isUserAdmin = mePayload.user?.role === "admin";
-        if (
-          !isUserAdmin &&
-          Array.isArray(mePayload.user?.allowedDashboards) &&
-          !mePayload.user?.allowedDashboards.includes("jornada-extendida")
-        ) {
-          router.replace("/tableros");
-          return;
-        }
-        const forcedSedeKey = mePayload.user?.sede
-          ? normalizeSedeKey(mePayload.user.sede)
-          : null;
-
-        const response = await fetch("/api/productivity", {
-          signal: controller.signal,
-        });
-
         if (response.status === 401) {
           router.replace("/login");
+          return;
+        }
+        if (response.status === 403) {
+          router.replace("/tableros");
           return;
         }
 
@@ -89,19 +65,17 @@ export default function JornadaExtendidaPage() {
 
         if (!isMounted) return;
 
-        const dates = Array.from(
-          new Set((payload.dailyData ?? []).map((item) => item.date)),
-        ).sort();
+        const dates = Array.from(new Set(payload.dates ?? [])).sort();
         const resolvedSedes =
           payload.sedes && payload.sedes.length > 0 ? payload.sedes : DEFAULT_SEDES;
-        const forcedSede =
-          forcedSedeKey
-            ? resolvedSedes.find((sede) => {
-                const idKey = normalizeSedeKey(sede.id || sede.name);
-                const nameKey = normalizeSedeKey(sede.name);
-                return idKey === forcedSedeKey || nameKey === forcedSedeKey;
-              })
-            : null;
+        const forcedSedeKey = payload.defaultSede ? normalizeSedeKey(payload.defaultSede) : null;
+        const forcedSede = forcedSedeKey
+          ? resolvedSedes.find((sede) => {
+              const idKey = normalizeSedeKey(sede.id || sede.name);
+              const nameKey = normalizeSedeKey(sede.name);
+              return idKey === forcedSedeKey || nameKey === forcedSedeKey;
+            })
+          : null;
         const visibleSedes = forcedSede
           ? [forcedSede]
           : Array.from(
