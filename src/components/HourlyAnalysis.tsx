@@ -91,6 +91,9 @@ const OVERTIME_QUICK_RANGE_OPTIONS: Array<{
   max: hour + 1,
 }));
 
+const OVERTIME_PAGE_SIZE = 150;
+const OVERTIME_PAGE_TAB_WINDOW = 8;
+
 const minuteToTime = (value: number) => {
   const safe = Math.max(0, Math.min(1439, value));
   const hour = Math.floor(safe / 60);
@@ -305,6 +308,7 @@ export const HourlyAnalysis = ({
   const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">("recent");
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
   const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
+  const [overtimePage, setOvertimePage] = useState(1);
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -950,6 +954,41 @@ export const HourlyAnalysis = ({
       ),
     [filteredOvertimeEmployees, overtimeExcludedIds],
   );
+  const overtimeTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(visibleOvertimeEmployees.length / OVERTIME_PAGE_SIZE)),
+    [visibleOvertimeEmployees.length],
+  );
+  const pagedOvertimeEmployees = useMemo(() => {
+    const start = (overtimePage - 1) * OVERTIME_PAGE_SIZE;
+    return visibleOvertimeEmployees.slice(start, start + OVERTIME_PAGE_SIZE);
+  }, [visibleOvertimeEmployees, overtimePage]);
+  const overtimePageTabs = useMemo(() => {
+    const half = Math.floor(OVERTIME_PAGE_TAB_WINDOW / 2);
+    let start = Math.max(1, overtimePage - half);
+    let end = Math.min(overtimeTotalPages, start + OVERTIME_PAGE_TAB_WINDOW - 1);
+    if (end - start + 1 < OVERTIME_PAGE_TAB_WINDOW) {
+      start = Math.max(1, end - OVERTIME_PAGE_TAB_WINDOW + 1);
+    }
+    return Array.from({ length: end - start + 1 }, (_v, i) => start + i);
+  }, [overtimePage, overtimeTotalPages]);
+
+  useEffect(() => {
+    setOvertimePage(1);
+  }, [
+    overtimeSedeFilter,
+    overtimeDepartmentFilter,
+    overtimeEmployeeTypeFilter,
+    overtimeMarksFilter,
+    overtimePersonFilter,
+    overtimeDateOrder,
+    overtimeRangeMin,
+    overtimeRangeMax,
+    overtimeAlertOnly,
+  ]);
+
+  useEffect(() => {
+    setOvertimePage((prev) => Math.min(prev, overtimeTotalPages));
+  }, [overtimeTotalPages]);
 
   const handleExportOvertimeXlsx = async () => {
     const exportEmployees = filteredOvertimeEmployees.filter(
@@ -1608,6 +1647,46 @@ export const HourlyAnalysis = ({
                 </p>
               ) : (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 bg-slate-50/70 px-2 py-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setOvertimePage((prev) => Math.max(1, prev - 1))}
+                        disabled={overtimePage === 1}
+                        className="rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                      >
+                        Anterior
+                      </button>
+                      {overtimePageTabs.map((tabPage) => (
+                        <button
+                          key={tabPage}
+                          type="button"
+                          onClick={() => setOvertimePage(tabPage)}
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                            tabPage === overtimePage
+                              ? "bg-rose-600 text-white"
+                              : "border border-slate-200/70 bg-white text-slate-700"
+                          }`}
+                        >
+                          {tabPage}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOvertimePage((prev) => Math.min(overtimeTotalPages, prev + 1))
+                        }
+                        disabled={overtimePage === overtimeTotalPages}
+                        className="rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-600">
+                      Pagina {overtimePage} de {overtimeTotalPages} | Mostrando{" "}
+                      {pagedOvertimeEmployees.length} de {visibleOvertimeEmployees.length}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-13 gap-1 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <span className="col-span-1 text-center whitespace-nowrap">#</span>
                     <span className="col-span-1 text-center whitespace-nowrap">Excel</span>
@@ -1620,8 +1699,9 @@ export const HourlyAnalysis = ({
                     <span className="col-span-1 whitespace-nowrap">Incid.</span>
                     <span className="col-span-1 text-center whitespace-nowrap">Depto.</span>
                   </div>
-                  {visibleOvertimeEmployees.map((employee, index) => {
+                  {pagedOvertimeEmployees.map((employee, index) => {
                     const employeeKey = getOvertimeEmployeeKey(employee);
+                    const absoluteIndex = (overtimePage - 1) * OVERTIME_PAGE_SIZE + index + 1;
                     return (
                       <div
                         key={employeeKey}
@@ -1633,7 +1713,7 @@ export const HourlyAnalysis = ({
                         }`}
                       >
                         <span className="col-span-1 text-center text-xs font-semibold text-slate-500">
-                          {index + 1}
+                          {absoluteIndex}
                         </span>
                         <span className="col-span-1 flex items-center justify-center">
                           <input
