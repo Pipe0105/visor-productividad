@@ -22,6 +22,12 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, " ");
 
+const OVERTIME_EXTRA_SEDES: Sede[] = [
+  { id: "Panificadora", name: "Panificadora" },
+  { id: "Planta Desposte Mixto", name: "Planta Desposte Mixto" },
+  { id: "Planta Desprese Pollo", name: "Planta Desprese Pollo" },
+];
+
 export default function JornadaExtendidaPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -96,7 +102,16 @@ export default function JornadaExtendidaPage() {
                 return idKey === forcedSedeKey || nameKey === forcedSedeKey;
               })
             : null;
-        const visibleSedes = forcedSede ? [forcedSede] : resolvedSedes;
+        const visibleSedes = forcedSede
+          ? [forcedSede]
+          : Array.from(
+              new Map(
+                [...resolvedSedes, ...OVERTIME_EXTRA_SEDES].map((sede) => [
+                  normalizeSedeKey(sede.name || sede.id),
+                  sede,
+                ]),
+              ).values(),
+            );
 
         setAvailableDates(dates);
         setAvailableSedes(visibleSedes);

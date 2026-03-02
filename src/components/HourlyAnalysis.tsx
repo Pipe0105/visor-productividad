@@ -61,6 +61,30 @@ const decimalHoursToMinutes = (value: number) => {
   return Math.round(value * 60);
 };
 
+const parseBase60HoursInputToMinutes = (value: string): number | null => {
+  const raw = value.trim();
+  if (!raw) return null;
+
+  const normalized = raw.replace(",", ".");
+  const [hoursPartRaw, minutesPartRaw] = normalized.split(".");
+  const hours = Number(hoursPartRaw);
+  if (!Number.isFinite(hours) || hours < 0) return null;
+
+  if (minutesPartRaw === undefined) {
+    return Math.round(hours * 60);
+  }
+
+  const onlyDigits = minutesPartRaw.replace(/\D/g, "");
+  if (!onlyDigits) return Math.round(hours * 60);
+
+  // 9.2 -> 9:20, 9.12 -> 9:12
+  const paddedMinutes = onlyDigits.length === 1 ? `${onlyDigits}0` : onlyDigits.slice(0, 2);
+  const minutes = Number(paddedMinutes);
+  if (!Number.isFinite(minutes)) return null;
+
+  return Math.round(hours) * 60 + Math.min(59, Math.max(0, minutes));
+};
+
 const calcVtaHr = (sales: number, laborHours: number) =>
   laborHours > 0 ? sales / 1_000_000 / laborHours : 0;
 
@@ -798,12 +822,14 @@ export const HourlyAnalysis = ({
     [overtimeSedeFilter],
   );
   const overtimeSedeOptions = useMemo(() => {
+    const fromAvailable = availableSedes
+      .map((sede) => sede.name?.trim())
+      .filter((value): value is string => Boolean(value));
+    const fromData = overtimeEmployeesResolved
+      .map((employee) => employee.sede?.trim())
+      .filter((value): value is string => Boolean(value));
     const values = Array.from(
-      new Set(
-        overtimeEmployeesResolved
-          .map((employee) => employee.sede?.trim())
-          .filter((value): value is string => Boolean(value)),
-      ),
+      new Set(fromAvailable.length > 0 ? fromAvailable : fromData),
     );
     const plantKeywords = ["panificadora", "planta desposte mixto", "planta desprese pollo"];
     const isPlant = (value: string) =>
@@ -814,7 +840,7 @@ export const HourlyAnalysis = ({
       if (aPlant !== bPlant) return aPlant ? 1 : -1;
       return a.localeCompare(b, "es");
     });
-  }, [overtimeEmployeesResolved]);
+  }, [availableSedes, overtimeEmployeesResolved]);
   const overtimePersonOptions = useMemo(() => {
     const values = Array.from(
       new Set(
@@ -852,12 +878,11 @@ export const HourlyAnalysis = ({
     [],
   );
   const filteredOvertimeEmployees = useMemo(() => {
-    const min = overtimeRangeMin.trim() === "" ? null : Number(overtimeRangeMin);
-    const max = overtimeRangeMax.trim() === "" ? null : Number(overtimeRangeMax);
-    const validMin = min !== null && Number.isFinite(min) ? min : null;
-    const validMax = max !== null && Number.isFinite(max) ? max : null;
+    const validMinMinutes = parseBase60HoursInputToMinutes(overtimeRangeMin);
+    const validMaxMinutes = parseBase60HoursInputToMinutes(overtimeRangeMax);
 
     const filtered = overtimeEmployeesResolved.filter((employee) => {
+      const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
       if (overtimeSedeFilterSet.size > 0) {
         const employeeSede = normalizeSedeValue(employee.sede ?? "");
         if (!overtimeSedeFilterSet.has(employeeSede)) return false;
@@ -892,10 +917,10 @@ export const HourlyAnalysis = ({
           return false;
         }
       }
-      if (validMin !== null && employee.workedHours < validMin) return false;
-      if (validMax !== null && employee.workedHours > validMax) return false;
+      if (validMinMinutes !== null && employeeMinutes < validMinMinutes) return false;
+      if (validMaxMinutes !== null && employeeMinutes > validMaxMinutes) return false;
       if (overtimeAlertOnly) {
-        const minutes = decimalHoursToMinutes(employee.workedHours);
+        const minutes = employeeMinutes;
         const marks = employee.marksCount ?? 0;
         if (!(minutes > 7 * 60 + 20 && marks !== 4)) return false;
       }
