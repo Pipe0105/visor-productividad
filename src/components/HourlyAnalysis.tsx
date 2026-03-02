@@ -406,6 +406,8 @@ export const HourlyAnalysis = ({
   const showOvertimeSection = enabledSections.includes("overtime");
   const isOvertimeOnlyMode = showOvertimeSection && !showMapSection;
   const showSectionToggle = enabledSections.length > 1;
+  const overtimeFilterControlClass =
+    "mt-1 w-full rounded-full border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100";
 
   useEffect(() => {
     if (!enableOvertimeDateRange || !isOvertimeOnlyMode) return;
@@ -1470,7 +1472,7 @@ export const HourlyAnalysis = ({
                         setOvertimeDateStart(next);
                         setOvertimeDateEnd((prev) => (prev && prev < next ? next : prev));
                       }}
-                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      className={overtimeFilterControlClass}
                     />
                   </label>
                   <label className="block">
@@ -1485,7 +1487,7 @@ export const HourlyAnalysis = ({
                         setOvertimeDateEnd(next);
                         setOvertimeDateStart((prev) => (prev && prev > next ? next : prev));
                       }}
-                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      className={overtimeFilterControlClass}
                     />
                   </label>
                 </div>
@@ -1503,7 +1505,7 @@ export const HourlyAnalysis = ({
                     onChange={(e) =>
                       setOvertimeDateOrder(e.target.value as "recent" | "old")
                     }
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className={overtimeFilterControlClass}
                   >
                     <option value="recent">Mas reciente</option>
                     <option value="old">Mas lejana</option>
@@ -1512,7 +1514,7 @@ export const HourlyAnalysis = ({
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
                   <details className="group relative mt-1">
-                    <summary className="flex w-full items-center justify-between rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-100 group-open:border-rose-300 [&::-webkit-details-marker]:hidden">
+                    <summary className={`${overtimeFilterControlClass} mt-0 flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
                       <span>
                         {overtimeSedeFilter.length === 0
                           ? "Todas"
@@ -1524,10 +1526,10 @@ export const HourlyAnalysis = ({
                       <button
                         type="button"
                         onClick={clearOvertimeSedeFilter}
-                        className={`w-full rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                        className={`w-full rounded-full border px-3 py-2 text-sm font-semibold transition-all ${
                           overtimeSedeFilter.length === 0
-                            ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/70"
-                            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
+                            ? "border-rose-200/70 bg-rose-50 text-rose-700"
+                            : "border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                       >
                         Todas
@@ -1568,7 +1570,7 @@ export const HourlyAnalysis = ({
                       setOvertimePersonFilter(next === "Todos" ? "" : next);
                     }}
                     placeholder="Nombre o cedula"
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all placeholder:text-slate-400 focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className={`${overtimeFilterControlClass} placeholder:text-slate-400`}
                   />
                   <datalist id="overtime-person-options">
                     <option value="Todos" />
@@ -1584,9 +1586,9 @@ export const HourlyAnalysis = ({
                   <select
                     value={overtimeEmployeeTypeFilter}
                     onChange={(e) => setOvertimeEmployeeTypeFilter(e.target.value)}
-                    className={`mt-1 w-full rounded-full border border-slate-200/70 px-3 py-2 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-100 ${
+                    className={`${overtimeFilterControlClass} ${
                       hasEmployeeTypeData
-                        ? "bg-white/90 text-slate-900 focus:border-rose-300"
+                        ? "bg-white text-slate-900"
                         : "cursor-not-allowed bg-slate-100 text-slate-500"
                     }`}
                     disabled={!hasEmployeeTypeData}
@@ -1608,7 +1610,7 @@ export const HourlyAnalysis = ({
                   <select
                     value={overtimeMarksFilter}
                     onChange={(e) => setOvertimeMarksFilter(e.target.value)}
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className={overtimeFilterControlClass}
                   >
                     <option value="all">Todas</option>
                     <option value="1">1</option>
@@ -1625,7 +1627,7 @@ export const HourlyAnalysis = ({
                     <select
                       value={overtimeDepartmentFilter}
                       onChange={(e) => setOvertimeDepartmentFilter(e.target.value)}
-                      className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      className={overtimeFilterControlClass}
                     >
                       <option value="all">Todos</option>
                       {overtimeDepartmentOptions.map((department) => (
@@ -1647,7 +1649,7 @@ export const HourlyAnalysis = ({
                       setOvertimeQuickRange("custom");
                       setOvertimeRangeMin(e.target.value);
                     }}
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className={overtimeFilterControlClass}
                   />
                 </label>
                 <label className="block">
@@ -1661,7 +1663,7 @@ export const HourlyAnalysis = ({
                       setOvertimeQuickRange("custom");
                       setOvertimeRangeMax(e.target.value);
                     }}
-                    className="mt-1 w-full rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className={overtimeFilterControlClass}
                   />
                 </label>
               </div>
