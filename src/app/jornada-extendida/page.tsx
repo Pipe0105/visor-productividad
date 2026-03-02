@@ -133,7 +133,7 @@ export default function JornadaExtendidaPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
               Tablero
             </p>
-            <h1 className="mt-1 text-xl font-bold text-slate-900">Jornada extendida</h1>
+            <h1 className="mt-1 text-xl font-bold text-slate-900">Horario</h1>
           </div>
           <Link
             href="/tableros"

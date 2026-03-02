@@ -1068,7 +1068,7 @@ export const HourlyAnalysis = ({
     if (exportEmployees.length === 0) return;
 
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Jornada extendida");
+    const sheet = workbook.addWorksheet("Horario");
     sheet.columns = [
       { header: "Cedula", key: "employeeId", width: 18 },
       { header: "Nombre", key: "employeeName", width: 34 },
@@ -1120,7 +1120,7 @@ export const HourlyAnalysis = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `jornada-extendida-${dateKey}.xlsx`;
+    link.download = `horario-${dateKey}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -1449,7 +1449,7 @@ export const HourlyAnalysis = ({
                       : "bg-slate-100 text-slate-600 ring-1 ring-slate-200/70"
                   }`}
                 >
-                  Jornada extendida
+                  Horario
                 </button>
               )}
             </div>
@@ -1459,10 +1459,10 @@ export const HourlyAnalysis = ({
             <div className="mb-6 overflow-visible rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Jornada extendida
+                  Horario
                 </p>
                 <p className="text-sm font-semibold text-slate-900">
-                  Filtra por total de horas trabajadas
+                  Consulta horarios y total de horas trabajadas
                 </p>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -93,11 +93,11 @@ export default function TablerosPage() {
     },
     {
       id: "jornada-extendida",
-      title: "Jornada",
-      subtitle: "Jornada extendida",
-      description: "Empleados con horas extra por sede y fecha.",
-      href: "/jornada-extendida",
-      badge: "Jornada",
+      title: "Horario",
+      subtitle: "Horario",
+      description: "Consulta horarios y horas trabajadas por sede y fecha.",
+      href: "/horario",
+      badge: "Horario",
       classes:
         "border-rose-300/80 bg-linear-to-br from-rose-100 via-white to-pink-100 text-slate-900 shadow-[0_18px_35px_-30px_rgba(244,63,94,0.4)] hover:border-rose-400 hover:shadow-[0_22px_44px_-26px_rgba(244,63,94,0.5)]",
       badgeClasses:

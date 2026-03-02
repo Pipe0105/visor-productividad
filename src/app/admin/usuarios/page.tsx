@@ -105,7 +105,7 @@ const lineLabelById = new Map(DEFAULT_LINES.map((line) => [line.id, line.name]))
 const DASHBOARD_OPTIONS = [
   { id: "productividad", label: "Productividad" },
   { id: "margenes", label: "Margenes" },
-  { id: "jornada-extendida", label: "Jornada extendida" },
+  { id: "jornada-extendida", label: "Horario" },
 ];
 const dashboardLabelById = new Map(
   DASHBOARD_OPTIONS.map((board) => [board.id, board.label]),
