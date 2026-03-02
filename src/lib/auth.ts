@@ -8,6 +8,7 @@ export type AuthUser = {
   username: string;
   role: "admin" | "user";
   sede: string | null;
+  allowedSedes: string[] | null;
   allowedLines: string[] | null;
   allowedDashboards: string[] | null;
   is_active: boolean;
@@ -141,6 +142,7 @@ export const getUserSession = async (): Promise<
         u.username,
         u.role,
         to_jsonb(u)->>'sede' AS sede,
+        to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
         to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
         u.is_active,

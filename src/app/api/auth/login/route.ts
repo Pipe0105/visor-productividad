@@ -29,6 +29,7 @@ export async function POST(req: Request) {
           u.username,
           u.role,
           to_jsonb(u)->>'sede' AS sede,
+          to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
           to_jsonb(u)->'allowed_lines' AS "allowedLines",
           to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
           u.is_active,
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
         username: string;
         role: "admin" | "user";
         sede: string | null;
+        allowedSedes: string[] | null;
         allowedLines: string[] | null;
         allowedDashboards: string[] | null;
         is_active: boolean;
@@ -100,6 +102,7 @@ export async function POST(req: Request) {
           username: user.username,
           role: user.role,
           sede: user.sede,
+          allowedSedes: user.allowedSedes,
           allowedLines: user.allowedLines,
           allowedDashboards: user.allowedDashboards,
         },

@@ -28,6 +28,45 @@ const BASE_SEDES: Sede[] = [
   { id: "Planta Desprese Pollo", name: "Planta Desprese Pollo" },
 ];
 
+const resolveVisibleSedes = (sessionUser: {
+  role: "admin" | "user";
+  sede: string | null;
+  allowedSedes?: string[] | null;
+}) => {
+  if (sessionUser.role === "admin") {
+    return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+  }
+
+  const rawAllowed = Array.isArray(sessionUser.allowedSedes)
+    ? sessionUser.allowedSedes
+    : [];
+  const normalizedAllowed = new Set(
+    rawAllowed
+      .map((sede) => normalizeSedeKey(sede))
+      .filter(Boolean),
+  );
+  if (normalizedAllowed.has(normalizeSedeKey("Todas"))) {
+    return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+  }
+
+  const allowedMatches = BASE_SEDES.filter((sede) =>
+    normalizedAllowed.has(normalizeSedeKey(sede.name)),
+  );
+  if (allowedMatches.length > 0) {
+    return { visibleSedes: allowedMatches, defaultSede: allowedMatches[0].name };
+  }
+
+  const legacySedeKey = sessionUser.sede ? normalizeSedeKey(sessionUser.sede) : null;
+  const legacySede = legacySedeKey
+    ? BASE_SEDES.find((sede) => normalizeSedeKey(sede.name) === legacySedeKey)
+    : null;
+  if (legacySede) {
+    return { visibleSedes: [legacySede], defaultSede: legacySede.name };
+  }
+
+  return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+};
+
 export async function GET() {
   const session = await requireAuthSession();
   if (!session) {
@@ -58,10 +97,7 @@ export async function GET() {
     );
   }
 
-  const forcedSedeKey = session.user.sede ? normalizeSedeKey(session.user.sede) : null;
-  const forcedSede = forcedSedeKey
-    ? BASE_SEDES.find((sede) => normalizeSedeKey(sede.name) === forcedSedeKey)
-    : null;
+  const { visibleSedes, defaultSede } = resolveVisibleSedes(session.user);
 
   const pool = await getDbPool();
   const client = await pool.connect();
@@ -80,8 +116,8 @@ export async function GET() {
     return withSession(
       NextResponse.json({
         dates,
-        sedes: forcedSede ? [forcedSede] : BASE_SEDES,
-        defaultSede: forcedSede?.name ?? null,
+        sedes: visibleSedes,
+        defaultSede,
       }),
     );
   } catch (error) {

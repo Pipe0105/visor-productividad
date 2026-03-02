@@ -67,6 +67,21 @@ const hasAllowedDashboardsColumn = async (client: {
   return (result.rows?.length ?? 0) > 0;
 };
 
+const hasAllowedSedesColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'allowed_sedes'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
 const resolveValidAllowedLines = (value: unknown) => {
   if (value === undefined || value === null) {
     return { ok: true as const, value: null as string[] | null };
@@ -127,6 +142,36 @@ const resolveValidAllowedDashboards = (value: unknown) => {
   return { ok: true as const, value: normalized };
 };
 
+const resolveValidAllowedSedes = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Las sedes permitidas no son válidas.",
+    };
+  }
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((sede) => (typeof sede === "string" ? sede.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  const invalid = normalized.filter((sede) => !ALLOWED_SEDE_SET.has(sede));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay sedes no válidas en la selección.",
+    };
+  }
+  return { ok: true as const, value: normalized };
+};
+
 export async function GET() {
   const session = await requireAdminSession();
   if (!session) {
@@ -150,6 +195,7 @@ export async function GET() {
         u.username,
         u.role,
         to_jsonb(u)->>'sede' AS sede,
+        to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
         to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
         u.is_active,
@@ -186,6 +232,7 @@ export async function POST(req: Request) {
     password?: string;
     role?: "admin" | "user";
     sede?: string | null;
+    allowedSedes?: string[] | null;
     allowedLines?: string[] | null;
     allowedDashboards?: string[] | null;
   };
@@ -194,6 +241,7 @@ export async function POST(req: Request) {
   const password = body.password ?? "";
   const role = body.role ?? "user";
   const sede = resolveValidSede(body.sede);
+  const allowedSedesResult = resolveValidAllowedSedes(body.allowedSedes);
   const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
   const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
 
@@ -203,7 +251,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (role === "user" && !sede) {
+  if (role === "user" && !sede && (!allowedSedesResult.ok || !allowedSedesResult.value || allowedSedesResult.value.length === 0)) {
     return NextResponse.json(
       { error: "Los usuarios de rol user deben tener sede asignada." },
       { status: 400 },
@@ -212,6 +260,12 @@ export async function POST(req: Request) {
   if (body.sede && !sede) {
     return NextResponse.json(
       { error: "La sede no es válida." },
+      { status: 400 },
+    );
+  }
+  if (!allowedSedesResult.ok) {
+    return NextResponse.json(
+      { error: allowedSedesResult.error },
       { status: 400 },
     );
   }
@@ -232,8 +286,12 @@ export async function POST(req: Request) {
   const client = await (await getDbPool()).connect();
   try {
     const sedeEnabled = await hasSedeColumn(client);
+    const allowedSedesEnabled = await hasAllowedSedesColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
+    const allowedSedes = role === "admin" ? null : allowedSedesResult.value;
+    const effectiveSedeForLegacy =
+      role === "admin" ? null : allowedSedes?.[0] ?? sede ?? null;
     const allowedLines = role === "admin" ? null : allowedLinesResult.value;
     const allowedDashboards = role === "admin" ? null : allowedDashboardsResult.value;
 
@@ -255,6 +313,15 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    if (!allowedSedesEnabled && body.allowedSedes !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de sedes permitidas en app_users (db/migrations/20260302_user_allowed_sedes.sql).",
+        },
+        { status: 400 },
+      );
+    }
     if (!allowedDashboardsEnabled && body.allowedDashboards !== undefined) {
       return NextResponse.json(
         {
@@ -265,29 +332,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = sedeEnabled && allowedLinesEnabled && allowedDashboardsEnabled
+    const result = sedeEnabled && allowedSedesEnabled && allowedLinesEnabled && allowedDashboardsEnabled
       ? await client.query(
           `
-          INSERT INTO app_users (username, password_hash, role, sede, allowed_lines, allowed_dashboards)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id, username, role, sede, allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at
+          INSERT INTO app_users (username, password_hash, role, sede, allowed_sedes, allowed_lines, allowed_dashboards)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at
           `,
-          [username, passwordHash, role, role === "admin" ? null : sede, allowedLines, allowedDashboards],
+          [username, passwordHash, role, effectiveSedeForLegacy, allowedSedes, allowedLines, allowedDashboards],
         )
       : sedeEnabled
         ? await client.query(
             `
             INSERT INTO app_users (username, password_hash, role, sede)
             VALUES ($1, $2, $3, $4)
-            RETURNING id, username, role, sede, NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
+            RETURNING id, username, role, sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
             `,
-            [username, passwordHash, role, role === "admin" ? null : sede],
+            [username, passwordHash, role, effectiveSedeForLegacy],
           )
         : await client.query(
           `
           INSERT INTO app_users (username, password_hash, role)
           VALUES ($1, $2, $3)
-          RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
+          RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
           `,
           [username, passwordHash, role],
         );

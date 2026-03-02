@@ -45,6 +45,41 @@ const SEDE_CONFIGS = [
   { name: "Planta Desprese Pollo", attendanceNames: ["planta desprese pollo"], aliases: ["planta desprese pollo", "desprese pollo"] },
 ] as const;
 
+const resolveVisibleSedes = (sessionUser: {
+  role: "admin" | "user";
+  sede: string | null;
+  allowedSedes?: string[] | null;
+}) => {
+  if (sessionUser.role === "admin") {
+    return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+  }
+  const rawAllowed = Array.isArray(sessionUser.allowedSedes)
+    ? sessionUser.allowedSedes
+    : [];
+  const normalizedAllowed = new Set(
+    rawAllowed
+      .map((sede) => normalizeSedeKey(sede))
+      .filter(Boolean),
+  );
+  if (normalizedAllowed.has(normalizeSedeKey("Todas"))) {
+    return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+  }
+  const allowedMatches = BASE_SEDES.filter((sede) =>
+    normalizedAllowed.has(normalizeSedeKey(sede.name)),
+  );
+  if (allowedMatches.length > 0) {
+    return { visibleSedes: allowedMatches, defaultSede: allowedMatches[0].name };
+  }
+  const legacyKey = sessionUser.sede ? normalizeSedeKey(sessionUser.sede) : null;
+  const legacyMatch = legacyKey
+    ? BASE_SEDES.find((sede) => normalizeSedeKey(sede.name) === legacyKey)
+    : null;
+  if (legacyMatch) {
+    return { visibleSedes: [legacyMatch], defaultSede: legacyMatch.name };
+  }
+  return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
+};
+
 const normalizeColumnName = (value: string) => value.trim().toLowerCase();
 const quoteIdentifier = (value: string) => `"${value.replace(/"/g, '""')}"`;
 const normalizeText = (value?: string | null) =>
@@ -112,11 +147,7 @@ export async function GET() {
     );
   }
 
-  const forcedSedeKey = session.user.sede ? normalizeSedeKey(session.user.sede) : null;
-  const forcedSede = forcedSedeKey
-    ? BASE_SEDES.find((sede) => normalizeSedeKey(sede.name) === forcedSedeKey)
-    : null;
-  const visibleSedes = forcedSede ? [forcedSede] : BASE_SEDES;
+  const { visibleSedes, defaultSede } = resolveVisibleSedes(session.user);
 
   const pool = await getDbPool();
   const client = await pool.connect();
@@ -163,13 +194,15 @@ export async function GET() {
 
     const params: unknown[] = [];
     let sedeFilterSql = "";
-    if (forcedSede) {
-      const forcedCfg = SEDE_CONFIGS.find(
-        (cfg) => normalizeText(cfg.name) === normalizeText(forcedSede.name),
-      );
-      const allowedSedeNames = forcedCfg
-        ? forcedCfg.attendanceNames.map((value) => normalizeText(value))
-        : [normalizeSedeKey(forcedSede.name)];
+    if (visibleSedes.length > 0 && visibleSedes.length < BASE_SEDES.length) {
+      const allowedSedeNames = visibleSedes.flatMap((visibleSede) => {
+        const cfg = SEDE_CONFIGS.find(
+          (item) => normalizeText(item.name) === normalizeText(visibleSede.name),
+        );
+        return cfg
+          ? cfg.attendanceNames.map((value) => normalizeText(value))
+          : [normalizeSedeKey(visibleSede.name)];
+      });
       params.push(allowedSedeNames);
       sedeFilterSql = `AND ${buildNormalizeSql("sede")} = ANY($1::text[])`;
     }
@@ -201,7 +234,7 @@ export async function GET() {
     return withSession(
       NextResponse.json({
         sedes: visibleSedes,
-        defaultSede: forcedSede?.name ?? null,
+        defaultSede,
         employees,
       }),
     );

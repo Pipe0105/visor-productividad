@@ -69,6 +69,21 @@ const hasAllowedDashboardsColumn = async (client: {
   return (result.rows?.length ?? 0) > 0;
 };
 
+const hasAllowedSedesColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'allowed_sedes'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
 const resolveValidAllowedLines = (value: unknown) => {
   if (value === undefined || value === null) {
     return { ok: true as const, value: null as string[] | null };
@@ -129,6 +144,36 @@ const resolveValidAllowedDashboards = (value: unknown) => {
   return { ok: true as const, value: normalized };
 };
 
+const resolveValidAllowedSedes = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Las sedes permitidas no son válidas.",
+    };
+  }
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((sede) => (typeof sede === "string" ? sede.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  const invalid = normalized.filter((sede) => !ALLOWED_SEDE_SET.has(sede));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay sedes no válidas en la selección.",
+    };
+  }
+  return { ok: true as const, value: normalized };
+};
+
 export async function PATCH(req: Request, { params }: Params) {
   const session = await requireAdminSession();
   if (!session) {
@@ -148,6 +193,7 @@ export async function PATCH(req: Request, { params }: Params) {
     username?: string;
     role?: "admin" | "user";
     sede?: string | null;
+    allowedSedes?: string[] | null;
     allowedLines?: string[] | null;
     allowedDashboards?: string[] | null;
     is_active?: boolean;
@@ -157,6 +203,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const client = await (await getDbPool()).connect();
   try {
     const sedeEnabled = await hasSedeColumn(client);
+    const allowedSedesEnabled = await hasAllowedSedesColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const currentResult = await client.query(
@@ -164,6 +211,7 @@ export async function PATCH(req: Request, { params }: Params) {
       SELECT
         u.role,
         to_jsonb(u)->>'sede' AS sede,
+        to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
         to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards"
       FROM app_users u
@@ -182,15 +230,23 @@ export async function PATCH(req: Request, { params }: Params) {
     const currentUser = currentResult.rows[0] as {
       role: "admin" | "user";
       sede: string | null;
+      allowedSedes: string[] | null;
       allowedLines: string[] | null;
       allowedDashboards: string[] | null;
     };
+    const allowedSedesResult = resolveValidAllowedSedes(body.allowedSedes);
     const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
     const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
 
     if (typeof body.sede === "string" && !resolveValidSede(body.sede)) {
       return NextResponse.json(
         { error: "La sede no es valida." },
+        { status: 400 },
+      );
+    }
+    if (!allowedSedesResult.ok) {
+      return NextResponse.json(
+        { error: allowedSedesResult.error },
         { status: 400 },
       );
     }
@@ -215,6 +271,10 @@ export async function PATCH(req: Request, { params }: Params) {
         : typeof body.sede === "string"
           ? resolveValidSede(body.sede)
           : currentUser.sede;
+    const nextAllowedSedes =
+      body.allowedSedes === undefined
+        ? currentUser.allowedSedes
+        : allowedSedesResult.value;
     const nextAllowedLines =
       body.allowedLines === undefined
         ? currentUser.allowedLines
@@ -224,7 +284,7 @@ export async function PATCH(req: Request, { params }: Params) {
         ? currentUser.allowedDashboards
         : allowedDashboardsResult.value;
 
-    if (nextRole === "user" && !nextSede) {
+    if (nextRole === "user" && !nextSede && (!nextAllowedSedes || nextAllowedSedes.length === 0)) {
       return NextResponse.json(
         { error: "Los usuarios de rol user deben tener sede asignada." },
         { status: 400 },
@@ -244,6 +304,15 @@ export async function PATCH(req: Request, { params }: Params) {
         {
           error:
             "Falta aplicar migracion de lineas permitidas en app_users (db/migrations/20260224_user_allowed_lines.sql).",
+        },
+        { status: 400 },
+      );
+    }
+    if (!allowedSedesEnabled && body.allowedSedes !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de sedes permitidas en app_users (db/migrations/20260302_user_allowed_sedes.sql).",
         },
         { status: 400 },
       );
@@ -275,6 +344,13 @@ export async function PATCH(req: Request, { params }: Params) {
       if (body.role === "admin" && body.sede === undefined) {
         addUpdate("sede", null);
       }
+      if (
+        allowedSedesEnabled &&
+        body.role === "admin" &&
+        body.allowedSedes === undefined
+      ) {
+        addUpdate("allowed_sedes", null);
+      }
       if (allowedLinesEnabled && body.role === "admin" && body.allowedLines === undefined) {
         addUpdate("allowed_lines", null);
       }
@@ -288,6 +364,12 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (sedeEnabled && body.sede !== undefined) {
       addUpdate("sede", nextSede);
+    }
+    if (allowedSedesEnabled && body.allowedSedes !== undefined) {
+      addUpdate("allowed_sedes", nextRole === "admin" ? null : nextAllowedSedes);
+      if (sedeEnabled && body.sede === undefined) {
+        addUpdate("sede", nextRole === "admin" ? null : nextAllowedSedes?.[0] ?? nextSede ?? null);
+      }
     }
     if (allowedLinesEnabled && body.allowedLines !== undefined) {
       addUpdate("allowed_lines", nextRole === "admin" ? null : nextAllowedLines);
@@ -327,7 +409,7 @@ export async function PATCH(req: Request, { params }: Params) {
       UPDATE app_users
       SET ${updates.join(", ")}
       WHERE id = $${idx}
-      RETURNING id, username, role, sede, allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at, last_login_at, last_login_ip
+      RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at, last_login_at, last_login_ip
       `,
       values,
     );

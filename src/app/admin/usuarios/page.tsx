@@ -23,6 +23,7 @@ type UserRow = {
   username: string;
   role: "admin" | "user";
   sede: string | null;
+  allowedSedes: string[] | null;
   allowedLines: string[] | null;
   allowedDashboards: string[] | null;
   is_active: boolean;
@@ -46,6 +47,7 @@ type UserFormState = {
   username: string;
   role: "admin" | "user";
   sede: string;
+  allowedSedes: string[];
   allowedLines: string[];
   allowedDashboards: string[];
   password: string;
@@ -56,6 +58,7 @@ const emptyForm: UserFormState = {
   username: "",
   role: "user",
   sede: "",
+  allowedSedes: [],
   allowedLines: [],
   allowedDashboards: [],
   password: "",
@@ -122,6 +125,12 @@ const formatAllowedDashboards = (allowedDashboards: string[] | null) => {
   return allowedDashboards
     .map((boardId) => dashboardLabelById.get(boardId) ?? boardId)
     .join(", ");
+};
+const formatAllowedSedes = (allowedSedes: string[] | null, fallbackSede: string | null) => {
+  if (allowedSedes && allowedSedes.length > 0) {
+    return allowedSedes.join(", ");
+  }
+  return fallbackSede ?? "-";
 };
 
 export default function AdminUsuariosPage() {
@@ -196,6 +205,7 @@ export default function AdminUsuariosPage() {
       username: user.username,
       role: user.role,
       sede: user.sede ?? inferSedeFromUsername(user.username) ?? "",
+      allowedSedes: user.allowedSedes ?? (user.sede ? [user.sede] : []),
       allowedLines: user.allowedLines ?? [],
       allowedDashboards: user.allowedDashboards ?? [],
       password: "",
@@ -213,14 +223,23 @@ export default function AdminUsuariosPage() {
     setSaving(true);
     setError(null);
     try {
-      if (formState.role === "user" && !formState.sede) {
-        throw new Error("Debes seleccionar una sede para usuarios de rol user.");
+      if (formState.role === "user" && formState.allowedSedes.length === 0) {
+        throw new Error("Debes seleccionar al menos una sede para usuarios de rol user.");
       }
 
       const payload = {
         username: formState.username,
         role: formState.role,
-        sede: formState.role === "admin" ? null : formState.sede || null,
+        sede:
+          formState.role === "admin"
+            ? null
+            : formState.allowedSedes[0] ?? formState.sede ?? null,
+        allowedSedes:
+          formState.role === "admin"
+            ? null
+            : formState.allowedSedes.length > 0
+              ? formState.allowedSedes
+              : null,
         allowedLines:
           formState.role === "admin"
             ? null
@@ -445,7 +464,10 @@ export default function AdminUsuariosPage() {
                           <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
                             {user.role === "admin"
                               ? "-"
-                              : user.sede ?? inferSedeFromUsername(user.username) ?? "-"}
+                              : formatAllowedSedes(
+                                  user.allowedSedes,
+                                  user.sede ?? inferSedeFromUsername(user.username),
+                                )}
                           </td>
                           <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
                             {user.role === "admin" ? "-" : formatAllowedLines(user.allowedLines)}
@@ -601,8 +623,8 @@ export default function AdminUsuariosPage() {
                       setFormState((prev) => ({
                         ...prev,
                         role: e.target.value as "admin" | "user",
-                        sede:
-                          e.target.value === "admin" ? "" : prev.sede,
+                        sede: e.target.value === "admin" ? "" : prev.sede,
+                        allowedSedes: e.target.value === "admin" ? [] : prev.allowedSedes,
                       }))
                     }
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -612,27 +634,41 @@ export default function AdminUsuariosPage() {
                   </select>
                 </label>
 
-                <label className="block text-sm font-medium text-slate-700">
-                  Sede {formState.role === "user" ? "(obligatoria)" : "(solo user)"}
-                  <select
-                    value={formState.sede}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        sede: e.target.value,
-                      }))
-                    }
-                    disabled={formState.role !== "user"}
-                    className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">Seleccionar sede</option>
-                    <option value={ALL_SEDES_VALUE}>Todas</option>
-                    {BRANCH_LOCATIONS.map((sede) => (
-                      <option key={sede} value={sede}>
-                        {sede}
-                      </option>
-                    ))}
-                  </select>
+                <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
+                  Sedes permitidas {formState.role === "user" ? "(obligatoria: 1 o más)" : "(solo user)"}
+                  <div className="mt-1.5 grid max-h-28 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 shadow-sm sm:grid-cols-3">
+                    {[ALL_SEDES_VALUE, ...BRANCH_LOCATIONS].map((sede) => {
+                      const checked = formState.allowedSedes.includes(sede);
+                      return (
+                        <label
+                          key={sede}
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={formState.role !== "user"}
+                            onChange={() =>
+                              setFormState((prev) => {
+                                if (checked) {
+                                  return {
+                                    ...prev,
+                                    allowedSedes: prev.allowedSedes.filter((id) => id !== sede),
+                                  };
+                                }
+                                return {
+                                  ...prev,
+                                  allowedSedes: [...prev.allowedSedes, sede],
+                                };
+                              })
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200 disabled:cursor-not-allowed"
+                          />
+                          <span>{sede}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </label>
 
                 <label className="block text-sm font-medium text-slate-700">

@@ -969,11 +969,34 @@ export async function GET(request: Request) {
   const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
-  const forcedSedeConfig = session.user.sede
-    ? findSedeConfigByName(session.user.sede)
-    : null;
-  const forcedSedeName = forcedSedeConfig?.name ?? session.user.sede ?? null;
-  const effectiveSedeParams = forcedSedeName ? [forcedSedeName] : sedeParams;
+  const hasAllSedes =
+    Array.isArray(session.user.allowedSedes) &&
+    session.user.allowedSedes.some(
+      (sede) => normalizeSedeName(sede) === normalizeSedeName("Todas"),
+    );
+  const allowedSedeNamesFromSession =
+    Array.isArray(session.user.allowedSedes) && !hasAllSedes
+      ? Array.from(
+          new Set(
+            session.user.allowedSedes
+              .map((sede) => findSedeConfigByName(sede)?.name ?? sede)
+              .filter(Boolean),
+          ),
+        )
+      : [];
+  const forcedSedeConfig =
+    !hasAllSedes && allowedSedeNamesFromSession.length === 0 && session.user.sede
+      ? findSedeConfigByName(session.user.sede)
+      : null;
+  const forcedSedeName =
+    forcedSedeConfig?.name ??
+    (hasAllSedes ? null : session.user.sede ?? null);
+  const effectiveSedeParams =
+    allowedSedeNamesFromSession.length > 0
+      ? allowedSedeNamesFromSession
+      : forcedSedeName
+        ? [forcedSedeName]
+        : sedeParams;
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
   const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
 
