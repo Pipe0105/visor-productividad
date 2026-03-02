@@ -371,6 +371,8 @@ const computePresenceSlots = (
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 120;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const RESPONSE_CACHE_TTL_MS = 30_000;
+const responseCache = new Map<string, { expiresAt: number; data: HourlyAnalysisData }>();
 
 const getClientIp = (request: Request) => {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -393,6 +395,31 @@ const checkRateLimit = (request: Request) => {
   if (entry.count >= RATE_LIMIT_MAX) return entry.resetAt;
   entry.count += 1;
   return null;
+};
+
+const getCachedResponse = (key: string): HourlyAnalysisData | null => {
+  const now = Date.now();
+  const cached = responseCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= now) {
+    responseCache.delete(key);
+    return null;
+  }
+  return cached.data;
+};
+
+const setCachedResponse = (key: string, data: HourlyAnalysisData) => {
+  const now = Date.now();
+  responseCache.set(key, {
+    expiresAt: now + RESPONSE_CACHE_TTL_MS,
+    data,
+  });
+  // Limpieza simple para evitar crecimiento infinito.
+  for (const [cacheKey, value] of responseCache.entries()) {
+    if (value.expiresAt <= now) {
+      responseCache.delete(cacheKey);
+    }
+  }
 };
 
 // ============================================================================
@@ -1030,6 +1057,26 @@ export async function GET(request: Request) {
     );
   }
 
+  const cacheKey = JSON.stringify({
+    userId: session.user.id,
+    role: session.user.role,
+    dateParam,
+    overtimeDateStartParam,
+    overtimeDateEndParam,
+    lineParam,
+    bucketMinutes,
+    effectiveSedeParams,
+    allowedLineIds,
+  });
+  const cachedData = getCachedResponse(cacheKey);
+  if (cachedData) {
+    return withSession(
+      NextResponse.json(cachedData, {
+        headers: { "Cache-Control": "no-store", "X-Data-Source": "memory-cache" },
+      }),
+    );
+  }
+
   try {
     await testDbConnection();
     const data = await fetchHourlyData(
@@ -1042,9 +1089,11 @@ export async function GET(request: Request) {
       overtimeDateEndParam,
     );
 
+    setCachedResponse(cacheKey, data);
+
     return withSession(
       NextResponse.json(data, {
-        headers: { "Cache-Control": "no-store" },
+        headers: { "Cache-Control": "no-store", "X-Data-Source": "database" },
       }),
     );
   } catch (error) {
