@@ -17,6 +17,8 @@ import {
 import { BRANCH_LOCATIONS, DEFAULT_LINES } from "@/lib/constants";
 
 const ALL_SEDES_VALUE = "Todas";
+const EXTRA_SEDES = ["Panificadora", "Planta Desposte Mixto", "Planta Desprese Pollo"];
+const USER_SEDE_OPTIONS = [...BRANCH_LOCATIONS, ...EXTRA_SEDES];
 
 type UserRow = {
   id: string;
@@ -637,7 +639,7 @@ export default function AdminUsuariosPage() {
                 <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
                   Sedes permitidas {formState.role === "user" ? "(obligatoria: 1 o más)" : "(solo user)"}
                   <div className="mt-1.5 grid max-h-28 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 shadow-sm sm:grid-cols-3">
-                    {[ALL_SEDES_VALUE, ...BRANCH_LOCATIONS].map((sede) => {
+                    {[ALL_SEDES_VALUE, ...USER_SEDE_OPTIONS].map((sede) => {
                       const checked = formState.allowedSedes.includes(sede);
                       return (
                         <label

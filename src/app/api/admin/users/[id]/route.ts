@@ -9,7 +9,12 @@ import { ALLOWED_LINE_IDS, BRANCH_LOCATIONS } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
 const ALL_SEDES_VALUE = "Todas";
-const ALLOWED_SEDE_SET = new Set([...BRANCH_LOCATIONS, ALL_SEDES_VALUE]);
+const EXTRA_SEDES = ["Panificadora", "Planta Desposte Mixto", "Planta Desprese Pollo"];
+const ALLOWED_SEDE_SET = new Set([
+  ...BRANCH_LOCATIONS,
+  ...EXTRA_SEDES,
+  ALL_SEDES_VALUE,
+]);
 const ALLOWED_LINE_SET = new Set(ALLOWED_LINE_IDS);
 const ALLOWED_DASHBOARD_SET = new Set([
   "productividad",
