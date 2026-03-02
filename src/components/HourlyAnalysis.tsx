@@ -1511,7 +1511,7 @@ export const HourlyAnalysis = ({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
-                  <details className="group mt-1">
+                  <details className="group relative mt-1">
                     <summary className="flex w-full items-center justify-between rounded-full border border-slate-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-100 group-open:border-rose-300 [&::-webkit-details-marker]:hidden">
                       <span>
                         {overtimeSedeFilter.length === 0
@@ -1520,7 +1520,7 @@ export const HourlyAnalysis = ({
                       </span>
                       <ChevronDown className="h-4 w-4 text-slate-500" />
                     </summary>
-                    <div className="mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white/95 p-2 shadow-sm">
+                    <div className="absolute left-0 top-full z-40 mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white/95 p-2 shadow-lg">
                       <button
                         type="button"
                         onClick={clearOvertimeSedeFilter}
