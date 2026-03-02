@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Users, DollarSign, ChevronDown, Clock, Sparkles, Download } from "lucide-react";
 import * as ExcelJS from "exceljs";
 import { formatDateLabel } from "@/lib/utils";
@@ -333,6 +334,14 @@ export const HourlyAnalysis = ({
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
   const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
   const [overtimePage, setOvertimePage] = useState(1);
+  const [overtimeSedeOpen, setOvertimeSedeOpen] = useState(false);
+  const [overtimeSedePopoverPos, setOvertimeSedePopoverPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const overtimeSedeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const overtimeSedePanelRef = useRef<HTMLDivElement | null>(null);
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -506,6 +515,45 @@ export const HourlyAnalysis = ({
   const clearOvertimeSedeFilter = () => {
     setOvertimeSedeFilter([]);
   };
+
+  const updateOvertimeSedePopoverPos = () => {
+    const trigger = overtimeSedeTriggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setOvertimeSedePopoverPos({
+      top: rect.bottom + 8,
+      left: rect.left,
+      width: rect.width,
+    });
+  };
+
+  useEffect(() => {
+    if (!overtimeSedeOpen) return;
+    updateOvertimeSedePopoverPos();
+
+    const onResizeOrScroll = () => updateOvertimeSedePopoverPos();
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (overtimeSedeTriggerRef.current?.contains(target)) return;
+      if (overtimeSedePanelRef.current?.contains(target)) return;
+      setOvertimeSedeOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOvertimeSedeOpen(false);
+    };
+
+    window.addEventListener("resize", onResizeOrScroll);
+    window.addEventListener("scroll", onResizeOrScroll, true);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", onResizeOrScroll);
+      window.removeEventListener("scroll", onResizeOrScroll, true);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [overtimeSedeOpen]);
 
   const fetchHourly = async (
     date: string,
@@ -1509,50 +1557,22 @@ export const HourlyAnalysis = ({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
-                  <details className="group relative mt-1 z-50">
-                    <summary className={`${overtimeFilterControlClass} mt-0 flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
-                      <span>
-                        {overtimeSedeFilter.length === 0
-                          ? "Todas"
-                          : `${overtimeSedeFilter.length} sede(s)`}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
-                    </summary>
-                    <div className="absolute left-0 top-full z-[100] mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white p-2 shadow-xl">
-                      <button
-                        type="button"
-                        onClick={clearOvertimeSedeFilter}
-                        className={`w-full rounded-full border px-3 py-2 text-sm font-semibold transition-all ${
-                          overtimeSedeFilter.length === 0
-                            ? "border-rose-200/70 bg-rose-50 text-rose-700"
-                            : "border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        Todas
-                      </button>
-                      <div className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
-                        {overtimeSedeOptions.map((sede) => {
-                          const checked = overtimeSedeFilter.includes(sede);
-                          return (
-                            <label
-                              key={sede}
-                              className="flex items-start gap-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleOvertimeSede(sede)}
-                                className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-200"
-                              />
-                              <span className="whitespace-normal break-words leading-5">
-                                {sede}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </details>
+                  <button
+                    ref={overtimeSedeTriggerRef}
+                    type="button"
+                    onClick={() => {
+                      if (!overtimeSedeOpen) updateOvertimeSedePopoverPos();
+                      setOvertimeSedeOpen((prev) => !prev);
+                    }}
+                    className={`${overtimeFilterControlClass} mt-1 flex items-center justify-between`}
+                  >
+                    <span>
+                      {overtimeSedeFilter.length === 0
+                        ? "Todas"
+                        : `${overtimeSedeFilter.length} sede(s)`}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                  </button>
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">
@@ -1663,6 +1683,55 @@ export const HourlyAnalysis = ({
                   />
                 </label>
               </div>
+
+              {overtimeSedeOpen &&
+                overtimeSedePopoverPos &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <div
+                    ref={overtimeSedePanelRef}
+                    className="fixed z-[9999] min-w-[240px] rounded-2xl border border-slate-200/70 bg-white p-2 shadow-2xl"
+                    style={{
+                      top: overtimeSedePopoverPos.top,
+                      left: overtimeSedePopoverPos.left,
+                      width: Math.max(260, overtimeSedePopoverPos.width),
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={clearOvertimeSedeFilter}
+                      className={`w-full rounded-full border px-3 py-2 text-sm font-semibold transition-all ${
+                        overtimeSedeFilter.length === 0
+                          ? "border-rose-200/70 bg-rose-50 text-rose-700"
+                          : "border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Todas
+                    </button>
+                    <div className="mt-2 max-h-64 space-y-1 overflow-auto pr-1">
+                      {overtimeSedeOptions.map((sede) => {
+                        const checked = overtimeSedeFilter.includes(sede);
+                        return (
+                          <label
+                            key={sede}
+                            className="flex items-start gap-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleOvertimeSede(sede)}
+                              className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-200"
+                            />
+                            <span className="whitespace-normal break-words leading-5">
+                              {sede}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>,
+                  document.body,
+                )}
 
               {visibleOvertimeEmployees.length === 0 ? (
                 <p className="text-xs text-slate-500">
