@@ -1408,7 +1408,7 @@ export const HourlyAnalysis = ({
           )}
 
           {showOvertimeSection && hourlySection === "overtime" && (
-            <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+            <div className="mb-6 overflow-visible rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                   Jornada extendida
@@ -1509,7 +1509,7 @@ export const HourlyAnalysis = ({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Sede</span>
-                  <details className="group relative mt-1">
+                  <details className="group relative mt-1 z-50">
                     <summary className={`${overtimeFilterControlClass} mt-0 flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
                       <span>
                         {overtimeSedeFilter.length === 0
@@ -1518,7 +1518,7 @@ export const HourlyAnalysis = ({
                       </span>
                       <ChevronDown className="h-4 w-4 text-slate-500" />
                     </summary>
-                    <div className="absolute left-0 top-full z-40 mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white/95 p-2 shadow-lg">
+                    <div className="absolute left-0 top-full z-[100] mt-2 min-w-[240px] rounded-2xl border border-slate-200/70 bg-white p-2 shadow-xl">
                       <button
                         type="button"
                         onClick={clearOvertimeSedeFilter}
@@ -1710,17 +1710,17 @@ export const HourlyAnalysis = ({
                       {pagedOvertimeEmployees.length} de {visibleOvertimeEmployees.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-13 gap-1 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    <span className="col-span-1 text-center whitespace-nowrap">#</span>
-                    <span className="col-span-1 text-center whitespace-nowrap">Excel</span>
-                    <span className="col-span-3 whitespace-nowrap">Empleado</span>
-                    <span className="col-span-1 whitespace-nowrap">Sede</span>
-                    <span className="col-span-2 whitespace-nowrap">Fecha</span>
-                    <span className="col-span-1 text-center whitespace-nowrap">Horas</span>
-                    <span className="col-span-1 text-center whitespace-nowrap">Mar.</span>
-                    <span className="col-span-1 whitespace-nowrap">Cargo</span>
-                    <span className="col-span-1 whitespace-nowrap">Incid.</span>
-                    <span className="col-span-1 text-center whitespace-nowrap">Depto.</span>
+                  <div className="grid grid-cols-[38px_52px_2.6fr_1fr_1.2fr_64px_56px_1.6fr_1fr_1.2fr] gap-1 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <span className="text-center whitespace-nowrap">#</span>
+                    <span className="text-center whitespace-nowrap">Excel</span>
+                    <span className="whitespace-nowrap">Empleado</span>
+                    <span className="whitespace-nowrap">Sede</span>
+                    <span className="whitespace-nowrap">Fecha</span>
+                    <span className="text-center whitespace-nowrap">Horas</span>
+                    <span className="text-center whitespace-nowrap">Mar.</span>
+                    <span className="whitespace-nowrap">Cargo</span>
+                    <span className="whitespace-nowrap">Incid.</span>
+                    <span className="text-center whitespace-nowrap">Depto.</span>
                   </div>
                   {pagedOvertimeEmployees.map((employee, index) => {
                     const employeeKey = getOvertimeEmployeeKey(employee);
@@ -1728,17 +1728,17 @@ export const HourlyAnalysis = ({
                     return (
                       <div
                         key={employeeKey}
-                        className={`grid grid-cols-13 items-start gap-1 border-b border-slate-100 px-2 py-2 text-[12px] last:border-b-0 ${
+                        className={`grid grid-cols-[38px_52px_2.6fr_1fr_1.2fr_64px_56px_1.6fr_1fr_1.2fr] items-start gap-1 border-b border-slate-100 px-2 py-2 text-[12px] last:border-b-0 ${
                           ((employee.marksCount ?? 0) % 2 !== 0 ||
                             (employee.incident ?? "").toLowerCase().includes("no marco"))
                             ? "bg-amber-50/70"
                             : ""
                         }`}
                       >
-                        <span className="col-span-1 text-center text-xs font-semibold text-slate-500">
+                        <span className="text-center text-xs font-semibold text-slate-500">
                           {absoluteIndex}
                         </span>
-                        <span className="col-span-1 flex items-center justify-center">
+                        <span className="flex items-center justify-center">
                           <input
                             type="checkbox"
                             checked={false}
@@ -1747,28 +1747,28 @@ export const HourlyAnalysis = ({
                             aria-label="Excluir del Excel"
                           />
                         </span>
-                        <span className="col-span-3 font-semibold text-slate-900 leading-tight">
+                        <span className="font-semibold text-slate-900 leading-tight">
                           {employee.employeeName}
                         </span>
-                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight">
+                      <span className="text-xs font-semibold text-slate-700 leading-tight">
                         {employee.sede ?? "-"}
                       </span>
-                      <span className="col-span-2 text-xs font-semibold text-slate-700 leading-tight">
+                      <span className="text-xs font-semibold text-slate-700 leading-tight">
                         {employee.workedDate ?? "-"}
                       </span>
-                      <span className="col-span-1 text-center text-xs font-semibold text-amber-700">
+                      <span className="text-center text-xs font-semibold text-amber-700">
                         {formatHoursBase60(employee.workedHours)}h
                       </span>
-                      <span className="col-span-1 text-center text-xs font-semibold text-slate-700">
+                      <span className="text-center text-xs font-semibold text-slate-700">
                         {employee.marksCount ?? 0}
                       </span>
-                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight break-words">
+                      <span className="text-xs font-semibold text-slate-700 leading-tight break-words">
                         {employee.role ?? "-"}
                       </span>
-                      <span className="col-span-1 text-xs font-semibold text-slate-700 leading-tight break-words">
+                      <span className="text-xs font-semibold text-slate-700 leading-tight break-words">
                         {employee.incident ?? "-"}
                       </span>
-                        <span className="col-span-1 text-center text-xs font-semibold text-sky-700 leading-tight break-words">
+                        <span className="text-center text-xs font-semibold text-sky-700 leading-tight break-words">
                           {employee.department ?? employee.lineName ?? "-"}
                         </span>
                       </div>
