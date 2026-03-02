@@ -359,7 +359,13 @@ export const HourlyAnalysis = ({
 
   useEffect(() => {
     const available = new Set(availableSedes.map((s) => s.name));
-    setSelectedSedes((prev) => prev.filter((name) => available.has(name)));
+    setSelectedSedes((prev) => {
+      const next = prev.filter((name) => available.has(name));
+      if (next.length === prev.length && next.every((name, index) => name === prev[index])) {
+        return prev;
+      }
+      return next;
+    });
   }, [availableSedes]);
 
   useEffect(() => {
@@ -387,10 +393,10 @@ export const HourlyAnalysis = ({
 
   useEffect(() => {
     if (!enableOvertimeDateRange || !isOvertimeOnlyMode) return;
-    if (overtimeDateEnd) {
+    if (overtimeDateEnd && selectedDate !== overtimeDateEnd) {
       setSelectedDate(overtimeDateEnd);
     }
-  }, [enableOvertimeDateRange, isOvertimeOnlyMode, overtimeDateEnd]);
+  }, [enableOvertimeDateRange, isOvertimeOnlyMode, overtimeDateEnd, selectedDate]);
 
   const toggleSede = (sedeName: string) => {
     setSelectedSedes((prev) =>
