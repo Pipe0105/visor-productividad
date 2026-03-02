@@ -333,6 +333,8 @@ export const HourlyAnalysis = ({
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
   const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
   const [overtimePage, setOvertimePage] = useState(1);
+  const overtimeMinMinutes = parseBase60HoursInputToMinutes(overtimeRangeMin);
+  const overtimeMaxMinutes = parseBase60HoursInputToMinutes(overtimeRangeMax);
 
   const minuteRangeStepSeconds = useMemo(() => bucketMinutes * 60, [bucketMinutes]);
   const bucketOptions = useMemo(
@@ -513,6 +515,20 @@ export const HourlyAnalysis = ({
     currentBucketMinutes: number,
     sedeNames: string[],
     overtimeDateRange?: { start: string; end: string },
+    overtimeQuery?: {
+      sedeFilters: string[];
+      departmentFilter: string;
+      employeeTypeFilter: string;
+      marksFilter: string;
+      personFilter: string;
+      minMinutes: number | null;
+      maxMinutes: number | null;
+      alertOnly: boolean;
+      dateOrder: "recent" | "old";
+      page: number;
+      pageSize: number;
+      includeAll?: boolean;
+    },
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams({ date });
@@ -521,6 +537,36 @@ export const HourlyAnalysis = ({
     sedeNames.forEach((sede) => params.append("sede", sede));
     if (overtimeDateRange?.start) params.set("overtimeDateStart", overtimeDateRange.start);
     if (overtimeDateRange?.end) params.set("overtimeDateEnd", overtimeDateRange.end);
+    if (overtimeQuery) {
+      overtimeQuery.sedeFilters.forEach((sede) => params.append("overtimeSede", sede));
+      if (overtimeQuery.departmentFilter !== "all") {
+        params.set("overtimeDepartment", overtimeQuery.departmentFilter);
+      }
+      if (overtimeQuery.employeeTypeFilter !== "all") {
+        params.set("overtimeEmployeeType", overtimeQuery.employeeTypeFilter);
+      }
+      if (overtimeQuery.marksFilter !== "all") {
+        params.set("overtimeMarks", overtimeQuery.marksFilter);
+      }
+      if (overtimeQuery.personFilter.trim()) {
+        params.set("overtimePerson", overtimeQuery.personFilter.trim());
+      }
+      if (overtimeQuery.minMinutes !== null) {
+        params.set("overtimeMinMinutes", String(overtimeQuery.minMinutes));
+      }
+      if (overtimeQuery.maxMinutes !== null) {
+        params.set("overtimeMaxMinutes", String(overtimeQuery.maxMinutes));
+      }
+      if (overtimeQuery.alertOnly) {
+        params.set("overtimeAlertOnly", "1");
+      }
+      params.set("overtimeOrder", overtimeQuery.dateOrder);
+      params.set("overtimePage", String(overtimeQuery.page));
+      params.set("overtimePageSize", String(overtimeQuery.pageSize));
+      if (overtimeQuery.includeAll) {
+        params.set("overtimeIncludeAll", "1");
+      }
+    }
 
     const res = await fetch(`/api/hourly-analysis?${params.toString()}`, { signal });
     const json = (await res.json()) as HourlyAnalysisData | { error?: string };
@@ -554,6 +600,19 @@ export const HourlyAnalysis = ({
             end: overtimeDateEnd || selectedDate,
           }
         : undefined,
+      {
+        sedeFilters: overtimeSedeFilter,
+        departmentFilter: overtimeDepartmentFilter,
+        employeeTypeFilter: overtimeEmployeeTypeFilter,
+        marksFilter: overtimeMarksFilter,
+        personFilter: overtimePersonFilter,
+        minMinutes: overtimeMinMinutes,
+        maxMinutes: overtimeMaxMinutes,
+        alertOnly: overtimeAlertOnly,
+        dateOrder: overtimeDateOrder,
+        page: overtimePage,
+        pageSize: OVERTIME_PAGE_SIZE,
+      },
       controller.signal,
     )
       .then((data) => {
@@ -577,6 +636,16 @@ export const HourlyAnalysis = ({
     isOvertimeOnlyMode,
     overtimeDateStart,
     overtimeDateEnd,
+    overtimeSedeFilter,
+    overtimeDepartmentFilter,
+    overtimeEmployeeTypeFilter,
+    overtimeMarksFilter,
+    overtimePersonFilter,
+    overtimeMinMinutes,
+    overtimeMaxMinutes,
+    overtimeAlertOnly,
+    overtimeDateOrder,
+    overtimePage,
   ]);
 
   useEffect(() => {
@@ -594,6 +663,7 @@ export const HourlyAnalysis = ({
       effectiveSelectedLine,
       bucketMinutes,
       selectedSedes,
+      undefined,
       undefined,
       controller.signal,
     )
@@ -819,10 +889,6 @@ export const HourlyAnalysis = ({
       return { ...employee, sede: match.name };
     });
   }, [overtimeEmployees, availableSedes]);
-  const overtimeSedeFilterSet = useMemo(
-    () => new Set(overtimeSedeFilter.map((name) => normalizeSedeValue(name))),
-    [overtimeSedeFilter],
-  );
   const overtimeSedeOptions = useMemo(() => {
     const fromAvailable = availableSedes
       .map((sede) => sede.name?.trim())
@@ -879,79 +945,10 @@ export const HourlyAnalysis = ({
     () => ["36 horas", "Tiempo completo", "Medio tiempo"],
     [],
   );
-  const filteredOvertimeEmployees = useMemo(() => {
-    const validMinMinutes = parseBase60HoursInputToMinutes(overtimeRangeMin);
-    const validMaxMinutes = parseBase60HoursInputToMinutes(overtimeRangeMax);
-
-    const filtered = overtimeEmployeesResolved.filter((employee) => {
-      const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
-      if (overtimeSedeFilterSet.size > 0) {
-        const employeeSede = normalizeSedeValue(employee.sede ?? "");
-        if (!overtimeSedeFilterSet.has(employeeSede)) return false;
-      }
-      if (
-        overtimeDepartmentFilter !== "all" &&
-        (employee.department ?? "") !== overtimeDepartmentFilter
-      ) {
-        return false;
-      }
-      if (overtimeMarksFilter !== "all") {
-        const marks = employee.marksCount ?? 0;
-        if (marks !== Number(overtimeMarksFilter)) return false;
-      }
-      if (hasEmployeeTypeData && overtimeEmployeeTypeFilter !== "all") {
-        const employeeType = employee.employeeType?.trim() ?? "";
-        if (employeeType.toLowerCase() !== overtimeEmployeeTypeFilter.toLowerCase()) {
-          return false;
-        }
-      }
-      const selected = overtimePersonFilter.trim().toLowerCase();
-      if (selected) {
-        const id = employee.employeeId?.toString().trim() ?? "";
-        const name = employee.employeeName.trim();
-        const employeeKey = id ? `${name} | ${id}`.toLowerCase() : name.toLowerCase();
-        const idKey = id.toLowerCase();
-        if (
-          !employeeKey.includes(selected) &&
-          !name.toLowerCase().includes(selected) &&
-          (!idKey || !idKey.includes(selected))
-        ) {
-          return false;
-        }
-      }
-      if (validMinMinutes !== null && employeeMinutes < validMinMinutes) return false;
-      if (validMaxMinutes !== null && employeeMinutes > validMaxMinutes) return false;
-      if (overtimeAlertOnly) {
-        const minutes = employeeMinutes;
-        const marks = employee.marksCount ?? 0;
-        if (!(minutes > 7 * 60 + 20 && marks !== 4)) return false;
-      }
-      return true;
-    });
-
-    return filtered.sort((a, b) => {
-      const aDateTs = a.workedDate ? new Date(a.workedDate).getTime() : 0;
-      const bDateTs = b.workedDate ? new Date(b.workedDate).getTime() : 0;
-      if (aDateTs !== bDateTs) {
-        return overtimeDateOrder === "recent"
-          ? bDateTs - aDateTs
-          : aDateTs - bDateTs;
-      }
-      return b.workedHours - a.workedHours;
-    });
-  }, [
-    overtimeEmployeesResolved,
-    overtimeSedeFilterSet,
-    overtimeDepartmentFilter,
-    overtimeEmployeeTypeFilter,
-    overtimeMarksFilter,
-    hasEmployeeTypeData,
-    overtimePersonFilter,
-    overtimeDateOrder,
-    overtimeRangeMin,
-    overtimeRangeMax,
-    overtimeAlertOnly,
-  ]);
+  const filteredOvertimeEmployees = useMemo(
+    () => overtimeEmployeesResolved,
+    [overtimeEmployeesResolved],
+  );
   const overtimeAlertCount = useMemo(
     () =>
       filteredOvertimeEmployees.filter((employee) => {
@@ -981,14 +978,15 @@ export const HourlyAnalysis = ({
       ),
     [filteredOvertimeEmployees, overtimeExcludedIds],
   );
+  const overtimeTotalCount = hourlyData?.overtimeTotalCount ?? visibleOvertimeEmployees.length;
   const overtimeTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(visibleOvertimeEmployees.length / OVERTIME_PAGE_SIZE)),
-    [visibleOvertimeEmployees.length],
+    () => Math.max(1, Math.ceil(overtimeTotalCount / OVERTIME_PAGE_SIZE)),
+    [overtimeTotalCount],
   );
-  const pagedOvertimeEmployees = useMemo(() => {
-    const start = (overtimePage - 1) * OVERTIME_PAGE_SIZE;
-    return visibleOvertimeEmployees.slice(start, start + OVERTIME_PAGE_SIZE);
-  }, [visibleOvertimeEmployees, overtimePage]);
+  const pagedOvertimeEmployees = useMemo(
+    () => visibleOvertimeEmployees,
+    [visibleOvertimeEmployees],
+  );
   const overtimePageTabs = useMemo(() => {
     const half = Math.floor(OVERTIME_PAGE_TAB_WINDOW / 2);
     let start = Math.max(1, overtimePage - half);
@@ -1018,9 +1016,49 @@ export const HourlyAnalysis = ({
   }, [overtimeTotalPages]);
 
   const handleExportOvertimeXlsx = async () => {
-    const exportEmployees = filteredOvertimeEmployees.filter(
-      (employee) => !overtimeExcludedIds.has(getOvertimeEmployeeKey(employee)),
+    const exportData = await fetchHourly(
+      selectedDate,
+      effectiveSelectedLine,
+      bucketMinutes,
+      selectedSedes,
+      enableOvertimeDateRange && isOvertimeOnlyMode
+        ? {
+            start: overtimeDateStart || selectedDate,
+            end: overtimeDateEnd || selectedDate,
+          }
+        : undefined,
+      {
+        sedeFilters: overtimeSedeFilter,
+        departmentFilter: overtimeDepartmentFilter,
+        employeeTypeFilter: overtimeEmployeeTypeFilter,
+        marksFilter: overtimeMarksFilter,
+        personFilter: overtimePersonFilter,
+        minMinutes: overtimeMinMinutes,
+        maxMinutes: overtimeMaxMinutes,
+        alertOnly: overtimeAlertOnly,
+        dateOrder: overtimeDateOrder,
+        page: 1,
+        pageSize: 1000,
+        includeAll: true,
+      },
     );
+    const exportEmployees = (exportData.overtimeEmployees ?? []).filter((employee) => {
+      const normalized = (() => {
+        const rawSede = employee.sede?.trim();
+        if (!rawSede) return employee;
+        const normalizedRaw = normalizeSedeValue(rawSede);
+        const match = availableSedes.find((sede) => {
+          const normalizedSede = normalizeSedeValue(sede.name);
+          return (
+            normalizedSede === normalizedRaw ||
+            normalizedSede.includes(normalizedRaw) ||
+            normalizedRaw.includes(normalizedSede)
+          );
+        });
+        return match ? { ...employee, sede: match.name } : employee;
+      })();
+      return !overtimeExcludedIds.has(getOvertimeEmployeeKey(normalized));
+    });
     if (exportEmployees.length === 0) return;
 
     const workbook = new ExcelJS.Workbook();
@@ -1423,7 +1461,7 @@ export const HourlyAnalysis = ({
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
-                  {visibleOvertimeEmployees.length} empleado(s)
+                  {overtimeTotalCount} empleado(s)
                 </span>
                 <button
                   type="button"
@@ -1711,7 +1749,7 @@ export const HourlyAnalysis = ({
                     </div>
                     <span className="text-[11px] font-semibold text-slate-600">
                       Pagina {overtimePage} de {overtimeTotalPages} | Mostrando{" "}
-                      {pagedOvertimeEmployees.length} de {visibleOvertimeEmployees.length}
+                      {pagedOvertimeEmployees.length} de {overtimeTotalCount}
                     </span>
                   </div>
                   <div className="grid grid-cols-13 gap-1 border-b border-slate-200/70 bg-slate-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
