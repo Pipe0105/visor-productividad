@@ -426,21 +426,6 @@ const setCachedResponse = (key: string, data: HourlyAnalysisData) => {
 // FETCH DATA
 // ============================================================================
 
-type OvertimeQueryOptions = {
-  sedeFilters: string[];
-  departmentFilter?: string | null;
-  employeeTypeFilter?: string | null;
-  marksFilter?: number | null;
-  personFilter?: string | null;
-  minMinutes?: number | null;
-  maxMinutes?: number | null;
-  alertOnly?: boolean;
-  dateOrder?: "recent" | "old";
-  page?: number;
-  pageSize?: number;
-  includeAllRows?: boolean;
-};
-
 const fetchHourlyData = async (
   dateISO: string,
   lineFilter: string | null,
@@ -449,7 +434,6 @@ const fetchHourlyData = async (
   allowedLineIds: string[] = [],
   overtimeDateStart?: string | null,
   overtimeDateEnd?: string | null,
-  overtimeOptions: OvertimeQueryOptions = { sedeFilters: [] },
 ): Promise<HourlyAnalysisData> => {
   const pool = await getDbPool();
   const client = await pool.connect();
@@ -563,7 +547,6 @@ const fetchHourlyData = async (
 
     let attendanceDateUsed: string | null = null;
     let overtimeEmployees: OvertimeEmployee[] = [];
-    let overtimeTotalCount = 0;
 
     try {
       const selectedAttendanceNames = Array.from(
@@ -753,218 +736,44 @@ const fetchHourlyData = async (
               : "NULL::text";
           const overtimeStart = overtimeDateStart ?? attendanceDateUsed ?? dateISO;
           const overtimeEnd = overtimeDateEnd ?? overtimeStart;
-          const overtimeSedeConfigs =
-            overtimeOptions.sedeFilters.length > 0
-              ? matchSelectedSedeConfigs(overtimeOptions.sedeFilters)
-              : selectedSedeConfigs;
-          const overtimeSedeNames = Array.from(
-            new Set(
-              overtimeSedeConfigs.flatMap((cfg) =>
-                [cfg.name, ...cfg.attendanceNames].map((name) => normalizeSedeName(name)),
-              ),
-            ),
-          );
-
-          const isRecentOrder = overtimeOptions.dateOrder !== "old";
-          const safePage = Math.max(1, overtimeOptions.page ?? 1);
-          const safePageSize = Math.max(25, Math.min(300, overtimeOptions.pageSize ?? 150));
-          const offset = (safePage - 1) * safePageSize;
-          const whereClauses: string[] = [];
-          const whereParams: unknown[] = [];
-          const pushWhere = (sql: string, value?: unknown) => {
-            if (value === undefined) {
-              whereClauses.push(sql);
-              return;
-            }
-            whereParams.push(value);
-            const idx = whereParams.length;
-            whereClauses.push(sql.replace(/\?/g, `$${idx}`));
-          };
-
-          if (overtimeOptions.departmentFilter && overtimeOptions.departmentFilter !== "all") {
-            pushWhere(`department = ?`, overtimeOptions.departmentFilter);
-          }
-          if (
-            typeof overtimeOptions.marksFilter === "number" &&
-            Number.isFinite(overtimeOptions.marksFilter)
-          ) {
-            pushWhere(`marks_count = ?`, overtimeOptions.marksFilter);
-          }
-          if (typeof overtimeOptions.minMinutes === "number") {
-            pushWhere(`worked_minutes >= ?`, overtimeOptions.minMinutes);
-          }
-          if (typeof overtimeOptions.maxMinutes === "number") {
-            pushWhere(`worked_minutes <= ?`, overtimeOptions.maxMinutes);
-          }
-          if (overtimeOptions.alertOnly) {
-            pushWhere(`worked_minutes > 440`);
-            pushWhere(`marks_count <> 4`);
-          }
-          const personFilter = overtimeOptions.personFilter?.trim().toLowerCase();
-          if (personFilter) {
-            const like = `%${personFilter}%`;
-            whereParams.push(like, like, like);
-            const p1 = whereParams.length - 2;
-            const p2 = whereParams.length - 1;
-            const p3 = whereParams.length;
-            whereClauses.push(`(
-              LOWER(COALESCE(employee_name, '')) LIKE $${p1}
-              OR LOWER(COALESCE(employee_id, '')) LIKE $${p2}
-              OR LOWER(COALESCE(employee_name, '') || ' | ' || COALESCE(employee_id, '')) LIKE $${p3}
-            )`);
-          }
-          const employeeTypeFilter = overtimeOptions.employeeTypeFilter?.trim().toLowerCase();
-          if (employeeTypeFilter && employeeTypeFilter !== "all") {
-            if (employeeTypeFilter === "36 horas") {
-              pushWhere(`role_key LIKE '%36%' AND role_key LIKE '%hora%'`);
-            } else if (employeeTypeFilter === "medio tiempo") {
-              pushWhere(`role_key LIKE '%medio%'`);
-            } else if (employeeTypeFilter === "tiempo completo") {
-              pushWhere(`NOT ((role_key LIKE '%36%' AND role_key LIKE '%hora%') OR role_key LIKE '%medio%')`);
-            }
-          }
-          if (lineFilter) {
-            pushWhere(`line_id = ?`, lineFilter);
-          } else if (allowedSet.size > 0) {
-            const allowedLines = Array.from(allowedSet);
-            whereParams.push(allowedLines);
-            const idx = whereParams.length;
-            whereClauses.push(`line_id = ANY($${idx}::text[])`);
-          }
-
-          const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-          const overtimeBaseParams: unknown[] = [overtimeStart, overtimeEnd];
-          if (overtimeSedeConfigs.length > 0) {
-            overtimeBaseParams.push(overtimeSedeNames);
-          }
-
-          const overtimeBaseQuery = `
-            WITH grouped AS (
-              SELECT
-                ${employeeIdExpr} AS employee_id,
-                ${employeeNameExpr} AS employee_name,
-                NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
-                NULLIF(TRIM(CAST(departamento AS text)), '') AS department,
-                NULLIF(TRIM(CAST(MAX(cargo) AS text)), '') AS role,
-                NULLIF(TRIM(CAST(MAX(incidencia) AS text)), '') AS incident,
-                MAX(TO_CHAR(hora_entrada, 'HH24:MI:SS')) AS hora_entrada,
-                MAX(TO_CHAR(hora_intermedia1, 'HH24:MI:SS')) AS hora_intermedia1,
-                MAX(TO_CHAR(hora_intermedia2, 'HH24:MI:SS')) AS hora_intermedia2,
-                MAX(TO_CHAR(hora_salida, 'HH24:MI:SS')) AS hora_salida,
-                fecha::date::text AS worked_date,
-                COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
-                ROUND(COALESCE(SUM(total_laborado_horas), 0) * 60)::int AS worked_minutes,
-                MAX(
-                  (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
-                  (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
-                  (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
-                  (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
-                )::int AS marks_count
-              FROM asistencia_horas
-              WHERE fecha::date >= $1::date
-                AND fecha::date <= $2::date
-                AND departamento IS NOT NULL
-                ${
-                  overtimeSedeConfigs.length > 0
-                    ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
-                    : "AND 1=0"
-                }
-              GROUP BY 1, 2, 3, 4, 11
-            ),
-            typed AS (
-              SELECT
-                *,
-                LOWER(
-                  REGEXP_REPLACE(
-                    TRANSLATE(COALESCE(role, ''), CHR(225)||CHR(233)||CHR(237)||CHR(243)||CHR(250)||CHR(252)||CHR(241)||CHR(193)||CHR(201)||CHR(205)||CHR(211)||CHR(218)||CHR(220)||CHR(209), 'aeiouunaeiouun'),
-                    '[^a-z0-9]+',
-                    ' ',
-                    'g'
-                  )
-                ) AS role_key,
-                COALESCE((
-                  CASE
-                    WHEN LOWER(
-                      REGEXP_REPLACE(
-                        TRANSLATE(COALESCE(role, ''), CHR(225)||CHR(233)||CHR(237)||CHR(243)||CHR(250)||CHR(252)||CHR(241)||CHR(193)||CHR(201)||CHR(205)||CHR(211)||CHR(218)||CHR(220)||CHR(209), 'aeiouunaeiouun'),
-                        '[^a-z0-9]+',
-                        ' ',
-                        'g'
-                      )
-                    ) LIKE '%36%' AND LOWER(
-                      REGEXP_REPLACE(
-                        TRANSLATE(COALESCE(role, ''), CHR(225)||CHR(233)||CHR(237)||CHR(243)||CHR(250)||CHR(252)||CHR(241)||CHR(193)||CHR(201)||CHR(205)||CHR(211)||CHR(218)||CHR(220)||CHR(209), 'aeiouunaeiouun'),
-                        '[^a-z0-9]+',
-                        ' ',
-                        'g'
-                      )
-                    ) LIKE '%hora%' THEN '36 horas'
-                    WHEN LOWER(
-                      REGEXP_REPLACE(
-                        TRANSLATE(COALESCE(role, ''), CHR(225)||CHR(233)||CHR(237)||CHR(243)||CHR(250)||CHR(252)||CHR(241)||CHR(193)||CHR(201)||CHR(205)||CHR(211)||CHR(218)||CHR(220)||CHR(209), 'aeiouunaeiouun'),
-                        '[^a-z0-9]+',
-                        ' ',
-                        'g'
-                      )
-                    ) LIKE '%medio%' THEN 'Medio tiempo'
-                    ELSE 'Tiempo completo'
-                  END
-                ), 'Tiempo completo') AS employee_type,
-                CASE
-                  WHEN department IS NULL THEN NULL
-                  ELSE
-                    CASE
-                      WHEN ${buildNormalizeSedeSql("department")} = 'cajas' THEN 'cajas'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'supervision y cajas' THEN 'cajas'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'fruver' THEN 'fruver'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'surtidor fruver' THEN 'fruver'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'industria' THEN 'industria'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'surtidores' THEN 'industria'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'carnes' THEN 'carnes'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'carnes rojas' THEN 'carnes'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'pollo y pescado' THEN 'pollo y pescado'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'surtidor a pollo y pescado' THEN 'pollo y pescado'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'surtidor a pollo y pescado' THEN 'pollo y pescado'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'asadero' THEN 'asadero'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'pollo asado' THEN 'asadero'
-                      WHEN ${buildNormalizeSedeSql("department")} = 'planta de produccion' THEN 'industria'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%asadero%' OR ${buildNormalizeSedeSql("department")} LIKE '%asado%' THEN 'asadero'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%pollo%' OR ${buildNormalizeSedeSql("department")} LIKE '%pescado%' OR ${buildNormalizeSedeSql("department")} LIKE '%mariscos%' THEN 'pollo y pescado'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%fruver%' OR ${buildNormalizeSedeSql("department")} LIKE '%fruta%' OR ${buildNormalizeSedeSql("department")} LIKE '%verdura%' THEN 'fruver'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%caja%' THEN 'cajas'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%industria%' OR ${buildNormalizeSedeSql("department")} LIKE '%surtidor%' THEN 'industria'
-                      WHEN ${buildNormalizeSedeSql("department")} LIKE '%carn%' THEN 'carnes'
-                      ELSE NULL
-                    END
-                END AS line_id
-              FROM grouped
-            )
-            SELECT *
-            FROM typed
-            ${whereSql}
-          `;
-          const overtimeCountQuery = `SELECT COUNT(*)::int AS total FROM (${overtimeBaseQuery}) AS filtered`;
-          const countResult = await client.query(overtimeCountQuery, [
-            ...overtimeBaseParams,
-            ...whereParams,
-          ]);
-          overtimeTotalCount = Number((countResult.rows?.[0] as { total?: number })?.total ?? 0);
-
-          const orderSql = isRecentOrder
-            ? `ORDER BY worked_date DESC, total_hours DESC`
-            : `ORDER BY worked_date ASC, total_hours ASC`;
-          const paginationSql = overtimeOptions.includeAllRows
-            ? ""
-            : `LIMIT ${safePageSize} OFFSET ${offset}`;
           const overtimeQuery = `
-            ${overtimeBaseQuery}
-            ${orderSql}
-            ${paginationSql}
+            SELECT
+              ${employeeIdExpr} AS employee_id,
+              ${employeeNameExpr} AS employee_name,
+              NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
+              departamento,
+              MAX(NULLIF(TRIM(CAST(cargo AS text)), '')) AS cargo,
+              MAX(NULLIF(TRIM(CAST(incidencia AS text)), '')) AS incidencia,
+              MAX(TO_CHAR(hora_entrada, 'HH24:MI:SS')) AS hora_entrada,
+              MAX(TO_CHAR(hora_intermedia1, 'HH24:MI:SS')) AS hora_intermedia1,
+              MAX(TO_CHAR(hora_intermedia2, 'HH24:MI:SS')) AS hora_intermedia2,
+              MAX(TO_CHAR(hora_salida, 'HH24:MI:SS')) AS hora_salida,
+              fecha::date::text AS worked_date,
+              COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
+              MAX(
+                (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
+              )::int AS marks_count
+            FROM asistencia_horas
+            WHERE fecha::date >= $1::date
+              AND fecha::date <= $2::date
+              AND departamento IS NOT NULL
+              ${
+                selectedSedeConfigs.length > 0
+                  ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
+                  : "AND 1=0"
+              }
+            GROUP BY 1, 2, 3, 4, 11
+            ORDER BY worked_date DESC, total_hours DESC
           `;
-          const overtimeResult = await client.query(overtimeQuery, [
-            ...overtimeBaseParams,
-            ...whereParams,
-          ]);
+          const overtimeParams: unknown[] = [overtimeStart, overtimeEnd];
+          if (selectedSedeConfigs.length > 0) {
+            overtimeParams.push(selectedAttendanceNames);
+          }
+
+          const overtimeResult = await client.query(overtimeQuery, overtimeParams);
           const lineNameById = new Map<string, string>(
             LINE_TABLES.map((line) => [line.id, line.name]),
           );
@@ -973,20 +782,22 @@ const fetchHourlyData = async (
               employee_id: string | null;
               employee_name: string | null;
               sede: string | null;
-              department: string | null;
+              departamento: string;
               cargo?: string | null;
               incidencia?: string | null;
               hora_entrada?: string | null;
               hora_intermedia1?: string | null;
               hora_intermedia2?: string | null;
               hora_salida?: string | null;
-              employee_type?: string | null;
-              line_id?: string | null;
               worked_date: string;
               total_hours: string | number;
               marks_count?: number | null;
             };
-            const lineId = typedRow.line_id?.trim() || undefined;
+            const lineId = resolveLineId(typedRow.departamento);
+            if (allowedSet.size > 0 && lineId && !allowedSet.has(normalizeLineId(lineId))) {
+              continue;
+            }
+            if (lineFilter && lineId !== lineFilter) continue;
 
             const employeeId = typedRow.employee_id?.trim() || null;
             const employeeNameRaw = typedRow.employee_name?.trim() || "";
@@ -997,8 +808,22 @@ const fetchHourlyData = async (
               continue;
             }
             const role = typedRow.cargo?.trim() || undefined;
-            const employeeType =
-              typedRow.employee_type?.trim() || "Tiempo completo";
+            const roleKey = role
+              ? role
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, " ")
+                  .trim()
+              : "";
+            let employeeType: string | undefined;
+            if (roleKey.includes("36") && roleKey.includes("hora")) {
+              employeeType = "36 horas";
+            } else if (roleKey.includes("medio")) {
+              employeeType = "Medio tiempo";
+            } else {
+              employeeType = "Tiempo completo";
+            }
 
             overtimeEmployees.push({
               employeeId,
@@ -1006,7 +831,7 @@ const fetchHourlyData = async (
               workedHours,
               lineName: lineId ? lineNameById.get(lineId) ?? lineId : undefined,
               sede: typedRow.sede?.trim() || undefined,
-              department: typedRow.department?.trim() || undefined,
+              department: typedRow.departamento?.trim() || undefined,
               marksCount: Number(typedRow.marks_count ?? 0),
               role,
               employeeType,
@@ -1018,6 +843,8 @@ const fetchHourlyData = async (
               workedDate: typedRow.worked_date,
             });
           }
+
+          overtimeEmployees.sort((a, b) => b.workedHours - a.workedHours);
         }
       }
     } catch (error) {
@@ -1072,9 +899,6 @@ const fetchHourlyData = async (
       attendanceDateUsed,
       salesDateUsed: compactDateToISO(salesDateCompact),
       bucketMinutes,
-      overtimeTotalCount,
-      overtimePage: Math.max(1, overtimeOptions.page ?? 1),
-      overtimePageSize: Math.max(25, Math.min(300, overtimeOptions.pageSize ?? 150)),
       overtimeEmployees,
       hours,
     };
@@ -1143,18 +967,6 @@ export async function GET(request: Request) {
   const dateParam = url.searchParams.get("date");
   const overtimeDateStartParam = url.searchParams.get("overtimeDateStart");
   const overtimeDateEndParam = url.searchParams.get("overtimeDateEnd");
-  const overtimeSedeParams = url.searchParams.getAll("overtimeSede").filter(Boolean);
-  const overtimeDepartmentParam = url.searchParams.get("overtimeDepartment");
-  const overtimeEmployeeTypeParam = url.searchParams.get("overtimeEmployeeType");
-  const overtimeMarksParamRaw = url.searchParams.get("overtimeMarks");
-  const overtimePersonParam = url.searchParams.get("overtimePerson");
-  const overtimeMinMinutesRaw = url.searchParams.get("overtimeMinMinutes");
-  const overtimeMaxMinutesRaw = url.searchParams.get("overtimeMaxMinutes");
-  const overtimeAlertOnlyRaw = url.searchParams.get("overtimeAlertOnly");
-  const overtimeOrderRaw = url.searchParams.get("overtimeOrder");
-  const overtimePageRaw = url.searchParams.get("overtimePage");
-  const overtimePageSizeRaw = url.searchParams.get("overtimePageSize");
-  const overtimeIncludeAllRaw = url.searchParams.get("overtimeIncludeAll");
   const lineParam = url.searchParams.get("line")?.trim() || null;
   const sedeParams = url.searchParams.getAll("sede").filter(Boolean);
   const forcedSedeConfig = session.user.sede
@@ -1164,29 +976,6 @@ export async function GET(request: Request) {
   const effectiveSedeParams = forcedSedeName ? [forcedSedeName] : sedeParams;
   const bucketParamRaw = url.searchParams.get("bucketMinutes");
   const bucketMinutes = bucketParamRaw ? Number(bucketParamRaw) : 60;
-  const overtimeMarksParam =
-    overtimeMarksParamRaw && overtimeMarksParamRaw !== "all"
-      ? Number(overtimeMarksParamRaw)
-      : null;
-  const overtimeMinMinutes =
-    overtimeMinMinutesRaw !== null && overtimeMinMinutesRaw !== ""
-      ? Number(overtimeMinMinutesRaw)
-      : null;
-  const overtimeMaxMinutes =
-    overtimeMaxMinutesRaw !== null && overtimeMaxMinutesRaw !== ""
-      ? Number(overtimeMaxMinutesRaw)
-      : null;
-  const overtimePage =
-    overtimePageRaw !== null && overtimePageRaw !== "" ? Number(overtimePageRaw) : 1;
-  const overtimePageSize =
-    overtimePageSizeRaw !== null && overtimePageSizeRaw !== ""
-      ? Number(overtimePageSizeRaw)
-      : 150;
-  const overtimeAlertOnly =
-    overtimeAlertOnlyRaw === "1" || overtimeAlertOnlyRaw === "true";
-  const overtimeIncludeAll =
-    overtimeIncludeAllRaw === "1" || overtimeIncludeAllRaw === "true";
-  const overtimeDateOrder: "recent" | "old" = overtimeOrderRaw === "old" ? "old" : "recent";
 
   if (!dateParam) {
     return withSession(
@@ -1267,46 +1056,6 @@ export async function GET(request: Request) {
       ),
     );
   }
-  if (overtimeMarksParam !== null && (!Number.isFinite(overtimeMarksParam) || overtimeMarksParam < 0)) {
-    return withSession(
-      NextResponse.json(
-        { error: "overtimeMarks invalido." },
-        { status: 400 },
-      ),
-    );
-  }
-  if (overtimeMinMinutes !== null && !Number.isFinite(overtimeMinMinutes)) {
-    return withSession(
-      NextResponse.json(
-        { error: "overtimeMinMinutes invalido." },
-        { status: 400 },
-      ),
-    );
-  }
-  if (overtimeMaxMinutes !== null && !Number.isFinite(overtimeMaxMinutes)) {
-    return withSession(
-      NextResponse.json(
-        { error: "overtimeMaxMinutes invalido." },
-        { status: 400 },
-      ),
-    );
-  }
-  if (!Number.isFinite(overtimePage) || overtimePage < 1) {
-    return withSession(
-      NextResponse.json(
-        { error: "overtimePage invalido." },
-        { status: 400 },
-      ),
-    );
-  }
-  if (!Number.isFinite(overtimePageSize) || overtimePageSize < 1 || overtimePageSize > 1000) {
-    return withSession(
-      NextResponse.json(
-        { error: "overtimePageSize invalido." },
-        { status: 400 },
-      ),
-    );
-  }
 
   const cacheKey = JSON.stringify({
     userId: session.user.id,
@@ -1314,18 +1063,6 @@ export async function GET(request: Request) {
     dateParam,
     overtimeDateStartParam,
     overtimeDateEndParam,
-    overtimeSedeParams,
-    overtimeDepartmentParam,
-    overtimeEmployeeTypeParam,
-    overtimeMarksParam,
-    overtimePersonParam,
-    overtimeMinMinutes,
-    overtimeMaxMinutes,
-    overtimeAlertOnly,
-    overtimeDateOrder,
-    overtimePage,
-    overtimePageSize,
-    overtimeIncludeAll,
     lineParam,
     bucketMinutes,
     effectiveSedeParams,
@@ -1350,20 +1087,6 @@ export async function GET(request: Request) {
       allowedLineIds,
       overtimeDateStartParam,
       overtimeDateEndParam,
-      {
-        sedeFilters: overtimeSedeParams,
-        departmentFilter: overtimeDepartmentParam,
-        employeeTypeFilter: overtimeEmployeeTypeParam,
-        marksFilter: overtimeMarksParam,
-        personFilter: overtimePersonParam,
-        minMinutes: overtimeMinMinutes,
-        maxMinutes: overtimeMaxMinutes,
-        alertOnly: overtimeAlertOnly,
-        dateOrder: overtimeDateOrder,
-        page: overtimePage,
-        pageSize: overtimePageSize,
-        includeAllRows: overtimeIncludeAll,
-      },
     );
 
     setCachedResponse(cacheKey, data);

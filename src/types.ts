@@ -62,9 +62,6 @@ export interface HourlyAnalysisData {
   attendanceDateUsed?: string | null;
   salesDateUsed?: string | null;
   bucketMinutes?: number;
-  overtimeTotalCount?: number;
-  overtimePage?: number;
-  overtimePageSize?: number;
   hours: HourSlot[];
   overtimeEmployees?: OvertimeEmployee[];
 }
