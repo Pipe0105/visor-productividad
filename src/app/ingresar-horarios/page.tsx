@@ -81,6 +81,12 @@ const normalizeText = (value?: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+const formatTimeForPrint = (value?: string) => {
+  const normalized = (value ?? "").trim();
+  if (!normalized) return "";
+  return normalized.length >= 5 ? normalized.slice(0, 5) : normalized;
+};
+
 type HorariosOptionsResponse = {
   sedes?: Array<{ id: string; name: string }>;
   defaultSede?: string | null;
@@ -259,9 +265,12 @@ export default function IngresarHorariosPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-12 text-foreground">
-      <div className="mx-auto w-full max-w-[96rem] rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-slate-100 px-4 py-12 text-foreground print:bg-white print:p-0">
+      <div
+        id="planilla-print"
+        className="mx-auto w-full max-w-[96rem] rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)] print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
               Horario
@@ -289,7 +298,7 @@ export default function IngresarHorariosPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-5">
+        <div className="mt-5 grid gap-3 md:grid-cols-5 print:hidden">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               Sede
@@ -359,12 +368,29 @@ export default function IngresarHorariosPage() {
           </label>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200/80">
-          <table className="min-w-[1700px] w-full border-collapse text-[12px]">
+        <div className="mt-5 hidden border border-slate-900 px-3 py-2 print:block">
+          <div className="grid grid-cols-[1fr_1fr_1fr] items-center border-b border-slate-900 pb-2">
+            <div className="text-left text-xs font-bold tracking-wide text-slate-900">MercaTodo</div>
+            <div className="text-center text-xs font-bold tracking-wide text-slate-900">MERCAMIO S.A.</div>
+            <div className="text-right text-xs font-bold uppercase tracking-wide text-slate-900">
+              Planilla De Programacion Semanal De Horarios
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-5 gap-3 text-[11px]">
+            <div><span className="font-semibold">SEDE:</span> {sede || "-"}</div>
+            <div><span className="font-semibold">SECCION:</span> {seccion || "-"}</div>
+            <div><span className="font-semibold">FECHA INICIAL:</span> {fechaInicial || "-"}</div>
+            <div><span className="font-semibold">FECHA FINAL:</span> {fechaFinal || "-"}</div>
+            <div><span className="font-semibold">MES:</span> {mes || "-"}</div>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200/80 print:overflow-visible print:rounded-none print:border-slate-900">
+          <table className="planilla-print-table min-w-[1700px] w-full border-collapse text-[12px] print:min-w-0 print:text-[8px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
                 <th className="w-10 border border-slate-200 px-2 py-2 text-center">#</th>
-                <th className="w-80 border border-slate-200 px-2 py-2 text-left">Nombre</th>
+                <th className="w-80 border border-slate-200 px-2 py-2 text-left print:w-[140px]">Nombre</th>
                 {DAY_ORDER.map((day) => (
                   <th
                     key={day}
@@ -379,7 +405,7 @@ export default function IngresarHorariosPage() {
                     </div>
                   </th>
                 ))}
-                <th className="w-96 border border-slate-200 px-2 py-2 text-left">
+                <th className="w-96 border border-slate-200 px-2 py-2 text-left print:w-[140px]">
                   Firma empleado
                 </th>
               </tr>
@@ -388,7 +414,10 @@ export default function IngresarHorariosPage() {
                 <th className="border border-slate-200 px-2 py-2" />
                 {DAY_ORDER.flatMap((day) =>
                   (["he1", "hs1", "he2", "hs2"] as const).map((field) => (
-                    <th key={`${day}-${field}`} className="w-16 border border-slate-200 px-2 py-2 text-center uppercase">
+                    <th
+                      key={`${day}-${field}`}
+                      className="w-16 border border-slate-200 px-2 py-2 text-center uppercase print:w-6 print:px-0.5"
+                    >
                       {field === "he1" || field === "he2" ? "HE" : "HS"}
                     </th>
                   )),
@@ -409,67 +438,95 @@ export default function IngresarHorariosPage() {
                       value={row.nombre}
                       onChange={(e) => updateRowField(rowIndex, "nombre", e.target.value)}
                       placeholder="Escribir o seleccionar empleado"
-                      className="w-full min-w-[280px] rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100"
+                      className="w-full min-w-[280px] rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
                     />
+                    <span className="hidden text-[8px] leading-tight text-slate-900 print:block">
+                      {row.nombre}
+                    </span>
                   </td>
-                  {DAY_ORDER.flatMap((day) =>
-                    (["he1", "hs1", "he2", "hs2"] as const).map((field) => (
+                  {DAY_ORDER.flatMap((day) => {
+                    const dayData = row.days[day];
+                    if (dayData.conDescanso) {
+                      return [
+                        <td
+                          key={`${rowIndex}-${day}-descanso`}
+                          colSpan={4}
+                          className="border border-slate-200 bg-amber-50/60 px-1 py-1 text-center"
+                        >
+                          <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={dayData.conDescanso}
+                              onChange={(e) => updateDescanso(rowIndex, day, e.target.checked)}
+                              title="Marcar este dia como descanso para este empleado"
+                              className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200 print:hidden"
+                            />
+                            <span>Descanso</span>
+                          </label>
+                        </td>,
+                      ];
+                    }
+
+                    return (["he1", "hs1", "he2", "hs2"] as const).map((field) => (
                       <td
                         key={`${rowIndex}-${day}-${field}`}
-                        className={`border border-slate-200 px-1 py-1 ${row.days[day].conDescanso ? "bg-amber-50/60" : ""}`}
+                        className="border border-slate-200 px-1 py-1 print:px-0.5 print:text-center"
                       >
                         {field === "he1" ? (
                           <div className="flex items-center gap-1">
                             <input
                               type="checkbox"
-                              checked={row.days[day].conDescanso}
+                              checked={dayData.conDescanso}
                               onChange={(e) => updateDescanso(rowIndex, day, e.target.checked)}
                               title="Marcar este dia como descanso para este empleado"
-                              className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+                              className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200 print:hidden"
                             />
                             <input
                               type="time"
                               step={60}
-                              value={(row.days[day][field] as string | undefined) ?? ""}
-                              disabled={row.days[day].conDescanso}
+                              value={(dayData[field] as string | undefined) ?? ""}
                               onClick={(e) => {
                                 const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
                                 if (typeof input.showPicker === "function") input.showPicker();
                               }}
-                              onChange={(e) =>
-                                updateRowDayField(rowIndex, day, field, e.target.value)
-                              }
-                              placeholder={row.days[day].conDescanso ? "DESC" : ""}
-                              className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                              onChange={(e) => updateRowDayField(rowIndex, day, field, e.target.value)}
+                              className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
                             />
+                            <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
+                              {formatTimeForPrint(dayData[field])}
+                            </span>
                           </div>
                         ) : (
-                          <input
-                            type="time"
-                            step={60}
-                            value={(row.days[day][field] as string | undefined) ?? ""}
-                            disabled={row.days[day].conDescanso}
-                            onClick={(e) => {
-                              const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
-                              if (typeof input.showPicker === "function") input.showPicker();
-                            }}
-                            onChange={(e) =>
-                              updateRowDayField(rowIndex, day, field, e.target.value)
-                            }
-                            placeholder={row.days[day].conDescanso ? "DESC" : ""}
-                            className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                          />
+                          <>
+                            <input
+                              type="time"
+                              step={60}
+                              value={(dayData[field] as string | undefined) ?? ""}
+                              onClick={(e) => {
+                                const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
+                                if (typeof input.showPicker === "function") input.showPicker();
+                              }}
+                              onChange={(e) => updateRowDayField(rowIndex, day, field, e.target.value)}
+                              className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
+                            />
+                            <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
+                              {formatTimeForPrint(dayData[field])}
+                            </span>
+                          </>
                         )}
                       </td>
-                    )),
-                  )}
+                    ));
+                  })}
                   <td className="h-16 border border-slate-200 px-2 py-1 align-top">
                     <textarea
                       value={row.firma}
                       onChange={(e) => updateRowField(rowIndex, "firma", e.target.value)}
                       rows={2}
-                      className="h-full min-h-14 w-full resize-none rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100"
+                      className="h-full min-h-14 w-full resize-none rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
                     />
+                    <span className="hidden text-[8px] leading-tight text-slate-900 print:block">
+                      {row.firma}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -482,7 +539,7 @@ export default function IngresarHorariosPage() {
           </datalist>
         </div>
 
-        <div className="mt-4 space-y-1 text-xs text-slate-500">
+        <div className="mt-4 space-y-1 text-xs text-slate-500 print:hidden">
           <p>HE: hora entrada | HS: hora salida | HE: reingreso | HS: salida final.</p>
           <p>
             Marca el check junto al primer HE para dejar el dia completo en descanso (DESC) para
@@ -497,6 +554,25 @@ export default function IngresarHorariosPage() {
             }
             body {
               background: white !important;
+            }
+            body * {
+              visibility: hidden;
+            }
+            #planilla-print,
+            #planilla-print * {
+              visibility: visible;
+            }
+            #planilla-print {
+              position: absolute;
+              inset: 0;
+              width: 100%;
+            }
+            .planilla-print-table {
+              table-layout: fixed;
+              width: 100%;
+            }
+            input[type="checkbox"] {
+              display: none !important;
             }
           }
           .schedule-time-input::-webkit-calendar-picker-indicator {
