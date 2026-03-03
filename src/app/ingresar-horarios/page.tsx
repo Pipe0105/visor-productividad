@@ -102,10 +102,12 @@ export default function IngresarHorariosPage() {
   const [fechaInicial, setFechaInicial] = useState("");
   const [fechaFinal, setFechaFinal] = useState("");
   const [mes, setMes] = useState("");
-  const [sedesOptions, setSedesOptions] = useState<Array<{ id: string; name: string }>>([]);
-  const [employeeOptions, setEmployeeOptions] = useState<Array<{ name: string; sede?: string }>>(
-    [],
-  );
+  const [sedesOptions, setSedesOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [employeeOptions, setEmployeeOptions] = useState<
+    Array<{ name: string; sede?: string }>
+  >([]);
   const [rows, setRows] = useState<RowSchedule[]>(
     Array.from({ length: 16 }, () => createEmptyRow()),
   );
@@ -140,10 +142,14 @@ export default function IngresarHorariosPage() {
           signal: controller.signal,
         });
         if (!optionsResponse.ok) {
-          const optionsPayload = (await optionsResponse.json()) as HorariosOptionsResponse;
-          throw new Error(optionsPayload.error ?? "No se pudieron cargar opciones");
+          const optionsPayload =
+            (await optionsResponse.json()) as HorariosOptionsResponse;
+          throw new Error(
+            optionsPayload.error ?? "No se pudieron cargar opciones",
+          );
         }
-        const optionsPayload = (await optionsResponse.json()) as HorariosOptionsResponse;
+        const optionsPayload =
+          (await optionsResponse.json()) as HorariosOptionsResponse;
         if (!isMounted) return;
         const nextSedes = optionsPayload.sedes ?? [];
         setSedesOptions(nextSedes);
@@ -182,7 +188,9 @@ export default function IngresarHorariosPage() {
     value: string,
   ) => {
     setRows((prev) =>
-      prev.map((row, idx) => (idx === rowIndex ? { ...row, [field]: value } : row)),
+      prev.map((row, idx) =>
+        idx === rowIndex ? { ...row, [field]: value } : row,
+      ),
     );
   };
 
@@ -249,7 +257,11 @@ export default function IngresarHorariosPage() {
   if (fechaInicial && fechaFinal) {
     const start = new Date(`${fechaInicial}T00:00:00`);
     const end = new Date(`${fechaFinal}T00:00:00`);
-    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end) {
+    if (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      start <= end
+    ) {
       const cursor = new Date(start);
       while (cursor <= end) {
         const dayIdx = cursor.getDay();
@@ -268,14 +280,16 @@ export default function IngresarHorariosPage() {
     <div className="min-h-screen bg-slate-100 px-4 py-12 text-foreground print:bg-white print:p-0">
       <div
         id="planilla-print"
-        className="mx-auto w-full max-w-[96rem] rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)] print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none"
+        className="mx-auto w-full max-w-384 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-[0_28px_70px_-45px_rgba(15,23,42,0.4)] print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
               Horario
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-900">Ingresar horarios</h1>
+            <h1 className="mt-2 text-2xl font-bold text-slate-900">
+              Ingresar horarios
+            </h1>
             <p className="mt-1 text-sm text-slate-600">
               Planilla de programacion semanal de horarios.
             </p>
@@ -370,27 +384,47 @@ export default function IngresarHorariosPage() {
 
         <div className="mt-5 hidden border border-slate-900 px-3 py-2 print:block">
           <div className="grid grid-cols-[1fr_1fr_1fr] items-center border-b border-slate-900 pb-2">
-            <div className="text-left text-xs font-bold tracking-wide text-slate-900">MercaTodo</div>
-            <div className="text-center text-xs font-bold tracking-wide text-slate-900">MERCAMIO S.A.</div>
+            <div className="text-left text-xs font-bold tracking-wide text-slate-900">
+              MercaTodo
+            </div>
+            <div className="text-center text-xs font-bold tracking-wide text-slate-900">
+              MERCAMIO S.A.
+            </div>
             <div className="text-right text-xs font-bold uppercase tracking-wide text-slate-900">
               Planilla De Programacion Semanal De Horarios
             </div>
           </div>
           <div className="mt-2 grid grid-cols-5 gap-3 text-[11px]">
-            <div><span className="font-semibold">SEDE:</span> {sede || "-"}</div>
-            <div><span className="font-semibold">SECCION:</span> {seccion || "-"}</div>
-            <div><span className="font-semibold">FECHA INICIAL:</span> {fechaInicial || "-"}</div>
-            <div><span className="font-semibold">FECHA FINAL:</span> {fechaFinal || "-"}</div>
-            <div><span className="font-semibold">MES:</span> {mes || "-"}</div>
+            <div>
+              <span className="font-semibold">SEDE:</span> {sede || "-"}
+            </div>
+            <div>
+              <span className="font-semibold">SECCION:</span> {seccion || "-"}
+            </div>
+            <div>
+              <span className="font-semibold">FECHA INICIAL:</span>{" "}
+              {fechaInicial || "-"}
+            </div>
+            <div>
+              <span className="font-semibold">FECHA FINAL:</span>{" "}
+              {fechaFinal || "-"}
+            </div>
+            <div>
+              <span className="font-semibold">MES:</span> {mes || "-"}
+            </div>
           </div>
         </div>
 
         <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200/80 print:overflow-visible print:rounded-none print:border-slate-900">
-          <table className="planilla-print-table min-w-[1700px] w-full border-collapse text-[12px] print:min-w-0 print:text-[8px]">
+          <table className="planilla-print-table min-w-425 w-full border-collapse text-[12px] print:min-w-0 print:text-[8px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
-                <th className="w-10 border border-slate-200 px-2 py-2 text-center">#</th>
-                <th className="w-80 border border-slate-200 px-2 py-2 text-left print:w-[140px]">Nombre</th>
+                <th className="w-10 border border-slate-200 px-2 py-2 text-center">
+                  #
+                </th>
+                <th className="w-80 border border-slate-200 px-2 py-2 text-left print:w-35">
+                  Nombre
+                </th>
                 {DAY_ORDER.map((day) => (
                   <th
                     key={day}
@@ -405,7 +439,7 @@ export default function IngresarHorariosPage() {
                     </div>
                   </th>
                 ))}
-                <th className="w-96 border border-slate-200 px-2 py-2 text-left print:w-[140px]">
+                <th className="w-96 border border-slate-200 px-2 py-2 text-left print:w-35">
                   Firma empleado
                 </th>
               </tr>
@@ -427,7 +461,10 @@ export default function IngresarHorariosPage() {
             </thead>
             <tbody>
               {rows.map((row, rowIndex) => (
-                <tr key={`row-${rowIndex}`} className="odd:bg-white even:bg-slate-50/40">
+                <tr
+                  key={`row-${rowIndex}`}
+                  className="odd:bg-white even:bg-slate-50/40"
+                >
                   <td className="border border-slate-200 px-2 py-1 text-center text-slate-600">
                     {rowIndex + 1}
                   </td>
@@ -436,9 +473,11 @@ export default function IngresarHorariosPage() {
                       type="text"
                       list="employees-cajas-options"
                       value={row.nombre}
-                      onChange={(e) => updateRowField(rowIndex, "nombre", e.target.value)}
+                      onChange={(e) =>
+                        updateRowField(rowIndex, "nombre", e.target.value)
+                      }
                       placeholder="Escribir o seleccionar empleado"
-                      className="w-full min-w-[280px] rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
+                      className="w-full min-w-70 rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
                     />
                     <span className="hidden text-[8px] leading-tight text-slate-900 print:block">
                       {row.nombre}
@@ -457,7 +496,9 @@ export default function IngresarHorariosPage() {
                             <input
                               type="checkbox"
                               checked={dayData.conDescanso}
-                              onChange={(e) => updateDescanso(rowIndex, day, e.target.checked)}
+                              onChange={(e) =>
+                                updateDescanso(rowIndex, day, e.target.checked)
+                              }
                               title="Marcar este dia como descanso para este empleado"
                               className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200 print:hidden"
                             />
@@ -467,60 +508,96 @@ export default function IngresarHorariosPage() {
                       ];
                     }
 
-                    return (["he1", "hs1", "he2", "hs2"] as const).map((field) => (
-                      <td
-                        key={`${rowIndex}-${day}-${field}`}
-                        className="border border-slate-200 px-1 py-1 print:px-0.5 print:text-center"
-                      >
-                        {field === "he1" ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={dayData.conDescanso}
-                              onChange={(e) => updateDescanso(rowIndex, day, e.target.checked)}
-                              title="Marcar este dia como descanso para este empleado"
-                              className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200 print:hidden"
-                            />
-                            <input
-                              type="time"
-                              step={60}
-                              value={(dayData[field] as string | undefined) ?? ""}
-                              onClick={(e) => {
-                                const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
-                                if (typeof input.showPicker === "function") input.showPicker();
-                              }}
-                              onChange={(e) => updateRowDayField(rowIndex, day, field, e.target.value)}
-                              className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
-                            />
-                            <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
-                              {formatTimeForPrint(dayData[field])}
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <input
-                              type="time"
-                              step={60}
-                              value={(dayData[field] as string | undefined) ?? ""}
-                              onClick={(e) => {
-                                const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
-                                if (typeof input.showPicker === "function") input.showPicker();
-                              }}
-                              onChange={(e) => updateRowDayField(rowIndex, day, field, e.target.value)}
-                              className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
-                            />
-                            <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
-                              {formatTimeForPrint(dayData[field])}
-                            </span>
-                          </>
-                        )}
-                      </td>
-                    ));
+                    return (["he1", "hs1", "he2", "hs2"] as const).map(
+                      (field) => (
+                        <td
+                          key={`${rowIndex}-${day}-${field}`}
+                          className="border border-slate-200 px-1 py-1 print:px-0.5 print:text-center"
+                        >
+                          {field === "he1" ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={dayData.conDescanso}
+                                onChange={(e) =>
+                                  updateDescanso(
+                                    rowIndex,
+                                    day,
+                                    e.target.checked,
+                                  )
+                                }
+                                title="Marcar este dia como descanso para este empleado"
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-200 print:hidden"
+                              />
+                              <input
+                                type="time"
+                                step={60}
+                                value={
+                                  (dayData[field] as string | undefined) ?? ""
+                                }
+                                onClick={(e) => {
+                                  const input =
+                                    e.currentTarget as HTMLInputElement & {
+                                      showPicker?: () => void;
+                                    };
+                                  if (typeof input.showPicker === "function")
+                                    input.showPicker();
+                                }}
+                                onChange={(e) =>
+                                  updateRowDayField(
+                                    rowIndex,
+                                    day,
+                                    field,
+                                    e.target.value,
+                                  )
+                                }
+                                className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
+                              />
+                              <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
+                                {formatTimeForPrint(dayData[field])}
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="time"
+                                step={60}
+                                value={
+                                  (dayData[field] as string | undefined) ?? ""
+                                }
+                                onClick={(e) => {
+                                  const input =
+                                    e.currentTarget as HTMLInputElement & {
+                                      showPicker?: () => void;
+                                    };
+                                  if (typeof input.showPicker === "function")
+                                    input.showPicker();
+                                }}
+                                onChange={(e) =>
+                                  updateRowDayField(
+                                    rowIndex,
+                                    day,
+                                    field,
+                                    e.target.value,
+                                  )
+                                }
+                                className="schedule-time-input w-full rounded border border-slate-200 px-1 py-1 text-[11px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
+                              />
+                              <span className="hidden w-full text-center text-[8px] leading-none text-slate-900 print:block">
+                                {formatTimeForPrint(dayData[field])}
+                              </span>
+                            </>
+                          )}
+                        </td>
+                      ),
+                    );
                   })}
                   <td className="h-16 border border-slate-200 px-2 py-1 align-top">
                     <textarea
                       value={row.firma}
-                      onChange={(e) => updateRowField(rowIndex, "firma", e.target.value)}
+                      onChange={(e) =>
+                        updateRowField(rowIndex, "firma", e.target.value)
+                      }
                       rows={2}
                       className="h-full min-h-14 w-full resize-none rounded border border-slate-200 px-2 py-1 text-[12px] focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-100 print:hidden"
                     />
@@ -540,10 +617,13 @@ export default function IngresarHorariosPage() {
         </div>
 
         <div className="mt-4 space-y-1 text-xs text-slate-500 print:hidden">
-          <p>HE: hora entrada | HS: hora salida | HE: reingreso | HS: salida final.</p>
           <p>
-            Marca el check junto al primer HE para dejar el dia completo en descanso (DESC) para
-            ese empleado.
+            HE: hora entrada | HS: hora salida | HE: reingreso | HS: salida
+            final.
+          </p>
+          <p>
+            Marca el check junto al primer HE para dejar el dia completo en
+            descanso (DESC) para ese empleado.
           </p>
         </div>
         <style jsx global>{`
