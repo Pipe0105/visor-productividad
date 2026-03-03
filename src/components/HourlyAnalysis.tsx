@@ -143,6 +143,22 @@ const normalizeSedeValue = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, " ");
 
+const canonicalizeSedeValue = (value: string) => {
+  const normalized = normalizeSedeValue(value);
+  const compact = normalized.replace(/\s+/g, "");
+  if (
+    normalized === "calle 5a" ||
+    normalized === "la 5a" ||
+    normalized === "calle 5" ||
+    compact === "calle5a" ||
+    compact === "la5a" ||
+    compact === "calle5"
+  ) {
+    return normalizeSedeValue("Calle 5ta");
+  }
+  return normalized;
+};
+
 const PPT_SEDE_KEYS = new Set([
   "panificadora",
   "planta desposte mixto",
@@ -150,7 +166,7 @@ const PPT_SEDE_KEYS = new Set([
 ]);
 
 const isPptSede = (sedeName: string) =>
-  PPT_SEDE_KEYS.has(normalizeSedeValue(sedeName));
+  PPT_SEDE_KEYS.has(canonicalizeSedeValue(sedeName));
 
 const HourlyLoadingSkeleton = () => (
   <div className="space-y-3 animate-pulse">
@@ -916,12 +932,12 @@ export const HourlyAnalysis = ({
       const rawSede = employee.sede?.trim();
       if (!rawSede) return employee;
 
-      const normalizedRaw = normalizeSedeValue(rawSede);
-      const match = availableSedes.find((sede) => {
-        const normalizedSede = normalizeSedeValue(sede.name);
-        return (
-          normalizedSede === normalizedRaw ||
-          normalizedSede.includes(normalizedRaw) ||
+        const normalizedRaw = canonicalizeSedeValue(rawSede);
+        const match = availableSedes.find((sede) => {
+          const normalizedSede = canonicalizeSedeValue(sede.name);
+          return (
+            normalizedSede === normalizedRaw ||
+            normalizedSede.includes(normalizedRaw) ||
           normalizedRaw.includes(normalizedSede)
         );
       });
@@ -945,10 +961,10 @@ export const HourlyAnalysis = ({
       "planta desposte mixto",
       "planta desprese pollo",
     ];
-    const isPlant = (value: string) =>
-      plantKeywords.some((keyword) =>
-        normalizeSedeValue(value).includes(keyword),
-      );
+      const isPlant = (value: string) =>
+        plantKeywords.some((keyword) =>
+          canonicalizeSedeValue(value).includes(keyword),
+        );
     return values.sort((a, b) => {
       const aPlant = isPlant(a);
       const bPlant = isPlant(b);
@@ -999,9 +1015,9 @@ export const HourlyAnalysis = ({
     const filtered = overtimeEmployeesResolved.filter((employee) => {
       const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
       if (overtimeSedeFilter.length > 0) {
-        const employeeSede = normalizeSedeValue(employee.sede ?? "");
+        const employeeSede = canonicalizeSedeValue(employee.sede ?? "");
         const anyMatch = overtimeSedeFilter.some(
-          (name) => normalizeSedeValue(name) === employeeSede,
+          (name) => canonicalizeSedeValue(name) === employeeSede,
         );
         if (!anyMatch) return false;
       }

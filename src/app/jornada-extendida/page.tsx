@@ -22,6 +22,22 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, " ");
 
+const canonicalizeSedeKey = (value: string) => {
+  const normalized = normalizeSedeKey(value);
+  const compact = normalized.replace(/\s+/g, "");
+  if (
+    normalized === "calle 5a" ||
+    normalized === "la 5a" ||
+    normalized === "calle 5" ||
+    compact === "calle5a" ||
+    compact === "la5a" ||
+    compact === "calle5"
+  ) {
+    return normalizeSedeKey("Calle 5ta");
+  }
+  return normalized;
+};
+
 const OVERTIME_EXTRA_SEDES: Sede[] = [
   { id: "Panificadora", name: "Panificadora" },
   { id: "Planta Desposte Mixto", name: "Planta Desposte Mixto" },
@@ -68,11 +84,13 @@ export default function JornadaExtendidaPage() {
         const dates = Array.from(new Set(payload.dates ?? [])).sort();
         const resolvedSedes =
           payload.sedes && payload.sedes.length > 0 ? payload.sedes : DEFAULT_SEDES;
-        const forcedSedeKey = payload.defaultSede ? normalizeSedeKey(payload.defaultSede) : null;
+        const forcedSedeKey = payload.defaultSede
+          ? canonicalizeSedeKey(payload.defaultSede)
+          : null;
         const forcedSede = forcedSedeKey
           ? resolvedSedes.find((sede) => {
-              const idKey = normalizeSedeKey(sede.id || sede.name);
-              const nameKey = normalizeSedeKey(sede.name);
+              const idKey = canonicalizeSedeKey(sede.id || sede.name);
+              const nameKey = canonicalizeSedeKey(sede.name);
               return idKey === forcedSedeKey || nameKey === forcedSedeKey;
             })
           : null;
@@ -81,7 +99,7 @@ export default function JornadaExtendidaPage() {
           : Array.from(
               new Map(
                 [...resolvedSedes, ...OVERTIME_EXTRA_SEDES].map((sede) => [
-                  normalizeSedeKey(sede.name || sede.id),
+                  canonicalizeSedeKey(sede.name || sede.id),
                   sede,
                 ]),
               ).values(),

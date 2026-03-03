@@ -39,7 +39,7 @@ const resolveSessionAllowedLineIds = (allowedLines: string[] | null | undefined)
 };
 
 const SEDE_CONFIGS = [
-  { name: "Calle 5ta", centro: "001", empresa: "mercamio", attendanceNames: ["la 5a", "calle 5ta"], aliases: ["calle 5ta", "la 5a", "la 5"] },
+  { name: "Calle 5ta", centro: "001", empresa: "mercamio", attendanceNames: ["la 5a", "calle 5a", "calle 5ta"], aliases: ["calle 5ta", "calle 5a", "la 5a", "la 5"] },
   { name: "La 39", centro: "002", empresa: "mercamio", attendanceNames: ["la 39"], aliases: ["la 39", "39"] },
   { name: "Plaza Norte", centro: "003", empresa: "mercamio", attendanceNames: ["plaza norte", "mio plaza norte"], aliases: ["plaza norte", "mio plaza norte"] },
   { name: "Ciudad Jardin", centro: "004", empresa: "mercamio", attendanceNames: ["ciudad jardin"], aliases: ["ciudad jardin", "ciudad jard", "jardin"] },
@@ -109,12 +109,28 @@ const normalizeSedeName = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+const canonicalizeSedeMatchKey = (value: string) => {
+  const normalized = normalizeSedeName(value);
+  const compact = normalized.replace(/\s+/g, "");
+  if (
+    normalized === "calle 5a" ||
+    normalized === "la 5a" ||
+    normalized === "calle 5" ||
+    compact === "calle5a" ||
+    compact === "la5a" ||
+    compact === "calle5"
+  ) {
+    return normalizeSedeName("Calle 5ta");
+  }
+  return normalized;
+};
+
 const matchSelectedSedeConfigs = (selectedSedes: string[]) => {
   if (selectedSedes.length === 0) return SEDE_CONFIGS;
 
-  const normalizedSelected = selectedSedes.map(normalizeSedeName);
+  const normalizedSelected = selectedSedes.map(canonicalizeSedeMatchKey);
   const matched = SEDE_CONFIGS.filter((cfg) => {
-    const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+    const aliasPool = [cfg.name, ...cfg.aliases].map(canonicalizeSedeMatchKey);
     return normalizedSelected.some((selected) =>
       aliasPool.some(
         (alias) =>
@@ -130,10 +146,10 @@ const matchSelectedSedeConfigs = (selectedSedes: string[]) => {
 
 const findSedeConfigByName = (sedeName?: string | null) => {
   if (!sedeName) return null;
-  const normalizedTarget = normalizeSedeName(sedeName);
+  const normalizedTarget = canonicalizeSedeMatchKey(sedeName);
   return (
     SEDE_CONFIGS.find((cfg) => {
-      const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+      const aliasPool = [cfg.name, ...cfg.aliases].map(canonicalizeSedeMatchKey);
       return aliasPool.some(
         (alias) =>
           normalizedTarget === alias ||
@@ -150,11 +166,11 @@ const resolveUsernameSedeConfig = (username?: string | null) => {
   if (!normalized.startsWith("sede_")) return null;
 
   const rawSede = normalized.replace(/^sede_/, "").replace(/_/g, " ");
-  const normalizedRawSede = normalizeSedeName(rawSede);
+  const normalizedRawSede = canonicalizeSedeMatchKey(rawSede);
 
   return (
     SEDE_CONFIGS.find((cfg) => {
-      const aliasPool = [cfg.name, ...cfg.aliases].map(normalizeSedeName);
+      const aliasPool = [cfg.name, ...cfg.aliases].map(canonicalizeSedeMatchKey);
       return aliasPool.some(
         (alias) =>
           normalizedRawSede === alias ||
