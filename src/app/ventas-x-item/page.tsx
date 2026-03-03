@@ -129,7 +129,6 @@ export default function VentasXItemPage() {
   const [itemsOrder, setItemsOrder] = useState<string[]>([]);
   const [itemSearch, setItemSearch] = useState("");
   const [itemsDropdownOpen, setItemsDropdownOpen] = useState(false);
-  const [layout, setLayout] = useState<"one" | "two">("one");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -886,25 +885,9 @@ export default function VentasXItemPage() {
               <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-base font-bold text-slate-900">Gráficas</h3>
-                  <div className="flex gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setLayout("one")}
-                      className={`rounded-full border px-3 py-1 ${layout === "one" ? "bg-slate-900 text-white" : "bg-white text-slate-700"}`}
-                    >
-                      Una columna
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLayout("two")}
-                      className={`rounded-full border px-3 py-1 ${layout === "two" ? "bg-slate-900 text-white" : "bg-white text-slate-700"}`}
-                    >
-                      Dos columnas
-                    </button>
-                  </div>
                 </div>
 
-                <div className={layout === "two" ? "grid gap-4 md:grid-cols-2" : "space-y-4"}>
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 p-3">
                     <p className="mb-2 text-sm font-semibold text-slate-800">Total por día (T. Dia)</p>
                     <LineChart
