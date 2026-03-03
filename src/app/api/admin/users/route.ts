@@ -19,6 +19,7 @@ const ALLOWED_DASHBOARD_SET = new Set([
   "productividad",
   "margenes",
   "jornada-extendida",
+  "ventas-x-item",
 ]);
 
 const resolveValidSede = (value?: string | null) => {

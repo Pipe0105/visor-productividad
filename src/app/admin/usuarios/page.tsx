@@ -111,6 +111,7 @@ const DASHBOARD_OPTIONS = [
   { id: "productividad", label: "Productividad" },
   { id: "margenes", label: "Margenes" },
   { id: "jornada-extendida", label: "Horario" },
+  { id: "ventas-x-item", label: "Ventas X item" },
 ];
 const dashboardLabelById = new Map(
   DASHBOARD_OPTIONS.map((board) => [board.id, board.label]),

@@ -103,6 +103,18 @@ export default function TablerosPage() {
       badgeClasses:
         "border-rose-300/80 bg-rose-200/75 text-rose-800",
     },
+    {
+      id: "ventas-x-item",
+      title: "Ventas X item",
+      subtitle: "Ventas por item",
+      description: "Migracion del tablero de Streamlit a esta app.",
+      href: "/ventas-x-item",
+      badge: "Ventas",
+      classes:
+        "border-emerald-300/80 bg-linear-to-br from-emerald-100 via-white to-lime-100 text-slate-900 shadow-[0_18px_35px_-30px_rgba(16,185,129,0.45)] hover:border-emerald-400 hover:shadow-[0_22px_44px_-26px_rgba(16,185,129,0.55)]",
+      badgeClasses:
+        "border-emerald-300/80 bg-emerald-200/75 text-emerald-800",
+    },
   ];
   const visibleDashboards =
     isAdmin || allowedDashboards === null
