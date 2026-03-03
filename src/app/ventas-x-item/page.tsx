@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LineChart } from "@mui/x-charts/LineChart";
@@ -30,6 +30,9 @@ const HEATMAP_COLORS = [
   "#f87171",
   "#ef4444",
 ];
+
+const ITEM_DROPDOWN_NO_SEARCH_LIMIT = 120;
+const ITEM_DROPDOWN_SEARCH_LIMIT = 250;
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -219,11 +222,33 @@ export default function VentasXItemPage() {
     const source = rowsEmpresaFecha.length > 0 ? rowsEmpresaFecha : rowsEmpresa;
     return itemsDisplayList(source);
   }, [rowsEmpresa, rowsEmpresaFecha]);
-  const filteredItemOptions = useMemo(() => {
-    const term = itemSearch.trim().toLowerCase();
-    if (!term) return itemOptions;
-    return itemOptions.filter((item) => item.toLowerCase().includes(term));
-  }, [itemOptions, itemSearch]);
+  const deferredItemSearch = useDeferredValue(itemSearch);
+  const selectedItemSet = useMemo(() => new Set(itemsSel), [itemsSel]);
+  const itemDropdownState = useMemo(() => {
+    const term = deferredItemSearch.trim().toLowerCase();
+    if (!term) {
+      const selected = itemOptions.filter((item) => selectedItemSet.has(item));
+      const others = itemOptions.filter((item) => !selectedItemSet.has(item));
+      const limited = others.slice(0, ITEM_DROPDOWN_NO_SEARCH_LIMIT);
+      return {
+        totalMatches: itemOptions.length,
+        visibleItems: [...selected, ...limited],
+        truncated: others.length > ITEM_DROPDOWN_NO_SEARCH_LIMIT,
+      };
+    }
+
+    const matched = itemOptions.filter((item) => item.toLowerCase().includes(term));
+    const selectedMatched = matched.filter((item) => selectedItemSet.has(item));
+    const othersMatched = matched
+      .filter((item) => !selectedItemSet.has(item))
+      .slice(0, ITEM_DROPDOWN_SEARCH_LIMIT);
+
+    return {
+      totalMatches: matched.length,
+      visibleItems: [...selectedMatched, ...othersMatched],
+      truncated: matched.length - selectedMatched.length > ITEM_DROPDOWN_SEARCH_LIMIT,
+    };
+  }, [deferredItemSearch, itemOptions, selectedItemSet]);
 
   useEffect(() => {
     setItemsSel((prev) => prev.filter((item) => itemOptions.includes(item)));
@@ -724,7 +749,9 @@ export default function VentasXItemPage() {
                         className="mb-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-800"
                       />
                       <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
-                        <span>{filteredItemOptions.length} resultados</span>
+                        <span>
+                          {itemDropdownState.visibleItems.length} de {itemDropdownState.totalMatches} resultados
+                        </span>
                         <button
                           type="button"
                           onClick={() => {
@@ -736,8 +763,13 @@ export default function VentasXItemPage() {
                           Limpiar
                         </button>
                       </div>
+                      {itemDropdownState.truncated && (
+                        <p className="mb-2 px-1 text-[11px] text-amber-700">
+                          Mostrando una parte de resultados. Escribe más para acotar.
+                        </p>
+                      )}
                       <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 p-1">
-                        {filteredItemOptions.map((item) => {
+                        {itemDropdownState.visibleItems.map((item) => {
                           const checked = itemsSel.includes(item);
                           const disabled = !checked && itemsSel.length >= itemLimit;
                           return (
@@ -758,7 +790,7 @@ export default function VentasXItemPage() {
                             </label>
                           );
                         })}
-                        {filteredItemOptions.length === 0 && (
+                        {itemDropdownState.totalMatches === 0 && (
                           <p className="px-2 py-2 text-xs text-slate-500">
                             Sin resultados para esa busqueda.
                           </p>
