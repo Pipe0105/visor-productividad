@@ -135,6 +135,29 @@ export async function GET(request: Request) {
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
+    const tableCheck = await client.query(
+      `
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'ventas_item_diario'
+      LIMIT 1
+      `,
+    );
+    if (!tableCheck.rows || tableCheck.rows.length === 0) {
+      return withSession(
+        NextResponse.json(
+          {
+            rows: [],
+            total: 0,
+            error:
+              "Falta aplicar migracion de Ventas X item (db/migrations/20260303_ventas_x_item.sql).",
+          },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        ),
+      );
+    }
+
     const params: unknown[] = [];
     const where: string[] = ["parsed.fecha_norm IS NOT NULL"];
 
