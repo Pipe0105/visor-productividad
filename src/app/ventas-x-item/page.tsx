@@ -123,6 +123,8 @@ export default function VentasXItemPage() {
   const [itemLimit, setItemLimit] = useState(10);
   const [itemsSel, setItemsSel] = useState<string[]>([]);
   const [itemsOrder, setItemsOrder] = useState<string[]>([]);
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemsDropdownOpen, setItemsDropdownOpen] = useState(false);
   const [layout, setLayout] = useState<"one" | "two">("one");
   const [exportingXlsx, setExportingXlsx] = useState(false);
 
@@ -216,6 +218,11 @@ export default function VentasXItemPage() {
     const source = rowsEmpresaFecha.length > 0 ? rowsEmpresaFecha : rowsEmpresa;
     return itemsDisplayList(source);
   }, [rowsEmpresa, rowsEmpresaFecha]);
+  const filteredItemOptions = useMemo(() => {
+    const term = itemSearch.trim().toLowerCase();
+    if (!term) return itemOptions;
+    return itemOptions.filter((item) => item.toLowerCase().includes(term));
+  }, [itemOptions, itemSearch]);
 
   useEffect(() => {
     setItemsSel((prev) => prev.filter((item) => itemOptions.includes(item)));
@@ -641,28 +648,73 @@ export default function VentasXItemPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
                   Ítems ({itemsSel.length}/{itemLimit})
                 </p>
-                <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-slate-200 bg-white p-2">
-                  {itemOptions.map((item) => {
-                    const checked = itemsSel.includes(item);
-                    const disabled = !checked && itemsSel.length >= itemLimit;
-                    return (
-                      <label
-                        key={item}
-                        className={`flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-xs ${
-                          disabled ? "opacity-50" : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={disabled}
-                          onChange={() => toggleItem(item)}
-                          className="mt-0.5"
-                        />
-                        <span className="leading-4 text-slate-700">{item}</span>
-                      </label>
-                    );
-                  })}
+                <div className="relative mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setItemsDropdownOpen((prev) => !prev)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-800"
+                  >
+                    <span className="truncate">
+                      {itemsSel.length === 0
+                        ? "Selecciona items..."
+                        : `${itemsSel.length} item(s) seleccionado(s)`}
+                    </span>
+                    <span className="ml-2 text-xs text-slate-500">
+                      {itemsDropdownOpen ? "▲" : "▼"}
+                    </span>
+                  </button>
+                  {itemsDropdownOpen && (
+                    <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-300 bg-white p-2 shadow-lg">
+                      <input
+                        type="text"
+                        value={itemSearch}
+                        onChange={(e) => setItemSearch(e.target.value)}
+                        placeholder="Buscar por ID o descripcion..."
+                        className="mb-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-800"
+                      />
+                      <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>{filteredItemOptions.length} resultados</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItemsSel([]);
+                            setItemsOrder([]);
+                          }}
+                          className="font-semibold text-blue-700"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 p-1">
+                        {filteredItemOptions.map((item) => {
+                          const checked = itemsSel.includes(item);
+                          const disabled = !checked && itemsSel.length >= itemLimit;
+                          return (
+                            <label
+                              key={item}
+                              className={`flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-xs ${
+                                disabled ? "opacity-50" : "hover:bg-slate-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={() => toggleItem(item)}
+                                className="mt-0.5"
+                              />
+                              <span className="leading-4 text-slate-700">{item}</span>
+                            </label>
+                          );
+                        })}
+                        {filteredItemOptions.length === 0 && (
+                          <p className="px-2 py-2 text-xs text-slate-500">
+                            Sin resultados para esa busqueda.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
