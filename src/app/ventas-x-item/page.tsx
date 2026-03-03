@@ -114,6 +114,7 @@ export default function VentasXItemPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [loadingDb, setLoadingDb] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<VentasXItemPreparedRow[]>([]);
   const [fileName, setFileName] = useState("");
@@ -331,10 +332,7 @@ export default function VentasXItemPage() {
       const rawRows = parseCsv(text);
       const prepared = prepareDataframe(rawRows);
       const withDate = prepared.filter((row) => row.fecha !== null);
-      if (withDate.length === 0) {
-        throw new Error("No hay fechas válidas en el archivo.");
-      }
-
+      if (withDate.length === 0) throw new Error("No hay fechas válidas en el archivo.");
       const min = withDate.reduce(
         (acc, row) => (row.fecha!.getTime() < acc.getTime() ? row.fecha! : acc),
         withDate[0].fecha!,
@@ -344,7 +342,6 @@ export default function VentasXItemPage() {
         withDate[0].fecha!,
       );
       const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
-
       setRows(prepared);
       setFileName(file.name);
       setEmpresasSel(empresas);
@@ -352,10 +349,54 @@ export default function VentasXItemPage() {
       setDateEnd(toDateKey(max));
       setItemsSel([]);
       setItemsOrder([]);
+      setItemSearch("");
+      setItemsDropdownOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingFile(false);
+    }
+  };
+
+  const onLoadFromDb = async () => {
+    setError(null);
+    setLoadingDb(true);
+    try {
+      const response = await fetch("/api/ventas-x-item", {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        rows?: VentasXItemRawRow[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "No se pudo cargar datos desde base de datos.");
+      }
+      const prepared = prepareDataframe(payload.rows ?? []);
+      const withDate = prepared.filter((row) => row.fecha !== null);
+      if (withDate.length === 0) throw new Error("La base de datos no tiene fechas válidas.");
+      const min = withDate.reduce(
+        (acc, row) => (row.fecha!.getTime() < acc.getTime() ? row.fecha! : acc),
+        withDate[0].fecha!,
+      );
+      const max = withDate.reduce(
+        (acc, row) => (row.fecha!.getTime() > acc.getTime() ? row.fecha! : acc),
+        withDate[0].fecha!,
+      );
+      const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
+      setRows(prepared);
+      setFileName("DB: ventas_item_diario");
+      setEmpresasSel(empresas);
+      setDateStart(toDateKey(min));
+      setDateEnd(toDateKey(max));
+      setItemsSel([]);
+      setItemsOrder([]);
+      setItemSearch("");
+      setItemsDropdownOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingDb(false);
     }
   };
 
@@ -540,6 +581,16 @@ export default function VentasXItemPage() {
               className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
             />
           </label>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => void onLoadFromDb()}
+              disabled={loadingDb}
+              className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingDb ? "Cargando BD..." : "Cargar desde BD"}
+            </button>
+          </div>
           <p className="mt-2 text-xs text-slate-500">
             {loadingFile
               ? "Procesando archivo..."
