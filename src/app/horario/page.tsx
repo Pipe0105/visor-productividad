@@ -62,7 +62,16 @@ export default function HorarioHubPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
           Horario
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Selecciona una opcion</h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">Selecciona una opcion</h1>
+          <button
+            type="button"
+            onClick={() => router.push("/tableros")}
+            className="inline-flex items-center rounded-full border border-slate-200/70 bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/70"
+          >
+            Volver a tableros
+          </button>
+        </div>
         <p className="mt-1 text-sm text-slate-600">
           Elige el tablero de consulta o el tablero para registrar horarios.
         </p>
