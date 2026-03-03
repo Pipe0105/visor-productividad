@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LineChart } from "@mui/x-charts/LineChart";
@@ -131,6 +131,7 @@ export default function VentasXItemPage() {
   const [itemsDropdownOpen, setItemsDropdownOpen] = useState(false);
   const [layout, setLayout] = useState<"one" | "two">("one");
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -173,6 +174,32 @@ export default function VentasXItemPage() {
       controller.abort();
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!itemsDropdownOpen) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (itemsDropdownRef.current?.contains(target)) return;
+      setItemsDropdownOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setItemsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown, { passive: true });
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [itemsDropdownOpen]);
 
   const validRows = useMemo(
     () => rows.filter((row) => row.fecha !== null),
@@ -724,7 +751,7 @@ export default function VentasXItemPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
                   Ítems ({itemsSel.length}/{itemLimit})
                 </p>
-                <div className="relative mt-2">
+                <div ref={itemsDropdownRef} className="relative mt-2">
                   <button
                     type="button"
                     onClick={() => setItemsDropdownOpen((prev) => !prev)}
