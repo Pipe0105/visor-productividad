@@ -11,6 +11,22 @@ const normalizeSedeKey = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, " ");
 
+const canonicalizeSedeKey = (value: string) => {
+  const normalized = normalizeSedeKey(value);
+  const compact = normalized.replace(/\s+/g, "");
+  if (
+    normalized === "calle 5a" ||
+    normalized === "la 5a" ||
+    normalized === "calle 5" ||
+    compact === "calle5a" ||
+    compact === "la5a" ||
+    compact === "calle5"
+  ) {
+    return normalizeSedeKey("Calle 5ta");
+  }
+  return normalized;
+};
+
 const BASE_SEDES: Sede[] = [
   { id: "Calle 5ta", name: "Calle 5ta" },
   { id: "La 39", name: "La 39" },
@@ -42,23 +58,25 @@ const resolveVisibleSedes = (sessionUser: {
     : [];
   const normalizedAllowed = new Set(
     rawAllowed
-      .map((sede) => normalizeSedeKey(sede))
+      .map((sede) => canonicalizeSedeKey(sede))
       .filter(Boolean),
   );
-  if (normalizedAllowed.has(normalizeSedeKey("Todas"))) {
+  if (normalizedAllowed.has(canonicalizeSedeKey("Todas"))) {
     return { visibleSedes: BASE_SEDES, defaultSede: null as string | null };
   }
 
   const allowedMatches = BASE_SEDES.filter((sede) =>
-    normalizedAllowed.has(normalizeSedeKey(sede.name)),
+    normalizedAllowed.has(canonicalizeSedeKey(sede.name)),
   );
   if (allowedMatches.length > 0) {
     return { visibleSedes: allowedMatches, defaultSede: allowedMatches[0].name };
   }
 
-  const legacySedeKey = sessionUser.sede ? normalizeSedeKey(sessionUser.sede) : null;
+  const legacySedeKey = sessionUser.sede
+    ? canonicalizeSedeKey(sessionUser.sede)
+    : null;
   const legacySede = legacySedeKey
-    ? BASE_SEDES.find((sede) => normalizeSedeKey(sede.name) === legacySedeKey)
+    ? BASE_SEDES.find((sede) => canonicalizeSedeKey(sede.name) === legacySedeKey)
     : null;
   if (legacySede) {
     return { visibleSedes: [legacySede], defaultSede: legacySede.name };
