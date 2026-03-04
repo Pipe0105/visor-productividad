@@ -36,58 +36,6 @@ const ITEM_DROPDOWN_SEARCH_LIMIT = 250;
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
-const parseCsv = (csvText: string): VentasXItemRawRow[] => {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < csvText.length; i += 1) {
-    const char = csvText[i];
-    const next = csvText[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        field += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === "," && !inQuotes) {
-      row.push(field);
-      field = "";
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") i += 1;
-      row.push(field);
-      if (row.some((v) => v.trim() !== "")) rows.push(row);
-      row = [];
-      field = "";
-      continue;
-    }
-
-    field += char;
-  }
-
-  row.push(field);
-  if (row.some((v) => v.trim() !== "")) rows.push(row);
-  if (rows.length === 0) return [];
-
-  const headers = rows[0].map((h) => h.trim());
-  return rows.slice(1).map((values) => {
-    const out: VentasXItemRawRow = {};
-    headers.forEach((header, idx) => {
-      out[header] = values[idx] ?? "";
-    });
-    return out;
-  });
-};
-
 const firstWordsFromOption = (option: string) => {
   const desc = (option.includes(" - ") ? option.split(" - ", 2)[1] : option)
     .trim()
@@ -116,7 +64,6 @@ const downloadBlob = (blob: Blob, filename: string) => {
 export default function VentasXItemPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [loadingFile, setLoadingFile] = useState(false);
   const [loadingDb, setLoadingDb] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<VentasXItemPreparedRow[]>([]);
@@ -130,6 +77,7 @@ export default function VentasXItemPage() {
   const [itemSearch, setItemSearch] = useState("");
   const [itemsDropdownOpen, setItemsDropdownOpen] = useState(false);
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -375,40 +323,6 @@ export default function VentasXItemPage() {
     });
   };
 
-  const onUpload = async (file: File) => {
-    setError(null);
-    setLoadingFile(true);
-    try {
-      const text = await file.text();
-      const rawRows = parseCsv(text);
-      const prepared = prepareDataframe(rawRows);
-      const withDate = prepared.filter((row) => row.fecha !== null);
-      if (withDate.length === 0) throw new Error("No hay fechas válidas en el archivo.");
-      const min = withDate.reduce(
-        (acc, row) => (row.fecha!.getTime() < acc.getTime() ? row.fecha! : acc),
-        withDate[0].fecha!,
-      );
-      const max = withDate.reduce(
-        (acc, row) => (row.fecha!.getTime() > acc.getTime() ? row.fecha! : acc),
-        withDate[0].fecha!,
-      );
-      const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
-      setRows(prepared);
-      setFileName(file.name);
-      setEmpresasSel(empresas);
-      setDateStart(toDateKey(min));
-      setDateEnd(toDateKey(max));
-      setItemsSel([]);
-      setItemsOrder([]);
-      setItemSearch("");
-      setItemsDropdownOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoadingFile(false);
-    }
-  };
-
   const onLoadFromDb = async () => {
     setError(null);
     setLoadingDb(true);
@@ -444,12 +358,18 @@ export default function VentasXItemPage() {
       setItemsOrder([]);
       setItemSearch("");
       setItemsDropdownOpen(false);
+      setLastLoadedAt(new Date().toISOString());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingDb(false);
     }
   };
+
+  useEffect(() => {
+    if (!ready || rows.length > 0 || loadingDb) return;
+    void onLoadFromDb();
+  }, [ready, rows.length, loadingDb]);
 
   const handleDownloadCsv = () => {
     if (tableRows.length === 0 || tableColumns.length === 0) return;
@@ -619,19 +539,7 @@ export default function VentasXItemPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4">
-          <label className="text-sm font-semibold text-slate-800">
-            Cargar CSV
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                void onUpload(file);
-              }}
-              className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-            />
-          </label>
+          <p className="text-sm font-semibold text-slate-800">Carga automática desde base de datos</p>
           <div className="mt-3">
             <button
               type="button"
@@ -639,16 +547,23 @@ export default function VentasXItemPage() {
               disabled={loadingDb}
               className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingDb ? "Cargando BD..." : "Cargar desde BD"}
+              {loadingDb ? "Cargando BD..." : "Recargar BD"}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            {loadingFile
-              ? "Procesando archivo..."
-              : fileName
-                ? `Archivo cargado: ${fileName}`
-                : "Sube un archivo CSV para comenzar."}
+            {fileName
+              ? `Fuente actual: ${fileName}`
+              : "Cargando información de forma automática desde la base de datos."}
           </p>
+          {lastLoadedAt && (
+            <p className="mt-1 text-[11px] text-slate-500">
+              Ultima actualizacion:{" "}
+              {new Intl.DateTimeFormat("es-CO", {
+                dateStyle: "short",
+                timeStyle: "short",
+              }).format(new Date(lastLoadedAt))}
+            </p>
+          )}
           {error && (
             <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
