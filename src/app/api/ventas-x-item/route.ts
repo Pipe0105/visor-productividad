@@ -20,6 +20,17 @@ type DbMetaRow = {
   max_fecha: string | null;
   total_rows: string | number | null;
 };
+type DbMaxDateRow = {
+  max_fecha: string | null;
+};
+
+const parsedDateExpr = `
+  CASE
+    WHEN REGEXP_REPLACE(REPLACE(fecha_dcto::text, '-', ''), '\\.0$', '') ~ '^[0-9]{8}$'
+      THEN TO_DATE(REGEXP_REPLACE(REPLACE(fecha_dcto::text, '-', ''), '\\.0$', ''), 'YYYYMMDD')
+    ELSE NULL::date
+  END
+`;
 
 const toNumber = (value: string | number | null | undefined) =>
   Number(value ?? 0) || 0;
@@ -130,15 +141,6 @@ export async function GET(request: Request) {
       ),
     );
   }
-  if (start && end && start > end) {
-    return withSession(
-      NextResponse.json(
-        { error: "start no puede ser mayor que end." },
-        { status: 400 },
-      ),
-    );
-  }
-
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
@@ -170,11 +172,7 @@ export async function GET(request: Request) {
         `
         WITH parsed AS (
           SELECT
-            CASE
-              WHEN fecha_dcto::text ~ '^[0-9]{8}$' THEN TO_DATE(fecha_dcto::text, 'YYYYMMDD')
-              WHEN fecha_dcto::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN fecha_dcto::date
-              ELSE NULL::date
-            END AS fecha_norm
+            ${parsedDateExpr} AS fecha_norm
           FROM ventas_item_diario
         )
         SELECT
@@ -198,10 +196,46 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!start || !end) {
+    let effectiveStart = start;
+    let effectiveEnd = end;
+
+    if (!effectiveStart && !effectiveEnd) {
+      const defaultRangeResult = await client.query(
+        `
+        WITH parsed AS (
+          SELECT ${parsedDateExpr} AS fecha_norm
+          FROM ventas_item_diario
+        )
+        SELECT MAX(fecha_norm)::text AS max_fecha
+        FROM parsed
+        `,
+      );
+      const maxRow = (defaultRangeResult.rows?.[0] ?? null) as DbMaxDateRow | null;
+      const maxFecha = String(maxRow?.max_fecha ?? "");
+      if (!maxFecha) {
+        return withSession(
+          NextResponse.json(
+            { error: "No hay fechas validas en la base de datos." },
+            { status: 400 },
+          ),
+        );
+      }
+      const maxDate = new Date(`${maxFecha}T00:00:00Z`);
+      maxDate.setUTCDate(maxDate.getUTCDate() - 6);
+      effectiveEnd = maxFecha;
+      effectiveStart = maxDate.toISOString().slice(0, 10);
+    } else if (!effectiveStart || !effectiveEnd) {
       return withSession(
         NextResponse.json(
-          { error: "Debes enviar start y end para cargar datos por rango." },
+          { error: "Debes enviar start y end, o ninguno para usar la ultima semana." },
+          { status: 400 },
+        ),
+      );
+    }
+    if (effectiveStart > effectiveEnd) {
+      return withSession(
+        NextResponse.json(
+          { error: "start no puede ser mayor que end." },
           { status: 400 },
         ),
       );
@@ -210,9 +244,9 @@ export async function GET(request: Request) {
     const params: unknown[] = [];
     const where: string[] = ["parsed.fecha_norm IS NOT NULL"];
 
-    params.push(start);
+    params.push(effectiveStart);
     where.push(`parsed.fecha_norm >= $${params.length}::date`);
-    params.push(end);
+    params.push(effectiveEnd);
     where.push(`parsed.fecha_norm <= $${params.length}::date`);
     params.push(maxRows);
 
@@ -236,8 +270,8 @@ export async function GET(request: Request) {
         SELECT
           base.*,
           CASE
-            WHEN base.fecha_dcto ~ '^[0-9]{8}$' THEN TO_DATE(base.fecha_dcto, 'YYYYMMDD')
-            WHEN base.fecha_dcto ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN base.fecha_dcto::date
+            WHEN REGEXP_REPLACE(REPLACE(base.fecha_dcto, '-', ''), '\.0$', '') ~ '^[0-9]{8}$'
+              THEN TO_DATE(REGEXP_REPLACE(REPLACE(base.fecha_dcto, '-', ''), '\.0$', ''), 'YYYYMMDD')
             ELSE NULL::date
           END AS fecha_norm
         FROM base
@@ -279,6 +313,7 @@ export async function GET(request: Request) {
         {
           rows,
           total: rows.length,
+          range: { start: effectiveStart, end: effectiveEnd },
           source: "database",
         },
         {

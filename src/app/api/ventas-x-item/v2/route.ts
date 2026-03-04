@@ -20,6 +20,9 @@ type DbMetaRow = {
   max_fecha: string | null;
   total_rows: string | number | null;
 };
+type DbMaxDateRow = {
+  max_fecha: string | null;
+};
 
 type DbOptionRow = {
   id_item: string | null;
@@ -63,8 +66,8 @@ const isDateKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 const parsedDateExpr = `
   CASE
-    WHEN fecha_dcto::text ~ '^[0-9]{8}$' THEN TO_DATE(fecha_dcto::text, 'YYYYMMDD')
-    WHEN fecha_dcto::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN fecha_dcto::date
+    WHEN REGEXP_REPLACE(REPLACE(fecha_dcto::text, '-', ''), '\\.0$', '') ~ '^[0-9]{8}$'
+      THEN TO_DATE(REGEXP_REPLACE(REPLACE(fecha_dcto::text, '-', ''), '\\.0$', ''), 'YYYYMMDD')
     ELSE NULL::date
   END
 `;
@@ -170,15 +173,6 @@ export async function GET(request: Request) {
       ),
     );
   }
-  if (start && end && start > end) {
-    return withSession(
-      NextResponse.json(
-        { error: "start no puede ser mayor que end." },
-        { status: 400 },
-      ),
-    );
-  }
-
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
@@ -233,16 +227,52 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!start || !end) {
+    let effectiveStart = start;
+    let effectiveEnd = end;
+
+    if (!effectiveStart && !effectiveEnd) {
+      const defaultRangeResult = await client.query(
+        `
+        WITH parsed AS (
+          SELECT ${parsedDateExpr} AS fecha_norm
+          FROM ventas_item_diario
+        )
+        SELECT MAX(fecha_norm)::text AS max_fecha
+        FROM parsed
+        `,
+      );
+      const maxRow = (defaultRangeResult.rows?.[0] ?? null) as DbMaxDateRow | null;
+      const maxFecha = String(maxRow?.max_fecha ?? "");
+      if (!maxFecha) {
+        return withSession(
+          NextResponse.json(
+            { error: "No hay fechas validas en la base de datos." },
+            { status: 400 },
+          ),
+        );
+      }
+      const maxDate = new Date(`${maxFecha}T00:00:00Z`);
+      maxDate.setUTCDate(maxDate.getUTCDate() - 6);
+      effectiveEnd = maxFecha;
+      effectiveStart = maxDate.toISOString().slice(0, 10);
+    } else if (!effectiveStart || !effectiveEnd) {
       return withSession(
         NextResponse.json(
-          { error: "Debes enviar start y end para cargar datos por rango." },
+          { error: "Debes enviar start y end, o ninguno para usar la ultima semana." },
+          { status: 400 },
+        ),
+      );
+    }
+    if (effectiveStart > effectiveEnd) {
+      return withSession(
+        NextResponse.json(
+          { error: "start no puede ser mayor que end." },
           { status: 400 },
         ),
       );
     }
 
-    const params: unknown[] = [start, end];
+    const params: unknown[] = [effectiveStart, effectiveEnd];
     const where: string[] = [
       "parsed.fecha_norm IS NOT NULL",
       "parsed.fecha_norm >= $1::date",
@@ -307,6 +337,7 @@ export async function GET(request: Request) {
           {
             options,
             total: options.length,
+            range: { start: effectiveStart, end: effectiveEnd },
             source: "database-v2",
           },
           { headers: { "Cache-Control": "no-store" } },
@@ -372,6 +403,7 @@ export async function GET(request: Request) {
         {
           rows,
           total: rows.length,
+          range: { start: effectiveStart, end: effectiveEnd },
           source: "database-v2",
         },
         {

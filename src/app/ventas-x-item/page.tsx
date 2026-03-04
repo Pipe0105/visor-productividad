@@ -157,6 +157,7 @@ export default function VentasXItemPage() {
   const [parityLoading, setParityLoading] = useState(false);
   const [parityResult, setParityResult] = useState<ParityCheckResult | null>(null);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const initialWeekLoadedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -634,6 +635,14 @@ export default function VentasXItemPage() {
     void onLoadMeta();
   }, [ready, loadingMeta, dbMinDate, dbMaxDate]);
 
+  useEffect(() => {
+    if (!ready || loadingMeta || loadingDb) return;
+    if (initialWeekLoadedRef.current) return;
+    if (!dateStart || !dateEnd) return;
+    initialWeekLoadedRef.current = true;
+    void onLoadFromDb();
+  }, [ready, loadingMeta, loadingDb, dateStart, dateEnd]);
+
   const handleDownloadCsv = () => {
     if (tableRows.length === 0 || tableColumns.length === 0) return;
     const lines = [
@@ -848,7 +857,7 @@ export default function VentasXItemPage() {
               ? `Fuente actual: ${fileName}`
               : loadingMeta
                 ? "Consultando rango disponible en base de datos..."
-                : "Selecciona un rango y carga solo esos dias desde BD."}
+                : "Se carga por defecto la ultima semana disponible en BD."}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
             API activa: {USE_V2_API ? "v2 (controlada por flag)" : "v1 (estable)"}
