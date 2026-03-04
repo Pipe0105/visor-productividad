@@ -35,6 +35,57 @@ const ITEM_DROPDOWN_NO_SEARCH_LIMIT = 120;
 const ITEM_DROPDOWN_SEARCH_LIMIT = 250;
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+type ComparisonMode = "day" | "week" | "month";
+
+const getIsoWeekKey = (date: Date) => {
+  const utc = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+};
+
+const getMonthKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+const formatDateShort = (date: Date) =>
+  new Intl.DateTimeFormat("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+
+const getWeekLabel = (date: Date) => {
+  const base = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  const day = base.getUTCDay() || 7;
+  const monday = new Date(base);
+  monday.setUTCDate(base.getUTCDate() - (day - 1));
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  return `${getIsoWeekKey(base)} (${formatDateShort(monday)} - ${formatDateShort(sunday)})`;
+};
+
+const getComparisonKey = (date: Date, mode: ComparisonMode) => {
+  if (mode === "day") return toDateKey(date);
+  if (mode === "week") return getIsoWeekKey(date);
+  return getMonthKey(date);
+};
+
+const getComparisonLabel = (date: Date, mode: ComparisonMode) => {
+  if (mode === "day") return formatDateShort(date);
+  if (mode === "week") return getWeekLabel(date);
+  return `${getMonthKey(date)} (${new Intl.DateTimeFormat("es-CO", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date)})`;
+};
 
 const firstWordsFromOption = (option: string) => {
   const desc = (option.includes(" - ") ? option.split(" - ", 2)[1] : option)
@@ -76,6 +127,9 @@ export default function VentasXItemPage() {
   const [itemsOrder, setItemsOrder] = useState<string[]>([]);
   const [itemSearch, setItemSearch] = useState("");
   const [itemsDropdownOpen, setItemsDropdownOpen] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("day");
+  const [comparisonA, setComparisonA] = useState("");
+  const [comparisonB, setComparisonB] = useState("");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -235,8 +289,10 @@ export default function VentasXItemPage() {
     return `Tabla diaria consolidada - ${words.join(" | ")} (unidades)`;
   }, [itemsOrder]);
 
-  const rowsFilteredByItems = useMemo(() => {
-    if (itemsSel.length === 0) return [];
+  const itemFilterMatcher = useMemo(() => {
+    if (itemsSel.length === 0) {
+      return (_row: VentasXItemPreparedRow) => false;
+    }
     const ids = new Set<string>();
     const descNeedles: string[] = [];
 
@@ -251,14 +307,85 @@ export default function VentasXItemPage() {
       }
     });
 
-    return rowsEmpresaFecha.filter((row) => {
+    return (row: VentasXItemPreparedRow) => {
       const byId = ids.size > 0 && ids.has(String(row.id_item));
       const desc = row.descripcion.toLowerCase();
       const byDesc =
         descNeedles.length > 0 && descNeedles.some((needle) => desc.includes(needle));
       return byId || byDesc;
+    };
+  }, [itemsSel]);
+
+  const rowsFilteredByItemsAllDates = useMemo(
+    () => rowsEmpresa.filter(itemFilterMatcher),
+    [itemFilterMatcher, rowsEmpresa],
+  );
+
+  const rowsFilteredByItems = useMemo(
+    () => rowsEmpresaFecha.filter(itemFilterMatcher),
+    [itemFilterMatcher, rowsEmpresaFecha],
+  );
+
+  const comparisonOptions = useMemo(() => {
+    const optionMap = new Map<string, string>();
+    rowsFilteredByItemsAllDates.forEach((row) => {
+      if (!row.fecha) return;
+      const key = getComparisonKey(row.fecha, comparisonMode);
+      if (!optionMap.has(key)) {
+        optionMap.set(key, getComparisonLabel(row.fecha, comparisonMode));
+      }
     });
-  }, [itemsSel, rowsEmpresaFecha]);
+    return Array.from(optionMap.entries())
+      .sort((a, b) => (a[0] > b[0] ? -1 : 1))
+      .map(([value, label]) => ({ value, label }));
+  }, [comparisonMode, rowsFilteredByItemsAllDates]);
+
+  useEffect(() => {
+    if (comparisonOptions.length === 0) {
+      setComparisonA("");
+      setComparisonB("");
+      return;
+    }
+
+    if (!comparisonA || !comparisonOptions.some((opt) => opt.value === comparisonA)) {
+      setComparisonA(comparisonOptions[0].value);
+    }
+    if (!comparisonB || !comparisonOptions.some((opt) => opt.value === comparisonB)) {
+      setComparisonB(comparisonOptions[1]?.value ?? comparisonOptions[0].value);
+    }
+  }, [comparisonA, comparisonB, comparisonOptions]);
+
+  const comparisonTotals = useMemo(() => {
+    const getTotals = (targetKey: string) => {
+      if (!targetKey) {
+        return { units: 0, sales: 0 };
+      }
+      return rowsFilteredByItemsAllDates.reduce(
+        (acc, row) => {
+          if (!row.fecha) return acc;
+          if (getComparisonKey(row.fecha, comparisonMode) !== targetKey) return acc;
+          return {
+            units: acc.units + (row.und_dia ?? 0),
+            sales: acc.sales + (row.venta_sin_impuesto_dia ?? 0),
+          };
+        },
+        { units: 0, sales: 0 },
+      );
+    };
+
+    const current = getTotals(comparisonA);
+    const previous = getTotals(comparisonB);
+    return {
+      current,
+      previous,
+      unitsDiff: current.units - previous.units,
+      salesDiff: current.sales - previous.sales,
+      unitsPct:
+        previous.units === 0 ? null : ((current.units - previous.units) / previous.units) * 100,
+      salesPct:
+        previous.sales === 0 ? null : ((current.sales - previous.sales) / previous.sales) * 100,
+    };
+  }, [comparisonA, comparisonB, comparisonMode, rowsFilteredByItemsAllDates]);
 
   const tableRows = useMemo<DailyTableRow[]>(() => {
     if (!dateStart || !dateEnd) return [];
@@ -739,6 +866,128 @@ export default function VentasXItemPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white p-4">
+              <h2 className="text-base font-bold text-slate-900">
+                Comparacion de periodos
+              </h2>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Modo
+                  <select
+                    value={comparisonMode}
+                    onChange={(e) =>
+                      setComparisonMode(e.target.value as ComparisonMode)
+                    }
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                  >
+                    <option value="day">Dia vs dia</option>
+                    <option value="week">Semana vs semana</option>
+                    <option value="month">Mes vs mes</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Periodo A
+                  <select
+                    value={comparisonA}
+                    onChange={(e) => setComparisonA(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                  >
+                    {comparisonOptions.map((opt) => (
+                      <option key={`A-${opt.value}`} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Periodo B
+                  <select
+                    value={comparisonB}
+                    onChange={(e) => setComparisonB(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                  >
+                    {comparisonOptions.map((opt) => (
+                      <option key={`B-${opt.value}`} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Unidades
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonTotals.current.units.toLocaleString("es-CO", {
+                        maximumFractionDigits: 1,
+                      })}
+                    </span>{" "}
+                    | B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonTotals.previous.units.toLocaleString("es-CO", {
+                        maximumFractionDigits: 1,
+                      })}
+                    </span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      comparisonTotals.unitsDiff >= 0
+                        ? "text-emerald-700"
+                        : "text-red-700"
+                    }`}
+                  >
+                    Delta:{" "}
+                    {comparisonTotals.unitsDiff.toLocaleString("es-CO", {
+                      maximumFractionDigits: 1,
+                    })}
+                    {comparisonTotals.unitsPct === null
+                      ? " | %: N/A"
+                      : ` | %: ${comparisonTotals.unitsPct.toFixed(1)}%`}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Venta sin impuesto
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonTotals.current.sales.toLocaleString("es-CO", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>{" "}
+                    | B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonTotals.previous.sales.toLocaleString("es-CO", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      comparisonTotals.salesDiff >= 0
+                        ? "text-emerald-700"
+                        : "text-red-700"
+                    }`}
+                  >
+                    Delta:{" "}
+                    {comparisonTotals.salesDiff.toLocaleString("es-CO", {
+                      maximumFractionDigits: 0,
+                    })}
+                    {comparisonTotals.salesPct === null
+                      ? " | %: N/A"
+                      : ` | %: ${comparisonTotals.salesPct.toFixed(1)}%`}
+                  </p>
                 </div>
               </div>
             </div>
