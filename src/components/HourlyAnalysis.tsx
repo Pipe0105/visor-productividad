@@ -356,8 +356,9 @@ export const HourlyAnalysis = ({
   const [overtimeRangeMax, setOvertimeRangeMax] = useState("10");
   const [overtimeSedeFilter, setOvertimeSedeFilter] = useState<string[]>([]);
   const [overtimePersonFilter, setOvertimePersonFilter] = useState("");
-  const [overtimeDepartmentFilter, setOvertimeDepartmentFilter] =
-    useState("all");
+  const [overtimeDepartmentFilter, setOvertimeDepartmentFilter] = useState<
+    string[]
+  >([]);
   const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] =
     useState("all");
   const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
@@ -1021,11 +1022,11 @@ export const HourlyAnalysis = ({
         );
         if (!anyMatch) return false;
       }
-      if (
-        overtimeDepartmentFilter !== "all" &&
-        (employee.department ?? "") !== overtimeDepartmentFilter
-      ) {
-        return false;
+      if (overtimeDepartmentFilter.length > 0) {
+        const employeeDepartment = employee.department ?? "";
+        if (!overtimeDepartmentFilter.includes(employeeDepartment)) {
+          return false;
+        }
       }
       if (overtimeMarksFilter !== "all") {
         const marks = employee.marksCount ?? 0;
@@ -1654,7 +1655,7 @@ export const HourlyAnalysis = ({
                           prev && prev < next ? next : prev,
                         );
                       }}
-                      className={overtimeFilterControlClass}
+                      className="mt-1 w-full rounded-2xl border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-all focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-100"
                     />
                   </label>
                   <label className="block">
@@ -1792,10 +1793,19 @@ export const HourlyAnalysis = ({
                     </span>
                     <select
                       value={overtimeDepartmentFilter}
-                      onChange={(e) =>
-                        setOvertimeDepartmentFilter(e.target.value)
-                      }
+                      onChange={(e) => {
+                        const selected = Array.from(
+                          e.currentTarget.selectedOptions,
+                        ).map((option) => option.value);
+                        if (selected.includes("all")) {
+                          setOvertimeDepartmentFilter([]);
+                          return;
+                        }
+                        setOvertimeDepartmentFilter(selected);
+                      }}
                       className={overtimeFilterControlClass}
+                      multiple
+                      size={Math.min(8, Math.max(3, overtimeDepartmentOptions.length + 1))}
                     >
                       <option value="all">Todos</option>
                       {overtimeDepartmentOptions.map((department) => (
@@ -1804,6 +1814,9 @@ export const HourlyAnalysis = ({
                         </option>
                       ))}
                     </select>
+                    <span className="mt-1 block text-[11px] text-slate-500">
+                      Puedes seleccionar varios departamentos.
+                    </span>
                   </label>
                 )}
                 <label className="block">
