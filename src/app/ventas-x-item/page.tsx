@@ -414,6 +414,88 @@ export default function VentasXItemPage() {
     };
   }, [comparisonA, comparisonB, comparisonMode, rowsFilteredByItemsAllDates]);
 
+  const comparisonDetails = useMemo(() => {
+    const getPeriodStats = (targetKey: string) => {
+      const daySet = new Set<string>();
+      const sedeSet = new Set<string>();
+      const itemSet = new Set<string>();
+      const bySede = new Map<string, { units: number; sales: number }>();
+
+      let units = 0;
+      let sales = 0;
+
+      rowsFilteredByItemsAllDates.forEach((row) => {
+        if (!row.fecha) return;
+        if (!targetKey || getComparisonKey(row.fecha, comparisonMode) !== targetKey) return;
+        const day = toDateKey(row.fecha);
+        daySet.add(day);
+        sedeSet.add(row.sede);
+        itemSet.add(String(row.id_item));
+        units += row.und_dia ?? 0;
+        sales += row.venta_sin_impuesto_dia ?? 0;
+        const current = bySede.get(row.sede) ?? { units: 0, sales: 0 };
+        current.units += row.und_dia ?? 0;
+        current.sales += row.venta_sin_impuesto_dia ?? 0;
+        bySede.set(row.sede, current);
+      });
+
+      const topSede = Array.from(bySede.entries())
+        .map(([sede, values]) => ({ sede, ...values }))
+        .sort((a, b) => b.units - a.units)[0] ?? null;
+
+      return {
+        units,
+        sales,
+        daysCount: daySet.size,
+        sedeCount: sedeSet.size,
+        itemCount: itemSet.size,
+        avgUnitsPerDay: daySet.size > 0 ? units / daySet.size : 0,
+        avgSalesPerDay: daySet.size > 0 ? sales / daySet.size : 0,
+        salesPerUnit: units > 0 ? sales / units : null,
+        bySede,
+        topSede,
+      };
+    };
+
+    const current = getPeriodStats(comparisonA);
+    const previous = getPeriodStats(comparisonB);
+
+    const allSedes = new Set<string>([
+      ...Array.from(current.bySede.keys()),
+      ...Array.from(previous.bySede.keys()),
+    ]);
+
+    const sedeDiffRows = Array.from(allSedes)
+      .map((sede) => {
+        const c = current.bySede.get(sede) ?? { units: 0, sales: 0 };
+        const p = previous.bySede.get(sede) ?? { units: 0, sales: 0 };
+        return {
+          sede,
+          unitsA: c.units,
+          unitsB: p.units,
+          unitsDiff: c.units - p.units,
+          salesA: c.sales,
+          salesB: p.sales,
+          salesDiff: c.sales - p.sales,
+        };
+      })
+      .sort((a, b) => Math.abs(b.unitsDiff) - Math.abs(a.unitsDiff))
+      .slice(0, 6);
+
+    return {
+      current,
+      previous,
+      daysDiff: current.daysCount - previous.daysCount,
+      avgUnitsDiff: current.avgUnitsPerDay - previous.avgUnitsPerDay,
+      avgSalesDiff: current.avgSalesPerDay - previous.avgSalesPerDay,
+      salesPerUnitDiff:
+        current.salesPerUnit === null || previous.salesPerUnit === null
+          ? null
+          : current.salesPerUnit - previous.salesPerUnit,
+      sedeDiffRows,
+    };
+  }, [comparisonA, comparisonB, comparisonMode, rowsFilteredByItemsAllDates]);
+
   const tableRows = useMemo<DailyTableRow[]>(() => {
     if (!dateStart || !dateEnd) return [];
     const start = new Date(`${dateStart}T00:00:00Z`);
@@ -1182,6 +1264,233 @@ export default function VentasXItemPage() {
                       : ` | %: ${comparisonTotals.salesPct.toFixed(1)}%`}
                   </p>
                 </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Dias con datos
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A: <span className="font-bold text-slate-900">{comparisonDetails.current.daysCount}</span> | B:{" "}
+                    <span className="font-bold text-slate-900">{comparisonDetails.previous.daysCount}</span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      comparisonDetails.daysDiff >= 0 ? "text-emerald-700" : "text-red-700"
+                    }`}
+                  >
+                    Delta: {comparisonDetails.daysDiff}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Promedio diario unidades
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.avgUnitsPerDay.toLocaleString("es-CO", {
+                        maximumFractionDigits: 1,
+                      })}
+                    </span>{" "}
+                    | B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.avgUnitsPerDay.toLocaleString("es-CO", {
+                        maximumFractionDigits: 1,
+                      })}
+                    </span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      comparisonDetails.avgUnitsDiff >= 0 ? "text-emerald-700" : "text-red-700"
+                    }`}
+                  >
+                    Delta:{" "}
+                    {comparisonDetails.avgUnitsDiff.toLocaleString("es-CO", {
+                      maximumFractionDigits: 1,
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Promedio diario venta
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.avgSalesPerDay.toLocaleString("es-CO", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>{" "}
+                    | B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.avgSalesPerDay.toLocaleString("es-CO", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      comparisonDetails.avgSalesDiff >= 0 ? "text-emerald-700" : "text-red-700"
+                    }`}
+                  >
+                    Delta:{" "}
+                    {comparisonDetails.avgSalesDiff.toLocaleString("es-CO", {
+                      maximumFractionDigits: 0,
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Cobertura (sedes / items)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.sedeCount}
+                    </span>
+                    {" / "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.itemCount}
+                    </span>
+                  </p>
+                  <p className="text-sm text-slate-700">
+                    B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.sedeCount}
+                    </span>
+                    {" / "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.itemCount}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Ticket por unidad (venta / unidades)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.salesPerUnit === null
+                        ? "N/A"
+                        : comparisonDetails.current.salesPerUnit.toLocaleString("es-CO", {
+                            maximumFractionDigits: 2,
+                          })}
+                    </span>{" "}
+                    | B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.salesPerUnit === null
+                        ? "N/A"
+                        : comparisonDetails.previous.salesPerUnit.toLocaleString("es-CO", {
+                            maximumFractionDigits: 2,
+                          })}
+                    </span>
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      (comparisonDetails.salesPerUnitDiff ?? 0) >= 0
+                        ? "text-emerald-700"
+                        : "text-red-700"
+                    }`}
+                  >
+                    Delta:{" "}
+                    {comparisonDetails.salesPerUnitDiff === null
+                      ? "N/A"
+                      : comparisonDetails.salesPerUnitDiff.toLocaleString("es-CO", {
+                          maximumFractionDigits: 2,
+                        })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Sede lider (unidades)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    A:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.current.topSede
+                        ? `${comparisonDetails.current.topSede.sede} (${comparisonDetails.current.topSede.units.toLocaleString(
+                            "es-CO",
+                            { maximumFractionDigits: 1 },
+                          )})`
+                        : "N/A"}
+                    </span>
+                  </p>
+                  <p className="text-sm text-slate-700">
+                    B:{" "}
+                    <span className="font-bold text-slate-900">
+                      {comparisonDetails.previous.topSede
+                        ? `${comparisonDetails.previous.topSede.sede} (${comparisonDetails.previous.topSede.units.toLocaleString(
+                            "es-CO",
+                            { maximumFractionDigits: 1 },
+                          )})`
+                        : "N/A"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Sedes con mayor variacion (unidades)
+                </p>
+                {comparisonDetails.sedeDiffRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">Sin datos para comparar.</p>
+                ) : (
+                  <div className="mt-2 overflow-auto">
+                    <table className="min-w-full text-xs text-slate-700">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="px-2 py-2 text-left">Sede</th>
+                          <th className="px-2 py-2 text-right">Unid. A</th>
+                          <th className="px-2 py-2 text-right">Unid. B</th>
+                          <th className="px-2 py-2 text-right">Delta Unid.</th>
+                          <th className="px-2 py-2 text-right">Delta Venta</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparisonDetails.sedeDiffRows.map((row) => (
+                          <tr key={row.sede} className="border-b border-slate-100">
+                            <td className="px-2 py-1.5 font-semibold">{row.sede}</td>
+                            <td className="px-2 py-1.5 text-right">
+                              {row.unitsA.toLocaleString("es-CO", { maximumFractionDigits: 1 })}
+                            </td>
+                            <td className="px-2 py-1.5 text-right">
+                              {row.unitsB.toLocaleString("es-CO", { maximumFractionDigits: 1 })}
+                            </td>
+                            <td
+                              className={`px-2 py-1.5 text-right font-semibold ${
+                                row.unitsDiff >= 0 ? "text-emerald-700" : "text-red-700"
+                              }`}
+                            >
+                              {row.unitsDiff.toLocaleString("es-CO", {
+                                maximumFractionDigits: 1,
+                              })}
+                            </td>
+                            <td
+                              className={`px-2 py-1.5 text-right font-semibold ${
+                                row.salesDiff >= 0 ? "text-emerald-700" : "text-red-700"
+                              }`}
+                            >
+                              {row.salesDiff.toLocaleString("es-CO", {
+                                maximumFractionDigits: 0,
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
