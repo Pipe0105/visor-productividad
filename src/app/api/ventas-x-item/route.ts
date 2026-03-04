@@ -102,10 +102,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const start = url.searchParams.get("start");
   const end = url.searchParams.get("end");
-  const maxRowsParam = Number(url.searchParams.get("maxRows") ?? 150000);
+  const maxRowsParam = Number(url.searchParams.get("maxRows") ?? 500000);
   const maxRows = Number.isFinite(maxRowsParam)
-    ? Math.max(1000, Math.min(500000, Math.floor(maxRowsParam)))
-    : 150000;
+    ? Math.max(1000, Math.min(1000000, Math.floor(maxRowsParam)))
+    : 500000;
 
   if (start && !isDateKey(start)) {
     return withSession(
@@ -210,7 +210,7 @@ export async function GET(request: Request) {
         parsed.venta_sin_impuesto_acum
       FROM parsed
       WHERE ${where.join(" AND ")}
-      ORDER BY parsed.fecha_norm, parsed.empresa, parsed.id_co, parsed.id_item
+      ORDER BY parsed.fecha_norm DESC, parsed.empresa, parsed.id_co, parsed.id_item
       LIMIT $${params.length}
       `,
       params,
