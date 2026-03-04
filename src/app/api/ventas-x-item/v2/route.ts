@@ -21,11 +21,16 @@ type DbMetaRow = {
   total_rows: string | number | null;
 };
 
+type DbOptionRow = {
+  id_item: string | null;
+  descripcion: string | null;
+};
+
 const toNumber = (value: string | number | null | undefined) =>
   Number(value ?? 0) || 0;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 90;
+const RATE_LIMIT_MAX = 120;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 const getClientIp = (request: Request) => {
@@ -55,6 +60,33 @@ const checkRateLimit = (request: Request) => {
 };
 
 const isDateKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const parsedDateExpr = `
+  CASE
+    WHEN fecha_dcto::text ~ '^[0-9]{8}$' THEN TO_DATE(fecha_dcto::text, 'YYYYMMDD')
+    WHEN fecha_dcto::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN fecha_dcto::date
+    ELSE NULL::date
+  END
+`;
+
+const parseList = (raw: string | null) =>
+  (raw ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+const normalizeEmpresa = (value: string) => {
+  const plain = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (plain === "m.t" || plain === "m_todo") return "mtodo";
+  return plain;
+};
+
+const normalizeIdCo = (value: string) => {
+  const raw = value.trim();
+  if (/^\d+$/.test(raw)) return String(Number.parseInt(raw, 10)).padStart(3, "0");
+  if (/^\d{3}/.test(raw)) return raw.slice(0, 3);
+  return raw;
+};
 
 export async function GET(request: Request) {
   const session = await requireAuthSession();
@@ -106,13 +138,21 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+  const mode = (url.searchParams.get("mode") ?? "").trim().toLowerCase();
   const start = url.searchParams.get("start");
   const end = url.searchParams.get("end");
-  const mode = url.searchParams.get("mode");
-  const maxRowsParam = Number(url.searchParams.get("maxRows") ?? 500000);
+  const itemQuery = (url.searchParams.get("itemQuery") ?? "").trim().toLowerCase();
+  const empresas = parseList(url.searchParams.get("empresa")).map(normalizeEmpresa);
+  const idCos = parseList(url.searchParams.get("idCo")).map(normalizeIdCo);
+  const itemIds = parseList(url.searchParams.get("itemIds"));
+  const maxRowsParam = Number(url.searchParams.get("maxRows") ?? 200000);
   const maxRows = Number.isFinite(maxRowsParam)
-    ? Math.max(1000, Math.min(1000000, Math.floor(maxRowsParam)))
-    : 500000;
+    ? Math.max(1000, Math.min(300000, Math.floor(maxRowsParam)))
+    : 200000;
+  const optionLimitParam = Number(url.searchParams.get("optionLimit") ?? 80);
+  const optionLimit = Number.isFinite(optionLimitParam)
+    ? Math.max(20, Math.min(300, Math.floor(optionLimitParam)))
+    : 80;
 
   if (start && !isDateKey(start)) {
     return withSession(
@@ -169,12 +209,7 @@ export async function GET(request: Request) {
       const metaResult = await client.query(
         `
         WITH parsed AS (
-          SELECT
-            CASE
-              WHEN fecha_dcto::text ~ '^[0-9]{8}$' THEN TO_DATE(fecha_dcto::text, 'YYYYMMDD')
-              WHEN fecha_dcto::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN fecha_dcto::date
-              ELSE NULL::date
-            END AS fecha_norm
+          SELECT ${parsedDateExpr} AS fecha_norm
           FROM ventas_item_diario
         )
         SELECT
@@ -191,7 +226,7 @@ export async function GET(request: Request) {
             minDate: meta?.min_fecha ?? null,
             maxDate: meta?.max_fecha ?? null,
             totalRows: Number(meta?.total_rows ?? 0),
-            source: "database",
+            source: "database-v2",
           },
           { headers: { "Cache-Control": "no-store" } },
         ),
@@ -207,21 +242,86 @@ export async function GET(request: Request) {
       );
     }
 
-    const params: unknown[] = [];
-    const where: string[] = ["parsed.fecha_norm IS NOT NULL"];
+    const params: unknown[] = [start, end];
+    const where: string[] = [
+      "parsed.fecha_norm IS NOT NULL",
+      "parsed.fecha_norm >= $1::date",
+      "parsed.fecha_norm <= $2::date",
+    ];
 
-    params.push(start);
-    where.push(`parsed.fecha_norm >= $${params.length}::date`);
-    params.push(end);
-    where.push(`parsed.fecha_norm <= $${params.length}::date`);
+    if (empresas.length > 0) {
+      params.push(empresas);
+      where.push(
+        `LOWER(TRANSLATE(COALESCE(parsed.empresa, ''), 'ÁÉÍÓÚáéíóúÑñ', 'AEIOUaeiouNn')) = ANY($${params.length}::text[])`,
+      );
+    }
+    if (idCos.length > 0) {
+      params.push(idCos);
+      where.push(
+        `LPAD(REGEXP_REPLACE(COALESCE(parsed.id_co, ''), '[^0-9]', '', 'g'), 3, '0') = ANY($${params.length}::text[])`,
+      );
+    }
+    if (itemIds.length > 0) {
+      params.push(itemIds);
+      where.push(`parsed.id_item = ANY($${params.length}::text[])`);
+    }
+    if (itemQuery.length >= 2) {
+      params.push(`%${itemQuery}%`);
+      where.push(
+        `(LOWER(COALESCE(parsed.descripcion, '')) LIKE $${params.length} OR LOWER(COALESCE(parsed.id_item, '')) LIKE $${params.length})`,
+      );
+    }
+
+    if (mode === "options") {
+      params.push(optionLimit);
+      const optionsResult = await client.query(
+        `
+        WITH base AS (
+          SELECT
+            empresa,
+            ${parsedDateExpr} AS fecha_norm,
+            id_co::text AS id_co,
+            id_item::text AS id_item,
+            descripcion
+          FROM ventas_item_diario
+        ),
+        parsed AS (
+          SELECT * FROM base
+        )
+        SELECT parsed.id_item, MAX(parsed.descripcion) AS descripcion
+        FROM parsed
+        WHERE ${where.join(" AND ")}
+        GROUP BY parsed.id_item
+        ORDER BY parsed.id_item
+        LIMIT $${params.length}
+        `,
+        params,
+      );
+      const options = ((optionsResult.rows ?? []) as DbOptionRow[]).map((row) => ({
+        id_item: row.id_item ?? "",
+        descripcion: row.descripcion ?? "",
+        label: `${row.id_item ?? ""} - ${row.descripcion ?? ""}`.trim(),
+      }));
+      return withSession(
+        NextResponse.json(
+          {
+            options,
+            total: options.length,
+            source: "database-v2",
+          },
+          { headers: { "Cache-Control": "no-store" } },
+        ),
+      );
+    }
+
     params.push(maxRows);
-
     const result = await client.query(
       `
       WITH base AS (
         SELECT
           empresa,
           fecha_dcto::text AS fecha_dcto,
+          ${parsedDateExpr} AS fecha_norm,
           id_co::text AS id_co,
           id_item::text AS id_item,
           descripcion,
@@ -233,14 +333,7 @@ export async function GET(request: Request) {
         FROM ventas_item_diario
       ),
       parsed AS (
-        SELECT
-          base.*,
-          CASE
-            WHEN base.fecha_dcto ~ '^[0-9]{8}$' THEN TO_DATE(base.fecha_dcto, 'YYYYMMDD')
-            WHEN base.fecha_dcto ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN base.fecha_dcto::date
-            ELSE NULL::date
-          END AS fecha_norm
-        FROM base
+        SELECT * FROM base
       )
       SELECT
         parsed.empresa,
@@ -279,7 +372,7 @@ export async function GET(request: Request) {
         {
           rows,
           total: rows.length,
-          source: "database",
+          source: "database-v2",
         },
         {
           headers: {
@@ -295,7 +388,7 @@ export async function GET(request: Request) {
           rows: [],
           total: 0,
           error:
-            "No se pudieron cargar los datos de ventas x item: " +
+            "No se pudieron cargar los datos de ventas x item (v2): " +
             (error instanceof Error ? error.message : String(error)),
         },
         { status: 500, headers: { "Cache-Control": "no-store" } },

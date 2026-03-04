@@ -33,8 +33,15 @@ const HEATMAP_COLORS = [
 
 const ITEM_DROPDOWN_NO_SEARCH_LIMIT = 120;
 const ITEM_DROPDOWN_SEARCH_LIMIT = 250;
+const USE_V2_API = process.env.NEXT_PUBLIC_VENTAS_X_ITEM_USE_V2 === "1";
+const VENTAS_X_ITEM_API_BASE = USE_V2_API ? "/api/ventas-x-item/v2" : "/api/ventas-x-item";
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+const addDaysUtc = (dateKey: string, days: number) => {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDateKey(date);
+};
 type ComparisonMode = "day" | "week" | "month";
 
 const getIsoWeekKey = (date: Date) => {
@@ -112,13 +119,28 @@ const downloadBlob = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+type ParityCheckResult = {
+  ok: boolean;
+  v2Rows: number;
+  v1Rows: number;
+  v2Units: number;
+  v1Units: number;
+  v2Sales: number;
+  v1Sales: number;
+  checkedAt: string;
+  message?: string;
+};
+
 export default function VentasXItemPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [loadingDb, setLoadingDb] = useState(false);
+  const [loadingMeta, setLoadingMeta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<VentasXItemPreparedRow[]>([]);
   const [fileName, setFileName] = useState("");
+  const [dbMinDate, setDbMinDate] = useState("");
+  const [dbMaxDate, setDbMaxDate] = useState("");
   const [empresasSel, setEmpresasSel] = useState<string[]>([]);
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -132,6 +154,8 @@ export default function VentasXItemPage() {
   const [comparisonB, setComparisonB] = useState("");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
+  const [parityLoading, setParityLoading] = useState(false);
+  const [parityResult, setParityResult] = useState<ParityCheckResult | null>(null);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -207,6 +231,7 @@ export default function VentasXItemPage() {
     [rows],
   );
   const minDateKey = useMemo(() => {
+    if (dbMinDate) return dbMinDate;
     if (validRows.length === 0) return "";
     return toDateKey(
       validRows.reduce(
@@ -216,6 +241,7 @@ export default function VentasXItemPage() {
     );
   }, [validRows]);
   const maxDateKey = useMemo(() => {
+    if (dbMaxDate) return dbMaxDate;
     if (validRows.length === 0) return "";
     return toDateKey(
       validRows.reduce(
@@ -450,13 +476,65 @@ export default function VentasXItemPage() {
     });
   };
 
-  const onLoadFromDb = async () => {
+  const sumPreparedRows = (inputRows: VentasXItemPreparedRow[]) =>
+    inputRows.reduce(
+      (acc, row) => ({
+        units: acc.units + (row.und_dia ?? 0),
+        sales: acc.sales + (row.venta_sin_impuesto_dia ?? 0),
+      }),
+      { units: 0, sales: 0 },
+    );
+
+  const onLoadMeta = async () => {
+    setLoadingMeta(true);
     setError(null);
-    setLoadingDb(true);
     try {
-      const response = await fetch("/api/ventas-x-item", {
+      const response = await fetch(`${VENTAS_X_ITEM_API_BASE}?mode=meta`, {
         cache: "no-store",
       });
+      const payload = (await response.json()) as {
+        minDate?: string | null;
+        maxDate?: string | null;
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "No se pudo cargar metadatos de fechas.");
+      }
+      const min = payload.minDate ?? "";
+      const max = payload.maxDate ?? "";
+      setDbMinDate(min);
+      setDbMaxDate(max);
+      if (min && max) {
+        const suggestedStart = addDaysUtc(max, -6);
+        setDateStart(suggestedStart < min ? min : suggestedStart);
+        setDateEnd(max);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingMeta(false);
+    }
+  };
+
+  const onLoadFromDb = async () => {
+    setError(null);
+    setParityResult(null);
+    if (!dateStart || !dateEnd) {
+      setError("Debes seleccionar un rango de fechas antes de cargar.");
+      return;
+    }
+    if (dateStart > dateEnd) {
+      setError("La fecha inicio no puede ser mayor que la fecha fin.");
+      return;
+    }
+    setLoadingDb(true);
+    try {
+      const response = await fetch(
+        `${VENTAS_X_ITEM_API_BASE}?start=${encodeURIComponent(dateStart)}&end=${encodeURIComponent(dateEnd)}&maxRows=300000`,
+        {
+          cache: "no-store",
+        },
+      );
       const payload = (await response.json()) as {
         rows?: VentasXItemRawRow[];
         error?: string;
@@ -477,7 +555,7 @@ export default function VentasXItemPage() {
       );
       const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
       setRows(prepared);
-      setFileName("DB: ventas_item_diario");
+      setFileName(`DB: ventas_item_diario (${dateStart} a ${dateEnd})`);
       setEmpresasSel(empresas);
       setDateStart(toDateKey(min));
       setDateEnd(toDateKey(max));
@@ -493,10 +571,68 @@ export default function VentasXItemPage() {
     }
   };
 
+  const onCheckParity = async () => {
+    if (!USE_V2_API) return;
+    if (!dateStart || !dateEnd) {
+      setError("Carga un rango antes de validar paridad.");
+      return;
+    }
+
+    setParityLoading(true);
+    setError(null);
+    try {
+      const v1Response = await fetch(
+        `/api/ventas-x-item?start=${encodeURIComponent(dateStart)}&end=${encodeURIComponent(dateEnd)}&maxRows=300000`,
+        { cache: "no-store" },
+      );
+      const v1Payload = (await v1Response.json()) as {
+        rows?: VentasXItemRawRow[];
+        error?: string;
+      };
+      if (!v1Response.ok) {
+        throw new Error(v1Payload.error ?? "No se pudo cargar referencia v1.");
+      }
+
+      const v1Prepared = prepareDataframe(v1Payload.rows ?? []);
+      const v2Totals = sumPreparedRows(rows);
+      const v1Totals = sumPreparedRows(v1Prepared);
+      const unitsDiff = Math.abs(v2Totals.units - v1Totals.units);
+      const salesDiff = Math.abs(v2Totals.sales - v1Totals.sales);
+      const v2Rows = rows.length;
+      const v1Rows = v1Prepared.length;
+
+      setParityResult({
+        ok: v2Rows === v1Rows && unitsDiff < 0.01 && salesDiff < 0.01,
+        v2Rows,
+        v1Rows,
+        v2Units: v2Totals.units,
+        v1Units: v1Totals.units,
+        v2Sales: v2Totals.sales,
+        v1Sales: v1Totals.sales,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      const v2Totals = sumPreparedRows(rows);
+      setParityResult({
+        ok: false,
+        v2Rows: rows.length,
+        v1Rows: 0,
+        v2Units: v2Totals.units,
+        v1Units: 0,
+        v2Sales: v2Totals.sales,
+        v1Sales: 0,
+        checkedAt: new Date().toISOString(),
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setParityLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!ready || rows.length > 0 || loadingDb) return;
-    void onLoadFromDb();
-  }, [ready, rows.length, loadingDb]);
+    if (!ready || loadingMeta || dbMinDate || dbMaxDate) return;
+    void onLoadMeta();
+  }, [ready, loadingMeta, dbMinDate, dbMaxDate]);
 
   const handleDownloadCsv = () => {
     if (tableRows.length === 0 || tableColumns.length === 0) return;
@@ -666,21 +802,56 @@ export default function VentasXItemPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">Carga automática desde base de datos</p>
+          <p className="text-sm font-semibold text-slate-800">Carga automatica desde base de datos</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+              Fecha inicio
+              <input
+                type="date"
+                value={dateStart}
+                min={minDateKey || undefined}
+                max={maxDateKey || undefined}
+                onChange={(e) => setDateStart(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                disabled={loadingMeta}
+              />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+              Fecha fin
+              <input
+                type="date"
+                value={dateEnd}
+                min={minDateKey || undefined}
+                max={maxDateKey || undefined}
+                onChange={(e) => setDateEnd(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                disabled={loadingMeta}
+              />
+            </label>
+          </div>
           <div className="mt-3">
             <button
               type="button"
               onClick={() => void onLoadFromDb()}
-              disabled={loadingDb}
+              disabled={loadingDb || loadingMeta || !dateStart || !dateEnd}
               className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingDb ? "Cargando BD..." : "Recargar BD"}
+              {loadingMeta
+                ? "Preparando rango..."
+                : loadingDb
+                  ? "Cargando BD..."
+                  : "Cargar rango desde BD"}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
             {fileName
               ? `Fuente actual: ${fileName}`
-              : "Cargando información de forma automática desde la base de datos."}
+              : loadingMeta
+                ? "Consultando rango disponible en base de datos..."
+                : "Selecciona un rango y carga solo esos dias desde BD."}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            API activa: {USE_V2_API ? "v2 (controlada por flag)" : "v1 (estable)"}
           </p>
           {lastLoadedAt && (
             <p className="mt-1 text-[11px] text-slate-500">
@@ -691,46 +862,56 @@ export default function VentasXItemPage() {
               }).format(new Date(lastLoadedAt))}
             </p>
           )}
+          {USE_V2_API && rows.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void onCheckParity()}
+                disabled={parityLoading || loadingDb}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 disabled:opacity-50"
+              >
+                {parityLoading ? "Validando..." : "Validar paridad con v1"}
+              </button>
+              {parityResult && (
+                <p
+                  className={`text-[11px] ${
+                    parityResult.ok ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
+                  {parityResult.ok
+                    ? `Paridad OK | filas ${parityResult.v2Rows}/${parityResult.v1Rows}`
+                    : `Paridad con diferencias | filas ${parityResult.v2Rows}/${parityResult.v1Rows}`}
+                </p>
+              )}
+            </div>
+          )}
+          {USE_V2_API && parityResult && (
+            <p className="mt-1 text-[11px] text-slate-500">
+              v2 unidades: {parityResult.v2Units.toFixed(1)} | v1 unidades:{" "}
+              {parityResult.v1Units.toFixed(1)} | v2 venta: {parityResult.v2Sales.toFixed(0)} | v1
+              venta: {parityResult.v1Sales.toFixed(0)}
+              {parityResult.message ? ` | detalle: ${parityResult.message}` : ""}
+            </p>
+          )}
           {error && (
             <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
             </p>
           )}
         </div>
-
         {rows.length > 0 && (
           <>
-            <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 md:grid-cols-4">
+            <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 md:grid-cols-2">
               <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-                Fecha inicio
-                <input
-                  type="date"
-                  value={dateStart}
-                  min={minDateKey}
-                  max={maxDateKey}
-                  onChange={(e) => setDateStart(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                />
-              </label>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-                Fecha fin
-                <input
-                  type="date"
-                  value={dateEnd}
-                  min={minDateKey}
-                  max={maxDateKey}
-                  onChange={(e) => setDateEnd(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                />
-              </label>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-                Límite de ítems
+                Limite de items
                 <input
                   type="number"
                   min={1}
                   max={10}
                   value={itemLimit}
-                  onChange={(e) => setItemLimit(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                  onChange={(e) =>
+                    setItemLimit(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
+                  }
                   className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                 />
               </label>
@@ -754,6 +935,9 @@ export default function VentasXItemPage() {
                     {exportingXlsx ? "Generando..." : "XLSX"}
                   </button>
                 </div>
+                <p className="mt-1 text-[11px] normal-case tracking-normal text-slate-500">
+                  Cambia el rango arriba y luego carga desde BD.
+                </p>
               </div>
             </div>
 
