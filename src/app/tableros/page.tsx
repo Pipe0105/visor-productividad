@@ -145,13 +145,13 @@ export default function TablerosPage() {
           Selecciona a donde quieres ingresar.
         </p>
 
-        <div className="mt-6 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visibleDashboards.map((board) => (
             <button
               key={board.id}
               type="button"
               onClick={() => router.push(board.href)}
-              className={`group flex h-full w-full flex-col rounded-2xl border px-5 py-5 text-left transition-all hover:-translate-y-0.5 ${board.classes}`}
+              className={`group flex aspect-square w-full flex-col rounded-2xl border px-5 py-5 text-left transition-all hover:-translate-y-0.5 ${board.classes}`}
             >
               <span
                 className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${board.badgeClasses}`}
