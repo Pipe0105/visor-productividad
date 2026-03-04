@@ -2006,6 +2006,58 @@ export const HourlyAnalysis = ({
                   document.body,
                 )}
 
+              {overtimeDepartmentOpen &&
+                overtimeDepartmentPopoverPos &&
+                typeof document !== "undefined" &&
+                createPortal(
+                  <div
+                    ref={overtimeDepartmentPanelRef}
+                    className="fixed z-9999 min-w-60 rounded-2xl border border-slate-200/70 bg-white p-2 shadow-2xl"
+                    style={{
+                      top: overtimeDepartmentPopoverPos.top,
+                      left: overtimeDepartmentPopoverPos.left,
+                      width: Math.max(260, overtimeDepartmentPopoverPos.width),
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={clearOvertimeDepartmentFilter}
+                      className={`w-full rounded-full border px-3 py-2 text-sm font-semibold transition-all ${
+                        overtimeDepartmentFilter.length === 0
+                          ? "border-rose-200/70 bg-rose-50 text-rose-700"
+                          : "border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <div className="mt-2 max-h-64 space-y-1 overflow-auto pr-1">
+                      {overtimeDepartmentOptions.map((department) => {
+                        const checked =
+                          overtimeDepartmentFilter.includes(department);
+                        return (
+                          <label
+                            key={department}
+                            className="flex items-start gap-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                toggleOvertimeDepartment(department)
+                              }
+                              className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-200"
+                            />
+                            <span className="whitespace-normal wrap-break-word leading-5">
+                              {department}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>,
+                  document.body,
+                )}
+
               {visibleOvertimeEmployees.length === 0 ? (
                 <p className="text-xs text-slate-500">
                   No hay empleados para ese filtro de horas.
