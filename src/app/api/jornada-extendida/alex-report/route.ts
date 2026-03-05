@@ -119,6 +119,10 @@ const parseHoursValue = (value: string | number | null | undefined): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+// "7.2h" y "9.2h" en el reporte significan 7:20 y 9:20 (base 60).
+const HOURS_7_20 = 7 + 20 / 60;
+const HOURS_9_20 = 9 + 20 / 60;
+
 export async function GET(request: Request) {
   const session = await requireAuthSession();
   if (!session) {
@@ -326,10 +330,10 @@ export async function GET(request: Request) {
       const marksCount = Number(typed.marks_count ?? 0);
       const current = counters.get(sedeMapped)!;
 
-      if (totalHours > 7.2 && totalHours <= 9.2 && marksCount === 2) {
+      if (totalHours > HOURS_7_20 && totalHours <= HOURS_9_20 && marksCount === 2) {
         current.moreThan72With2 += 1;
       }
-      if (totalHours > 9.2) {
+      if (totalHours > HOURS_9_20 && marksCount === 2) {
         current.moreThan92 += 1;
       }
     }
