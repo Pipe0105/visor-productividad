@@ -163,6 +163,8 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date")?.trim() ?? "";
+  const startParam = url.searchParams.get("start")?.trim() ?? "";
+  const endParam = url.searchParams.get("end")?.trim() ?? "";
   if (dateParam && !isDateKey(dateParam)) {
     return withSession(
       NextResponse.json(
@@ -171,12 +173,29 @@ export async function GET(request: Request) {
       ),
     );
   }
+  if (startParam && !isDateKey(startParam)) {
+    return withSession(
+      NextResponse.json(
+        { error: "Formato de start invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
+    );
+  }
+  if (endParam && !isDateKey(endParam)) {
+    return withSession(
+      NextResponse.json(
+        { error: "Formato de end invalido. Use YYYY-MM-DD." },
+        { status: 400 },
+      ),
+    );
+  }
 
   const pool = await getDbPool();
   const client = await pool.connect();
   try {
-    let targetDate = dateParam;
-    if (!targetDate) {
+    let startDate = startParam || dateParam;
+    let endDate = endParam || dateParam;
+    if (!startDate && !endDate) {
       const latestResult = await client.query(
         `
         SELECT MAX(fecha::date)::text AS max_fecha
@@ -184,17 +203,38 @@ export async function GET(request: Request) {
         WHERE fecha IS NOT NULL
         `,
       );
-      targetDate = String(
+      const maxDate = String(
         (latestResult.rows?.[0] as { max_fecha?: string } | undefined)
           ?.max_fecha ?? "",
       );
-      if (!targetDate) {
+      if (!maxDate) {
         return withSession(
           NextResponse.json(
-            { usedDate: null, rows: [], totals: { moreThan72With2: 0, moreThan92: 0 } },
+            {
+              usedRange: null,
+              rows: [],
+              totals: { moreThan72With2: 0, moreThan92: 0 },
+            },
           ),
         );
       }
+      startDate = maxDate;
+      endDate = maxDate;
+    } else if (!startDate || !endDate) {
+      return withSession(
+        NextResponse.json(
+          { error: "Debes enviar start y end, o date." },
+          { status: 400 },
+        ),
+      );
+    }
+    if (startDate > endDate) {
+      return withSession(
+        NextResponse.json(
+          { error: "start no puede ser mayor que end." },
+          { status: 400 },
+        ),
+      );
     }
 
     const columnsResult = await client.query(
@@ -247,7 +287,8 @@ export async function GET(request: Request) {
             )
           ) AS employee_key
         FROM asistencia_horas
-        WHERE fecha::date = $1::date
+        WHERE fecha::date >= $1::date
+          AND fecha::date <= $2::date
           AND departamento IS NOT NULL
       ),
       base AS (
@@ -266,7 +307,7 @@ export async function GET(request: Request) {
         marks_count
       FROM base
       `,
-      [targetDate],
+      [startDate, endDate],
     );
     const counters = new Map<string, { moreThan72With2: number; moreThan92: number }>();
     REPORT_SEDES.forEach((sede) => {
@@ -309,7 +350,7 @@ export async function GET(request: Request) {
 
     return withSession(
       NextResponse.json({
-        usedDate: targetDate,
+        usedRange: { start: startDate, end: endDate },
         rows,
         totals,
       }),

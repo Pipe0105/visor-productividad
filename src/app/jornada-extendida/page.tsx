@@ -22,7 +22,7 @@ type AlexReportRow = {
 };
 
 type AlexReportResponse = {
-  usedDate?: string | null;
+  usedRange?: { start: string; end: string } | null;
   rows?: AlexReportRow[];
   totals?: {
     moreThan72With2: number;
@@ -70,7 +70,8 @@ export default function JornadaExtendidaPage() {
   const [availableSedes, setAvailableSedes] = useState<Sede[]>([]);
   const [defaultSede, setDefaultSede] = useState<string | undefined>(undefined);
   const [canSeeAlexReport, setCanSeeAlexReport] = useState(false);
-  const [alexDate, setAlexDate] = useState("");
+  const [alexStartDate, setAlexStartDate] = useState("");
+  const [alexEndDate, setAlexEndDate] = useState("");
   const [alexRows, setAlexRows] = useState<AlexReportRow[]>([]);
   const [alexTotals, setAlexTotals] = useState({ moreThan72With2: 0, moreThan92: 0 });
   const [alexLoading, setAlexLoading] = useState(false);
@@ -132,7 +133,9 @@ export default function JornadaExtendidaPage() {
         setAvailableSedes(visibleSedes);
         setDefaultSede(forcedSede?.name);
         setCanSeeAlexReport(Boolean(payload.canSeeAlexReport));
-        setAlexDate(dates[dates.length - 1] ?? "");
+        const latest = dates[dates.length - 1] ?? "";
+        setAlexStartDate(latest);
+        setAlexEndDate(latest);
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -157,19 +160,24 @@ export default function JornadaExtendidaPage() {
     () => (availableDates.length > 0 ? availableDates[availableDates.length - 1] : ""),
     [availableDates],
   );
-  const alexDateLabel = useMemo(() => {
-    if (!alexDate) return "";
-    const dt = new Date(`${alexDate}T00:00:00`);
-    if (Number.isNaN(dt.getTime())) return alexDate;
-    const month = new Intl.DateTimeFormat("es-CO", { month: "long" }).format(dt);
-    const day = String(dt.getDate()).padStart(2, "0");
-    const year = dt.getFullYear();
-    return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${day} de ${year}`;
-  }, [alexDate]);
+  const alexRangeLabel = useMemo(() => {
+    if (!alexStartDate || !alexEndDate) return "";
+    const fmt = (value: string) => {
+      const dt = new Date(`${value}T00:00:00`);
+      if (Number.isNaN(dt.getTime())) return value;
+      const month = new Intl.DateTimeFormat("es-CO", { month: "long" }).format(dt);
+      const day = String(dt.getDate()).padStart(2, "0");
+      const year = dt.getFullYear();
+      return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${day} de ${year}`;
+    };
+    if (alexStartDate === alexEndDate) return fmt(alexStartDate);
+    return `${fmt(alexStartDate)} a ${fmt(alexEndDate)}`;
+  }, [alexEndDate, alexStartDate]);
 
   useEffect(() => {
     if (!canSeeAlexReport) return;
-    if (!alexDate) return;
+    if (!alexStartDate || !alexEndDate) return;
+    if (alexStartDate > alexEndDate) return;
     let isMounted = true;
     const controller = new AbortController();
 
@@ -178,7 +186,7 @@ export default function JornadaExtendidaPage() {
       setAlexError(null);
       try {
         const response = await fetch(
-          `/api/jornada-extendida/alex-report?date=${encodeURIComponent(alexDate)}`,
+          `/api/jornada-extendida/alex-report?start=${encodeURIComponent(alexStartDate)}&end=${encodeURIComponent(alexEndDate)}`,
           { signal: controller.signal, cache: "no-store" },
         );
         const payload = (await response.json()) as AlexReportResponse;
@@ -209,7 +217,7 @@ export default function JornadaExtendidaPage() {
       isMounted = false;
       controller.abort();
     };
-  }, [alexDate, canSeeAlexReport]);
+  }, [alexEndDate, alexStartDate, canSeeAlexReport]);
 
   if (!ready || isLoading) {
     return (
@@ -255,22 +263,40 @@ export default function JornadaExtendidaPage() {
                     <h2 className="mt-1 text-lg font-bold text-slate-900">
                       Laboraron más de 7.2h con 2 marcaciones y más de 9.2h
                     </h2>
-                    {alexDateLabel && (
-                      <p className="mt-1 text-base font-bold text-red-700">{alexDateLabel}</p>
+                    {alexRangeLabel && (
+                      <p className="mt-1 text-base font-bold text-red-700">{alexRangeLabel}</p>
                     )}
                   </div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-                    Fecha
-                    <input
-                      type="date"
-                      value={alexDate}
-                      onChange={(e) => setAlexDate(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                      min={availableDates[0]}
-                      max={availableDates[availableDates.length - 1]}
-                    />
-                  </label>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      Fecha inicio
+                      <input
+                        type="date"
+                        value={alexStartDate}
+                        onChange={(e) => setAlexStartDate(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                        min={availableDates[0]}
+                        max={availableDates[availableDates.length - 1]}
+                      />
+                    </label>
+                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      Fecha fin
+                      <input
+                        type="date"
+                        value={alexEndDate}
+                        onChange={(e) => setAlexEndDate(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                        min={availableDates[0]}
+                        max={availableDates[availableDates.length - 1]}
+                      />
+                    </label>
+                  </div>
                 </div>
+                {alexStartDate > alexEndDate && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    La fecha inicio no puede ser mayor que la fecha fin.
+                  </div>
+                )}
 
                 {alexError ? (
                   <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
