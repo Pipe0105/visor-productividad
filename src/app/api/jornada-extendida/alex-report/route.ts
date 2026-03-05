@@ -326,10 +326,10 @@ export async function GET(request: Request) {
       const marksCount = Number(typed.marks_count ?? 0);
       const current = counters.get(sedeMapped)!;
 
-      if (totalHours > 7.2 && marksCount === 2) {
+      if (totalHours > 7.2 && totalHours <= 9.2 && marksCount === 2) {
         current.moreThan72With2 += 1;
       }
-      if (totalHours > 9.2 && marksCount === 2) {
+      if (totalHours > 9.2) {
         current.moreThan92 += 1;
       }
     }
