@@ -260,6 +260,15 @@ export async function PATCH(req: Request, { params }: Params) {
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const specialRolesEnabled = await hasSpecialRolesColumn(client);
+    if (!specialRolesEnabled && body.specialRoles !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de roles especiales en app_users (db/migrations/20260305_user_special_roles.sql).",
+        },
+        { status: 400 },
+      );
+    }
     const currentResult = await client.query(
       `
       SELECT

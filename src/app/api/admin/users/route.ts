@@ -351,6 +351,15 @@ export async function POST(req: Request) {
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
     const specialRolesEnabled = await hasSpecialRolesColumn(client);
+    if (!specialRolesEnabled && body.specialRoles !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Falta aplicar migracion de roles especiales en app_users (db/migrations/20260305_user_special_roles.sql).",
+        },
+        { status: 400 },
+      );
+    }
     const allowedSedes = role === "admin" ? null : allowedSedesResult.value;
     const allowedSedesJson =
       allowedSedes === null ? null : JSON.stringify(allowedSedes);
