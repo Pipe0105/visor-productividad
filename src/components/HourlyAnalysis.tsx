@@ -1263,7 +1263,7 @@ export const HourlyAnalysis = ({
         markBreak1: employee.markBreak1 ?? "",
         markBreak2: employee.markBreak2 ?? "",
         markOut: employee.markOut ?? "",
-        workedHours: Number(employee.workedHours.toFixed(2)),
+        workedHours: formatHoursBase60(employee.workedHours),
       });
     });
 
@@ -1271,7 +1271,7 @@ export const HourlyAnalysis = ({
     header.font = { bold: true };
     header.alignment = { vertical: "middle", horizontal: "center" };
     sheet.getColumn("employeeId").numFmt = "0";
-    sheet.getColumn("workedHours").numFmt = "0.00";
+    sheet.getColumn("workedHours").numFmt = "@";
 
     const dateKey =
       enableOvertimeDateRange &&
