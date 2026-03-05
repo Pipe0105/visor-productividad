@@ -329,7 +329,7 @@ export async function GET(request: Request) {
       if (totalHours > 7.2 && marksCount === 2) {
         current.moreThan72With2 += 1;
       }
-      if (totalHours > 9.2) {
+      if (totalHours > 9.2 && marksCount === 2) {
         current.moreThan92 += 1;
       }
     }
