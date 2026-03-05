@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
+const enableReactCompiler = process.env.NEXT_ENABLE_REACT_COMPILER === "true";
 
 const enableUpgradeInsecure =
   process.env.UPGRADE_INSECURE_REQUESTS === "true";
@@ -58,7 +59,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
+  reactCompiler: enableReactCompiler,
   poweredByHeader: false,
   async headers() {
     return [
