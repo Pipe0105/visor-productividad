@@ -101,6 +101,10 @@ export async function GET() {
   };
 
   const isAdmin = session.user.role === "admin";
+  const hasAlexRole =
+    isAdmin ||
+    (Array.isArray(session.user.specialRoles) &&
+      session.user.specialRoles.includes("alex"));
   const allowedDashboards = session.user.allowedDashboards;
   if (
     !isAdmin &&
@@ -136,6 +140,7 @@ export async function GET() {
         dates,
         sedes: visibleSedes,
         defaultSede,
+        canSeeAlexReport: hasAlexRole,
       }),
     );
   } catch (error) {

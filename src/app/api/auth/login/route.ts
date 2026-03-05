@@ -32,6 +32,7 @@ export async function POST(req: Request) {
           to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
           to_jsonb(u)->'allowed_lines' AS "allowedLines",
           to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
+          to_jsonb(u)->'special_roles' AS "specialRoles",
           u.is_active,
           u.password_hash
         FROM app_users u
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
         allowedSedes: string[] | null;
         allowedLines: string[] | null;
         allowedDashboards: string[] | null;
+        specialRoles: string[] | null;
         is_active: boolean;
         password_hash: string;
       };
@@ -105,6 +107,7 @@ export async function POST(req: Request) {
           allowedSedes: user.allowedSedes,
           allowedLines: user.allowedLines,
           allowedDashboards: user.allowedDashboards,
+          specialRoles: user.specialRoles,
         },
       });
       response.cookies.set(

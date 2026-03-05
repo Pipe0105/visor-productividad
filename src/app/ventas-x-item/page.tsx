@@ -279,6 +279,7 @@ export default function VentasXItemPage() {
   }, [rowsEmpresa, rowsEmpresaFecha]);
   const deferredItemSearch = useDeferredValue(itemSearch);
   const selectedItemSet = useMemo(() => new Set(itemsSel), [itemsSel]);
+
   const itemDropdownState = useMemo(() => {
     const term = deferredItemSearch.trim().toLowerCase();
     if (!term) {
@@ -496,6 +497,7 @@ export default function VentasXItemPage() {
     };
   }, [comparisonA, comparisonB, comparisonMode, rowsFilteredByItemsAllDates]);
 
+
   const tableRows = useMemo<DailyTableRow[]>(() => {
     if (!dateStart || !dateEnd) return [];
     const start = new Date(`${dateStart}T00:00:00Z`);
@@ -544,6 +546,7 @@ export default function VentasXItemPage() {
     () => Math.max(1, ...sedeSeries.flatMap((series) => series.data)),
     [sedeSeries],
   );
+
 
   const toggleItem = (item: string) => {
     setItemsSel((prev) => {
@@ -1108,7 +1111,7 @@ export default function VentasXItemPage() {
                       </div>
                       {itemDropdownState.truncated && (
                         <p className="mb-2 px-1 text-[11px] text-amber-700">
-                          Mostrando una parte de resultados. Escribe más para acotar.
+                          Mostrando una parte de resultados. Escribe mas para acotar.
                         </p>
                       )}
                       <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 p-1">
@@ -1634,3 +1637,4 @@ export default function VentasXItemPage() {
     </div>
   );
 }
+

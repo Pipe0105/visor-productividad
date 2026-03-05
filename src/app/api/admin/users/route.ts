@@ -21,6 +21,7 @@ const ALLOWED_DASHBOARD_SET = new Set([
   "jornada-extendida",
   "ventas-x-item",
 ]);
+const ALLOWED_SPECIAL_ROLE_SET = new Set(["alex"]);
 
 const resolveValidSede = (value?: string | null) => {
   const trimmed = value?.trim();
@@ -82,6 +83,21 @@ const hasAllowedSedesColumn = async (client: {
     FROM information_schema.columns
     WHERE table_name = 'app_users'
       AND column_name = 'allowed_sedes'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
+const hasSpecialRolesColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'special_roles'
     LIMIT 1
     `,
   );
@@ -178,6 +194,36 @@ const resolveValidAllowedSedes = (value: unknown) => {
   return { ok: true as const, value: normalized };
 };
 
+const resolveValidSpecialRoles = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Los roles especiales no son válidos.",
+    };
+  }
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((role) => (typeof role === "string" ? role.trim().toLowerCase() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  const invalid = normalized.filter((role) => !ALLOWED_SPECIAL_ROLE_SET.has(role));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay roles especiales no válidos en la selección.",
+    };
+  }
+  return { ok: true as const, value: normalized };
+};
+
 export async function GET() {
   const session = await requireAdminSession();
   if (!session) {
@@ -204,6 +250,7 @@ export async function GET() {
         to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
         to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
+        to_jsonb(u)->'special_roles' AS "specialRoles",
         u.is_active,
         u.created_at,
         u.updated_at,
@@ -241,6 +288,7 @@ export async function POST(req: Request) {
     allowedSedes?: string[] | null;
     allowedLines?: string[] | null;
     allowedDashboards?: string[] | null;
+    specialRoles?: string[] | null;
   };
 
   const username = body.username?.trim();
@@ -250,6 +298,7 @@ export async function POST(req: Request) {
   const allowedSedesResult = resolveValidAllowedSedes(body.allowedSedes);
   const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
   const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
+  const specialRolesResult = resolveValidSpecialRoles(body.specialRoles);
 
   if (!username || password.length < 8) {
     return NextResponse.json(
@@ -287,6 +336,12 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (!specialRolesResult.ok) {
+    return NextResponse.json(
+      { error: specialRolesResult.error },
+      { status: 400 },
+    );
+  }
 
   const passwordHash = await hashPassword(password);
   const client = await (await getDbPool()).connect();
@@ -295,6 +350,7 @@ export async function POST(req: Request) {
     const allowedSedesEnabled = await hasAllowedSedesColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
+    const specialRolesEnabled = await hasSpecialRolesColumn(client);
     const allowedSedes = role === "admin" ? null : allowedSedesResult.value;
     const allowedSedesJson =
       allowedSedes === null ? null : JSON.stringify(allowedSedes);
@@ -302,6 +358,7 @@ export async function POST(req: Request) {
       role === "admin" ? null : allowedSedes?.[0] ?? sede ?? null;
     const allowedLines = role === "admin" ? null : allowedLinesResult.value;
     const allowedDashboards = role === "admin" ? null : allowedDashboardsResult.value;
+    const specialRoles = role === "admin" ? null : specialRolesResult.value;
 
     if (!sedeEnabled && role === "user") {
       return NextResponse.json(
@@ -312,32 +369,45 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const result = sedeEnabled && allowedSedesEnabled && allowedLinesEnabled && allowedDashboardsEnabled
-      ? await client.query(
-          `
-          INSERT INTO app_users (username, password_hash, role, sede, allowed_sedes, allowed_lines, allowed_dashboards)
-          VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-          RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at
-          `,
-          [username, passwordHash, role, effectiveSedeForLegacy, allowedSedesJson, allowedLines, allowedDashboards],
-        )
-      : sedeEnabled
-        ? await client.query(
-            `
-            INSERT INTO app_users (username, password_hash, role, sede)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, username, role, sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
-            `,
-            [username, passwordHash, role, effectiveSedeForLegacy],
-          )
-        : await client.query(
-          `
-          INSERT INTO app_users (username, password_hash, role)
-          VALUES ($1, $2, $3)
-          RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", is_active, created_at, updated_at
-          `,
-          [username, passwordHash, role],
-        );
+    const result =
+      sedeEnabled &&
+      allowedSedesEnabled &&
+      allowedLinesEnabled &&
+      allowedDashboardsEnabled
+        ? specialRolesEnabled
+          ? await client.query(
+              `
+              INSERT INTO app_users (username, password_hash, role, sede, allowed_sedes, allowed_lines, allowed_dashboards, special_roles)
+              VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+              RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", special_roles AS "specialRoles", is_active, created_at, updated_at
+              `,
+              [username, passwordHash, role, effectiveSedeForLegacy, allowedSedesJson, allowedLines, allowedDashboards, specialRoles],
+            )
+          : await client.query(
+              `
+              INSERT INTO app_users (username, password_hash, role, sede, allowed_sedes, allowed_lines, allowed_dashboards)
+              VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+              RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", NULL::text[] AS "specialRoles", is_active, created_at, updated_at
+              `,
+              [username, passwordHash, role, effectiveSedeForLegacy, allowedSedesJson, allowedLines, allowedDashboards],
+            )
+        : sedeEnabled
+          ? await client.query(
+              `
+              INSERT INTO app_users (username, password_hash, role, sede)
+              VALUES ($1, $2, $3, $4)
+              RETURNING id, username, role, sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", NULL::text[] AS "specialRoles", is_active, created_at, updated_at
+              `,
+              [username, passwordHash, role, effectiveSedeForLegacy],
+            )
+          : await client.query(
+              `
+              INSERT INTO app_users (username, password_hash, role)
+              VALUES ($1, $2, $3)
+              RETURNING id, username, role, NULL::text AS sede, NULL::jsonb AS "allowedSedes", NULL::jsonb AS "allowedLines", NULL::jsonb AS "allowedDashboards", NULL::text[] AS "specialRoles", is_active, created_at, updated_at
+              `,
+              [username, passwordHash, role],
+            );
     return withSession(NextResponse.json({ user: result.rows?.[0] }));
   } catch (error) {
     const detail =

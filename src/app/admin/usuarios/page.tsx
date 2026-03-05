@@ -28,6 +28,7 @@ type UserRow = {
   allowedSedes: string[] | null;
   allowedLines: string[] | null;
   allowedDashboards: string[] | null;
+  specialRoles: string[] | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -52,6 +53,7 @@ type UserFormState = {
   allowedSedes: string[];
   allowedLines: string[];
   allowedDashboards: string[];
+  specialRoles: string[];
   password: string;
   is_active: boolean;
 };
@@ -63,6 +65,7 @@ const emptyForm: UserFormState = {
   allowedSedes: [],
   allowedLines: [],
   allowedDashboards: [],
+  specialRoles: [],
   password: "",
   is_active: true,
 };
@@ -113,6 +116,7 @@ const DASHBOARD_OPTIONS = [
   { id: "jornada-extendida", label: "Horario" },
   { id: "ventas-x-item", label: "Ventas X item" },
 ];
+const SPECIAL_ROLE_OPTIONS = [{ id: "alex", label: "Alex" }];
 const dashboardLabelById = new Map(
   DASHBOARD_OPTIONS.map((board) => [board.id, board.label]),
 );
@@ -211,6 +215,7 @@ export default function AdminUsuariosPage() {
       allowedSedes: user.allowedSedes ?? (user.sede ? [user.sede] : []),
       allowedLines: user.allowedLines ?? [],
       allowedDashboards: user.allowedDashboards ?? [],
+      specialRoles: user.specialRoles ?? [],
       password: "",
       is_active: user.is_active,
     });
@@ -255,6 +260,12 @@ export default function AdminUsuariosPage() {
             ? null
             : formState.allowedDashboards.length > 0
               ? formState.allowedDashboards
+              : null,
+        specialRoles:
+          formState.role === "admin"
+            ? null
+            : formState.specialRoles.length > 0
+              ? formState.specialRoles
               : null,
         password: formState.password,
         is_active: formState.is_active,
@@ -439,6 +450,7 @@ export default function AdminUsuariosPage() {
                         <th className="py-2 pr-3">Sede</th>
                         <th className="py-2 pr-3">Lineas</th>
                         <th className="py-2 pr-3">Tableros</th>
+                        <th className="py-2 pr-3">Especial</th>
                         <th className="py-2 pr-3">Estado</th>
                         <th className="py-2">Acciones</th>
                       </tr>
@@ -480,6 +492,13 @@ export default function AdminUsuariosPage() {
                             {user.role === "admin"
                               ? "-"
                               : formatAllowedDashboards(user.allowedDashboards)}
+                          </td>
+                          <td className="py-3 pr-3 text-xs font-semibold text-slate-700">
+                            {user.role === "admin"
+                              ? "-"
+                              : (user.specialRoles && user.specialRoles.length > 0
+                                ? user.specialRoles.join(", ")
+                                : "-")}
                           </td>
                           <td className="py-3 pr-3">
                             <span
@@ -629,6 +648,7 @@ export default function AdminUsuariosPage() {
                         role: e.target.value as "admin" | "user",
                         sede: e.target.value === "admin" ? "" : prev.sede,
                         allowedSedes: e.target.value === "admin" ? [] : prev.allowedSedes,
+                        specialRoles: e.target.value === "admin" ? [] : prev.specialRoles,
                       }))
                     }
                     className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-900 shadow-sm transition-all focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -715,6 +735,37 @@ export default function AdminUsuariosPage() {
                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200 disabled:cursor-not-allowed"
                           />
                           <span>{board.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
+                  Roles especiales
+                  <div className="mt-1.5 grid max-h-20 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 shadow-sm sm:grid-cols-3">
+                    {SPECIAL_ROLE_OPTIONS.map((role) => {
+                      const checked = formState.specialRoles.includes(role.id);
+                      return (
+                        <label
+                          key={role.id}
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={formState.role !== "user"}
+                            onChange={() =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                specialRoles: checked
+                                  ? prev.specialRoles.filter((id) => id !== role.id)
+                                  : [...prev.specialRoles, role.id],
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-200 disabled:cursor-not-allowed"
+                          />
+                          <span>{role.label}</span>
                         </label>
                       );
                     })}

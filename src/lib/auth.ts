@@ -11,6 +11,7 @@ export type AuthUser = {
   allowedSedes: string[] | null;
   allowedLines: string[] | null;
   allowedDashboards: string[] | null;
+  specialRoles: string[] | null;
   is_active: boolean;
   last_login_at: string | null;
   last_login_ip: string | null;
@@ -145,6 +146,7 @@ export const getUserSession = async (): Promise<
         to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
         to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
+        to_jsonb(u)->'special_roles' AS "specialRoles",
         u.is_active,
         u.last_login_at,
         u.last_login_ip,

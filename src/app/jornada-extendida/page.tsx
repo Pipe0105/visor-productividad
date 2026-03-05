@@ -11,6 +11,23 @@ type ApiResponse = {
   dates?: string[];
   sedes?: Sede[];
   defaultSede?: string | null;
+  canSeeAlexReport?: boolean;
+  error?: string;
+};
+
+type AlexReportRow = {
+  sede: string;
+  moreThan72With2: number;
+  moreThan92: number;
+};
+
+type AlexReportResponse = {
+  usedDate?: string | null;
+  rows?: AlexReportRow[];
+  totals?: {
+    moreThan72With2: number;
+    moreThan92: number;
+  };
   error?: string;
 };
 
@@ -52,6 +69,12 @@ export default function JornadaExtendidaPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableSedes, setAvailableSedes] = useState<Sede[]>([]);
   const [defaultSede, setDefaultSede] = useState<string | undefined>(undefined);
+  const [canSeeAlexReport, setCanSeeAlexReport] = useState(false);
+  const [alexDate, setAlexDate] = useState("");
+  const [alexRows, setAlexRows] = useState<AlexReportRow[]>([]);
+  const [alexTotals, setAlexTotals] = useState({ moreThan72With2: 0, moreThan92: 0 });
+  const [alexLoading, setAlexLoading] = useState(false);
+  const [alexError, setAlexError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -108,6 +131,8 @@ export default function JornadaExtendidaPage() {
         setAvailableDates(dates);
         setAvailableSedes(visibleSedes);
         setDefaultSede(forcedSede?.name);
+        setCanSeeAlexReport(Boolean(payload.canSeeAlexReport));
+        setAlexDate(dates[dates.length - 1] ?? "");
         setReady(true);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -132,6 +157,59 @@ export default function JornadaExtendidaPage() {
     () => (availableDates.length > 0 ? availableDates[availableDates.length - 1] : ""),
     [availableDates],
   );
+  const alexDateLabel = useMemo(() => {
+    if (!alexDate) return "";
+    const dt = new Date(`${alexDate}T00:00:00`);
+    if (Number.isNaN(dt.getTime())) return alexDate;
+    const month = new Intl.DateTimeFormat("es-CO", { month: "long" }).format(dt);
+    const day = String(dt.getDate()).padStart(2, "0");
+    const year = dt.getFullYear();
+    return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${day} de ${year}`;
+  }, [alexDate]);
+
+  useEffect(() => {
+    if (!canSeeAlexReport) return;
+    if (!alexDate) return;
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const loadAlexReport = async () => {
+      setAlexLoading(true);
+      setAlexError(null);
+      try {
+        const response = await fetch(
+          `/api/jornada-extendida/alex-report?date=${encodeURIComponent(alexDate)}`,
+          { signal: controller.signal, cache: "no-store" },
+        );
+        const payload = (await response.json()) as AlexReportResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? "No se pudo cargar el reporte Alex.");
+        }
+        if (!isMounted) return;
+        setAlexRows(payload.rows ?? []);
+        setAlexTotals(
+          payload.totals ?? {
+            moreThan72With2: 0,
+            moreThan92: 0,
+          },
+        );
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!isMounted) return;
+        setAlexError(err instanceof Error ? err.message : "Error desconocido");
+      } finally {
+        if (isMounted) {
+          setAlexLoading(false);
+        }
+      }
+    };
+
+    void loadAlexReport();
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [alexDate, canSeeAlexReport]);
 
   if (!ready || isLoading) {
     return (
@@ -166,20 +244,95 @@ export default function JornadaExtendidaPage() {
             {error}
           </div>
         ) : (
-          <HourlyAnalysis
-            availableDates={availableDates}
-            availableSedes={availableSedes}
-            defaultDate={defaultDate}
-            defaultSede={defaultSede}
-            sections={["overtime"]}
-            defaultSection="overtime"
-            showTimeFilters={false}
-            showTopDateFilter={false}
-            showTopLineFilter={false}
-            showSedeFilters={false}
-            showDepartmentFilterInOvertime
-            enableOvertimeDateRange
-          />
+          <>
+            {canSeeAlexReport && (
+              <div className="mb-5 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      Reporte Alex
+                    </p>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">
+                      Laboraron más de 7.2h con 2 marcaciones y más de 9.2h
+                    </h2>
+                    {alexDateLabel && (
+                      <p className="mt-1 text-base font-bold text-red-700">{alexDateLabel}</p>
+                    )}
+                  </div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                    Fecha
+                    <input
+                      type="date"
+                      value={alexDate}
+                      onChange={(e) => setAlexDate(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      min={availableDates[0]}
+                      max={availableDates[availableDates.length - 1]}
+                    />
+                  </label>
+                </div>
+
+                {alexError ? (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {alexError}
+                  </div>
+                ) : alexLoading ? (
+                  <p className="mt-3 text-sm text-slate-600">Cargando reporte Alex...</p>
+                ) : (
+                  <div className="mt-3 overflow-auto rounded-xl border border-slate-200">
+                    <table className="min-w-[680px] w-full text-sm">
+                      <thead className="bg-slate-100 text-slate-800">
+                        <tr>
+                          <th className="border-b border-slate-200 px-3 py-2 text-left font-bold">
+                            Sede
+                          </th>
+                          <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
+                            Más de 7.2h con 2 marcaciones
+                          </th>
+                          <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
+                            Más de 9.2h
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {alexRows.map((row) => (
+                          <tr key={row.sede} className="border-b border-slate-100">
+                            <td className="px-3 py-2 font-semibold text-slate-900">{row.sede}</td>
+                            <td className="px-3 py-2 text-right text-slate-800">
+                              {row.moreThan72With2 === 0 ? "-" : row.moreThan72With2}
+                            </td>
+                            <td className="px-3 py-2 text-right text-slate-800">
+                              {row.moreThan92 === 0 ? "-" : row.moreThan92}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-50 font-bold text-slate-900">
+                          <td className="px-3 py-2">TOTAL</td>
+                          <td className="px-3 py-2 text-right">{alexTotals.moreThan72With2}</td>
+                          <td className="px-3 py-2 text-right">{alexTotals.moreThan92}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <HourlyAnalysis
+              availableDates={availableDates}
+              availableSedes={availableSedes}
+              defaultDate={defaultDate}
+              defaultSede={defaultSede}
+              sections={["overtime"]}
+              defaultSection="overtime"
+              showTimeFilters={false}
+              showTopDateFilter={false}
+              showTopLineFilter={false}
+              showSedeFilters={false}
+              showDepartmentFilterInOvertime
+              enableOvertimeDateRange
+            />
+          </>
         )}
       </div>
     </div>

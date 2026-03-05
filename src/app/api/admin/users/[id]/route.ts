@@ -22,6 +22,7 @@ const ALLOWED_DASHBOARD_SET = new Set([
   "jornada-extendida",
   "ventas-x-item",
 ]);
+const ALLOWED_SPECIAL_ROLE_SET = new Set(["alex"]);
 
 const resolveValidSede = (value?: string | null) => {
   if (typeof value !== "string") return null;
@@ -84,6 +85,21 @@ const hasAllowedSedesColumn = async (client: {
     FROM information_schema.columns
     WHERE table_name = 'app_users'
       AND column_name = 'allowed_sedes'
+    LIMIT 1
+    `,
+  );
+  return (result.rows?.length ?? 0) > 0;
+};
+
+const hasSpecialRolesColumn = async (client: {
+  query: (queryText: string) => Promise<{ rows?: unknown[] }>;
+}) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'app_users'
+      AND column_name = 'special_roles'
     LIMIT 1
     `,
   );
@@ -180,6 +196,36 @@ const resolveValidAllowedSedes = (value: unknown) => {
   return { ok: true as const, value: normalized };
 };
 
+const resolveValidSpecialRoles = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  if (!Array.isArray(value)) {
+    return {
+      ok: false as const,
+      error: "Los roles especiales no son validos.",
+    };
+  }
+  const normalized = Array.from(
+    new Set(
+      value
+        .map((role) => (typeof role === "string" ? role.trim().toLowerCase() : ""))
+        .filter(Boolean),
+    ),
+  );
+  if (normalized.length === 0) {
+    return { ok: true as const, value: null as string[] | null };
+  }
+  const invalid = normalized.filter((role) => !ALLOWED_SPECIAL_ROLE_SET.has(role));
+  if (invalid.length > 0) {
+    return {
+      ok: false as const,
+      error: "Hay roles especiales no validos en la seleccion.",
+    };
+  }
+  return { ok: true as const, value: normalized };
+};
+
 export async function PATCH(req: Request, { params }: Params) {
   const session = await requireAdminSession();
   if (!session) {
@@ -202,6 +248,7 @@ export async function PATCH(req: Request, { params }: Params) {
     allowedSedes?: string[] | null;
     allowedLines?: string[] | null;
     allowedDashboards?: string[] | null;
+    specialRoles?: string[] | null;
     is_active?: boolean;
     password?: string;
   };
@@ -212,6 +259,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const allowedSedesEnabled = await hasAllowedSedesColumn(client);
     const allowedLinesEnabled = await hasAllowedLinesColumn(client);
     const allowedDashboardsEnabled = await hasAllowedDashboardsColumn(client);
+    const specialRolesEnabled = await hasSpecialRolesColumn(client);
     const currentResult = await client.query(
       `
       SELECT
@@ -219,7 +267,8 @@ export async function PATCH(req: Request, { params }: Params) {
         to_jsonb(u)->>'sede' AS sede,
         to_jsonb(u)->'allowed_sedes' AS "allowedSedes",
         to_jsonb(u)->'allowed_lines' AS "allowedLines",
-        to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards"
+        to_jsonb(u)->'allowed_dashboards' AS "allowedDashboards",
+        to_jsonb(u)->'special_roles' AS "specialRoles"
       FROM app_users u
       WHERE id = $1
       LIMIT 1
@@ -239,10 +288,12 @@ export async function PATCH(req: Request, { params }: Params) {
       allowedSedes: string[] | null;
       allowedLines: string[] | null;
       allowedDashboards: string[] | null;
+      specialRoles: string[] | null;
     };
     const allowedSedesResult = resolveValidAllowedSedes(body.allowedSedes);
     const allowedLinesResult = resolveValidAllowedLines(body.allowedLines);
     const allowedDashboardsResult = resolveValidAllowedDashboards(body.allowedDashboards);
+    const specialRolesResult = resolveValidSpecialRoles(body.specialRoles);
 
     if (typeof body.sede === "string" && !resolveValidSede(body.sede)) {
       return NextResponse.json(
@@ -268,6 +319,12 @@ export async function PATCH(req: Request, { params }: Params) {
         { status: 400 },
       );
     }
+    if (!specialRolesResult.ok) {
+      return NextResponse.json(
+        { error: specialRolesResult.error },
+        { status: 400 },
+      );
+    }
 
     const nextRole =
       body.role === "admin" || body.role === "user" ? body.role : currentUser.role;
@@ -289,6 +346,10 @@ export async function PATCH(req: Request, { params }: Params) {
       body.allowedDashboards === undefined
         ? currentUser.allowedDashboards
         : allowedDashboardsResult.value;
+    const nextSpecialRoles =
+      body.specialRoles === undefined
+        ? currentUser.specialRoles
+        : specialRolesResult.value;
 
     if (nextRole === "user" && !nextSede && (!nextAllowedSedes || nextAllowedSedes.length === 0)) {
       return NextResponse.json(
@@ -339,6 +400,13 @@ export async function PATCH(req: Request, { params }: Params) {
       ) {
         addUpdate("allowed_dashboards", null);
       }
+      if (
+        specialRolesEnabled &&
+        body.role === "admin" &&
+        body.specialRoles === undefined
+      ) {
+        addUpdate("special_roles", null);
+      }
     }
     if (sedeEnabled && body.sede !== undefined) {
       addUpdate("sede", nextSede);
@@ -363,6 +431,12 @@ export async function PATCH(req: Request, { params }: Params) {
       addUpdate(
         "allowed_dashboards",
         nextRole === "admin" ? null : nextAllowedDashboards,
+      );
+    }
+    if (specialRolesEnabled && body.specialRoles !== undefined) {
+      addUpdate(
+        "special_roles",
+        nextRole === "admin" ? null : nextSpecialRoles,
       );
     }
     if (typeof body.is_active === "boolean") {
@@ -394,7 +468,7 @@ export async function PATCH(req: Request, { params }: Params) {
       UPDATE app_users
       SET ${updates.join(", ")}
       WHERE id = $${idx}
-      RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", is_active, created_at, updated_at, last_login_at, last_login_ip
+      RETURNING id, username, role, sede, allowed_sedes AS "allowedSedes", allowed_lines AS "allowedLines", allowed_dashboards AS "allowedDashboards", to_jsonb(app_users)->'special_roles' AS "specialRoles", is_active, created_at, updated_at, last_login_at, last_login_ip
       `,
       values,
     );
