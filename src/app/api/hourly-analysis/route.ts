@@ -753,35 +753,81 @@ const fetchHourlyData = async (
           const overtimeStart = overtimeDateStart ?? attendanceDateUsed ?? dateISO;
           const overtimeEnd = overtimeDateEnd ?? overtimeStart;
           const overtimeQuery = `
+            WITH raw AS (
+              SELECT
+                ${employeeIdExpr} AS employee_id,
+                ${employeeNameExpr} AS employee_name,
+                NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
+                fecha::date::text AS worked_date,
+                NULLIF(TRIM(CAST(departamento AS text)), '') AS departamento,
+                NULLIF(TRIM(CAST(cargo AS text)), '') AS cargo,
+                NULLIF(TRIM(CAST(incidencia AS text)), '') AS incidencia,
+                TO_CHAR(hora_entrada, 'HH24:MI:SS') AS hora_entrada,
+                TO_CHAR(hora_intermedia1, 'HH24:MI:SS') AS hora_intermedia1,
+                TO_CHAR(hora_intermedia2, 'HH24:MI:SS') AS hora_intermedia2,
+                TO_CHAR(hora_salida, 'HH24:MI:SS') AS hora_salida,
+                COALESCE(total_laborado_horas, 0) AS total_hours_row,
+                (
+                  (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
+                  (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
+                  (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
+                  (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
+                )::int AS marks_count_row,
+                COALESCE(
+                  ${employeeIdExpr},
+                  ${employeeNameExpr},
+                  md5(
+                    COALESCE(sede::text, '') || '|' ||
+                    COALESCE(departamento::text, '') || '|' ||
+                    COALESCE(TO_CHAR(hora_entrada, 'HH24:MI:SS'), '') || '|' ||
+                    COALESCE(TO_CHAR(hora_salida, 'HH24:MI:SS'), '') || '|' ||
+                    COALESCE(fecha::date::text, '')
+                  )
+                ) AS employee_key
+              FROM asistencia_horas
+              WHERE fecha::date >= $1::date
+                AND fecha::date <= $2::date
+                AND departamento IS NOT NULL
+                ${
+                  selectedSedeConfigs.length > 0
+                    ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
+                    : "AND 1=0"
+                }
+            ),
+            base AS (
+              SELECT
+                employee_key,
+                worked_date,
+                sede,
+                COALESCE(MAX(employee_id), MAX(employee_name)) AS employee_id,
+                COALESCE(MAX(employee_name), MAX(employee_id)) AS employee_name,
+                MAX(departamento) AS departamento,
+                MAX(cargo) AS cargo,
+                MAX(incidencia) AS incidencia,
+                MAX(hora_entrada) AS hora_entrada,
+                MAX(hora_intermedia1) AS hora_intermedia1,
+                MAX(hora_intermedia2) AS hora_intermedia2,
+                MAX(hora_salida) AS hora_salida,
+                COALESCE(SUM(total_hours_row), 0) AS total_hours,
+                MAX(marks_count_row)::int AS marks_count
+              FROM raw
+              GROUP BY employee_key, worked_date, sede
+            )
             SELECT
-              ${employeeIdExpr} AS employee_id,
-              ${employeeNameExpr} AS employee_name,
-              NULLIF(TRIM(CAST(sede AS text)), '') AS sede,
+              employee_id,
+              employee_name,
+              sede,
               departamento,
-              MAX(NULLIF(TRIM(CAST(cargo AS text)), '')) AS cargo,
-              MAX(NULLIF(TRIM(CAST(incidencia AS text)), '')) AS incidencia,
-              MAX(TO_CHAR(hora_entrada, 'HH24:MI:SS')) AS hora_entrada,
-              MAX(TO_CHAR(hora_intermedia1, 'HH24:MI:SS')) AS hora_intermedia1,
-              MAX(TO_CHAR(hora_intermedia2, 'HH24:MI:SS')) AS hora_intermedia2,
-              MAX(TO_CHAR(hora_salida, 'HH24:MI:SS')) AS hora_salida,
-              fecha::date::text AS worked_date,
-              COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
-              MAX(
-                (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
-                (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
-                (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
-                (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
-              )::int AS marks_count
-            FROM asistencia_horas
-            WHERE fecha::date >= $1::date
-              AND fecha::date <= $2::date
-              AND departamento IS NOT NULL
-              ${
-                selectedSedeConfigs.length > 0
-                  ? `AND ${buildNormalizeSedeSql("sede")} = ANY($3::text[])`
-                  : "AND 1=0"
-              }
-            GROUP BY 1, 2, 3, 4, 11
+              cargo,
+              incidencia,
+              hora_entrada,
+              hora_intermedia1,
+              hora_intermedia2,
+              hora_salida,
+              worked_date,
+              total_hours,
+              marks_count
+            FROM base
             ORDER BY worked_date DESC, total_hours DESC
           `;
           const overtimeParams: unknown[] = [overtimeStart, overtimeEnd];

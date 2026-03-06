@@ -357,7 +357,7 @@ export default function JornadaExtendidaPage() {
               showSedeFilters={false}
               showDepartmentFilterInOvertime
               enableOvertimeDateRange
-              alexConsistencyMode
+              alexConsistencyMode={canSeeAlexReport}
             />
           </>
         )}
