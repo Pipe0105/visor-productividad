@@ -233,35 +233,39 @@ export default function JornadaExtendidaPage() {
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-10 text-foreground">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-5 flex items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)]">
+        <div className="mb-5 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.15)] md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
               Tablero
             </p>
             <h1 className="mt-1 text-xl font-bold text-slate-900">Horario</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Image
-                src="/logos/mercamio.jpeg"
-                alt="Logo Mercamio"
-                width={180}
-                height={56}
-                className="h-11 w-auto rounded-xl border border-slate-200/70 bg-white object-contain px-2 py-1 shadow-sm"
-              />
-              <Image
-                src="/logos/mercatodo.jpeg"
-                alt="Logo Mercatodo"
-                width={180}
-                height={56}
-                className="h-11 w-auto rounded-xl border border-slate-200/70 bg-white object-contain px-2 py-1 shadow-sm"
-              />
+          </div>
+          <div className="flex flex-col gap-3 md:items-end">
+            <Link
+              href="/tableros"
+              className="inline-flex items-center rounded-full border border-slate-200/70 bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/70"
+            >
+              Cambiar tablero
+            </Link>
+            <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-3">
+                <Image
+                  src="/logos/mercamio.jpeg"
+                  alt="Logo Mercamio"
+                  width={164}
+                  height={52}
+                  className="h-12 w-auto rounded-lg bg-white object-cover shadow-sm"
+                />
+                <Image
+                  src="/logos/mercatodo.jpeg"
+                  alt="Logo Mercatodo"
+                  width={164}
+                  height={52}
+                  className="h-12 w-auto rounded-lg bg-white object-cover shadow-sm"
+                />
+              </div>
             </div>
           </div>
-          <Link
-            href="/tableros"
-            className="inline-flex items-center rounded-full border border-slate-200/70 bg-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-200/70"
-          >
-            Cambiar tablero
-          </Link>
         </div>
 
         {error ? (
