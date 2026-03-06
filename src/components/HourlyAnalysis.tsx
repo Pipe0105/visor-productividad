@@ -30,6 +30,7 @@ interface HourlyAnalysisProps {
   showSedeFilters?: boolean;
   showDepartmentFilterInOvertime?: boolean;
   enableOvertimeDateRange?: boolean;
+  alexConsistencyMode?: boolean;
 }
 
 const hourlyDateLabelOptions: Intl.DateTimeFormatOptions = {
@@ -322,6 +323,7 @@ export const HourlyAnalysis = ({
   showSedeFilters = true,
   showDepartmentFilterInOvertime = false,
   enableOvertimeDateRange = false,
+  alexConsistencyMode = false,
 }: HourlyAnalysisProps) => {
   const enabledSections = useMemo(() => {
     const unique = Array.from(new Set(sections));
@@ -1072,6 +1074,7 @@ export const HourlyAnalysis = ({
   const filteredOvertimeEmployees = useMemo(() => {
     const validMinMinutes = parseBase60HoursInputToMinutes(overtimeRangeMin);
     const validMaxMinutes = parseBase60HoursInputToMinutes(overtimeRangeMax);
+    const effectiveMarksFilter = alexConsistencyMode ? "2" : overtimeMarksFilter;
 
     const filtered = overtimeEmployeesResolved.filter((employee) => {
       const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
@@ -1088,9 +1091,9 @@ export const HourlyAnalysis = ({
           return false;
         }
       }
-      if (overtimeMarksFilter !== "all") {
+      if (effectiveMarksFilter !== "all") {
         const marks = employee.marksCount ?? 0;
-        if (marks !== Number(overtimeMarksFilter)) return false;
+        if (marks !== Number(effectiveMarksFilter)) return false;
       }
       if (hasEmployeeTypeData && overtimeEmployeeTypeFilter !== "all") {
         const employeeType = employee.employeeType?.trim() ?? "";
@@ -1123,7 +1126,9 @@ export const HourlyAnalysis = ({
         return false;
       if (overtimeAlertOnly) {
         const marks = employee.marksCount ?? 0;
-        if (!(employeeMinutes > 7 * 60 + 20 && marks !== 4)) return false;
+        const matchLegacyRule = employeeMinutes > 7 * 60 + 20 && marks !== 4;
+        const matchAlex92Rule = employeeMinutes > 9 * 60 + 20 && marks === 2;
+        if (!(alexConsistencyMode ? matchAlex92Rule : matchLegacyRule)) return false;
       }
       return true;
     });
@@ -1144,6 +1149,7 @@ export const HourlyAnalysis = ({
     overtimeDepartmentFilter,
     overtimeEmployeeTypeFilter,
     overtimeMarksFilter,
+    alexConsistencyMode,
     hasEmployeeTypeData,
     overtimePersonFilter,
     overtimeDateOrder,
@@ -1156,9 +1162,12 @@ export const HourlyAnalysis = ({
       filteredOvertimeEmployees.filter((employee) => {
         const minutes = decimalHoursToMinutes(employee.workedHours);
         const marks = employee.marksCount ?? 0;
+        if (alexConsistencyMode) {
+          return minutes > 9 * 60 + 20 && marks === 2;
+        }
         return minutes > 7 * 60 + 20 && marks !== 4;
       }).length,
-    [filteredOvertimeEmployees],
+    [filteredOvertimeEmployees, alexConsistencyMode],
   );
   const getOvertimeEmployeeKey = (employee: OvertimeEmployee) =>
     `${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`;
@@ -1674,8 +1683,12 @@ export const HourlyAnalysis = ({
                   }`}
                 >
                   {overtimeAlertOnly
-                    ? `Personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`
-                    : `Ver personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`}
+                    ? alexConsistencyMode
+                      ? `Personas >9:20h con 2 marcaciones (${overtimeAlertCount})`
+                      : `Personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`
+                    : alexConsistencyMode
+                      ? `Ver personas >9:20h con 2 marcaciones (${overtimeAlertCount})`
+                      : `Ver personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`}
                 </button>
                 {overtimeExcludedIds.size > 0 && (
                   <button
@@ -1835,15 +1848,22 @@ export const HourlyAnalysis = ({
                     Marcaciones
                   </span>
                   <select
-                    value={overtimeMarksFilter}
+                    value={alexConsistencyMode ? "2" : overtimeMarksFilter}
                     onChange={(e) => setOvertimeMarksFilter(e.target.value)}
                     className={overtimeFilterControlClass}
+                    disabled={alexConsistencyMode}
                   >
-                    <option value="all">Todas</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
+                    {alexConsistencyMode ? (
+                      <option value="2">2</option>
+                    ) : (
+                      <>
+                        <option value="all">Todas</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                      </>
+                    )}
                   </select>
                 </label>
                 {showDepartmentFilterInOvertime && (
