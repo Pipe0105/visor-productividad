@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { HourlyAnalysis } from "@/components/HourlyAnalysis";
 import { DEFAULT_SEDES } from "@/lib/constants";
@@ -238,6 +239,22 @@ export default function JornadaExtendidaPage() {
               Tablero
             </p>
             <h1 className="mt-1 text-xl font-bold text-slate-900">Horario</h1>
+            <div className="mt-3 flex items-center gap-2">
+              <Image
+                src="/logos/mercamio.jpeg"
+                alt="Logo Mercamio"
+                width={120}
+                height={32}
+                className="h-8 w-auto rounded-md border border-slate-200/70 bg-white object-contain px-1 py-0.5"
+              />
+              <Image
+                src="/logos/mercatodo.jpeg"
+                alt="Logo Mercatodo"
+                width={120}
+                height={32}
+                className="h-8 w-auto rounded-md border border-slate-200/70 bg-white object-contain px-1 py-0.5"
+              />
+            </div>
           </div>
           <Link
             href="/tableros"
