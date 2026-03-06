@@ -398,6 +398,7 @@ export const HourlyAnalysis = ({
     [bucketMinutes],
   );
   const bucketOptions = useMemo(() => [60, 30, 20, 15, 10], []);
+  const isAlexStrictMode = alexConsistencyMode && overtimeAlertOnly;
 
   const availableDateRange = useMemo(() => {
     if (availableDates.length === 0) return { min: "", max: "" };
@@ -1072,20 +1073,24 @@ export const HourlyAnalysis = ({
     [],
   );
   const filteredOvertimeEmployees = useMemo(() => {
-    const validMinMinutes = parseBase60HoursInputToMinutes(overtimeRangeMin);
-    const validMaxMinutes = parseBase60HoursInputToMinutes(overtimeRangeMax);
+    const validMinMinutes = isAlexStrictMode
+      ? null
+      : parseBase60HoursInputToMinutes(overtimeRangeMin);
+    const validMaxMinutes = isAlexStrictMode
+      ? null
+      : parseBase60HoursInputToMinutes(overtimeRangeMax);
     const effectiveMarksFilter = alexConsistencyMode ? "2" : overtimeMarksFilter;
 
     const filtered = overtimeEmployeesResolved.filter((employee) => {
       const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
-      if (overtimeSedeFilter.length > 0) {
+      if (!isAlexStrictMode && overtimeSedeFilter.length > 0) {
         const employeeSede = canonicalizeSedeValue(employee.sede ?? "");
         const anyMatch = overtimeSedeFilter.some(
           (name) => canonicalizeSedeValue(name) === employeeSede,
         );
         if (!anyMatch) return false;
       }
-      if (overtimeDepartmentFilter.length > 0) {
+      if (!isAlexStrictMode && overtimeDepartmentFilter.length > 0) {
         const employeeDepartment = employee.department ?? "";
         if (!overtimeDepartmentFilter.includes(employeeDepartment)) {
           return false;
@@ -1095,7 +1100,11 @@ export const HourlyAnalysis = ({
         const marks = employee.marksCount ?? 0;
         if (marks !== Number(effectiveMarksFilter)) return false;
       }
-      if (hasEmployeeTypeData && overtimeEmployeeTypeFilter !== "all") {
+      if (
+        !isAlexStrictMode &&
+        hasEmployeeTypeData &&
+        overtimeEmployeeTypeFilter !== "all"
+      ) {
         const employeeType = employee.employeeType?.trim() ?? "";
         if (
           employeeType.toLowerCase() !==
@@ -1104,7 +1113,9 @@ export const HourlyAnalysis = ({
           return false;
         }
       }
-      const selected = overtimePersonFilter.trim().toLowerCase();
+      const selected = isAlexStrictMode
+        ? ""
+        : overtimePersonFilter.trim().toLowerCase();
       if (selected) {
         const id = employee.employeeId?.toString().trim() ?? "";
         const name = employee.employeeName.trim();
@@ -1128,7 +1139,8 @@ export const HourlyAnalysis = ({
         const marks = employee.marksCount ?? 0;
         const matchLegacyRule = employeeMinutes > 7 * 60 + 20 && marks !== 4;
         const matchAlex92Rule = employeeMinutes > 9 * 60 + 20 && marks === 2;
-        if (!(alexConsistencyMode ? matchAlex92Rule : matchLegacyRule)) return false;
+        if (!(alexConsistencyMode ? matchAlex92Rule : matchLegacyRule))
+          return false;
       }
       return true;
     });
@@ -1150,6 +1162,7 @@ export const HourlyAnalysis = ({
     overtimeEmployeeTypeFilter,
     overtimeMarksFilter,
     alexConsistencyMode,
+    isAlexStrictMode,
     hasEmployeeTypeData,
     overtimePersonFilter,
     overtimeDateOrder,
@@ -1169,6 +1182,18 @@ export const HourlyAnalysis = ({
       }).length,
     [filteredOvertimeEmployees, alexConsistencyMode],
   );
+  useEffect(() => {
+    if (!isAlexStrictMode) return;
+    setOvertimeSedeFilter([]);
+    setOvertimeDepartmentFilter([]);
+    setOvertimePersonFilter("");
+    setOvertimeEmployeeTypeFilter("all");
+    setOvertimeRangeMin("");
+    setOvertimeRangeMax("");
+    setOvertimeExcludedIds(new Set());
+    setOvertimeSedeOpen(false);
+    setOvertimeDepartmentOpen(false);
+  }, [isAlexStrictMode]);
   const getOvertimeEmployeeKey = (employee: OvertimeEmployee) =>
     `${employee.employeeId ?? "sin-id"}-${employee.employeeName}-${employee.workedDate ?? "sin-fecha"}-${employee.sede ?? "sin-sede"}-${employee.department ?? "sin-depto"}`;
   const toggleExcludeEmployee = (employeeKey: string) => {
@@ -1782,11 +1807,12 @@ export const HourlyAnalysis = ({
                   <button
                     ref={overtimeSedeTriggerRef}
                     type="button"
+                    disabled={isAlexStrictMode}
                     onClick={() => {
                       if (!overtimeSedeOpen) updateOvertimeSedePopoverPos();
                       setOvertimeSedeOpen((prev) => !prev);
                     }}
-                    className={`${overtimeFilterControlClass} mt-1 flex items-center justify-between`}
+                    className={`${overtimeFilterControlClass} mt-1 flex items-center justify-between disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
                   >
                     <span>
                       {overtimeSedeFilter.length === 0
@@ -1803,6 +1829,7 @@ export const HourlyAnalysis = ({
                   <input
                     list="overtime-person-options"
                     value={overtimePersonFilter}
+                    disabled={isAlexStrictMode}
                     onChange={(e) => {
                       const next = e.target.value;
                       setOvertimePersonFilter(next === "Todos" ? "" : next);
@@ -1823,6 +1850,7 @@ export const HourlyAnalysis = ({
                   </span>
                   <select
                     value={overtimeEmployeeTypeFilter}
+                    disabled={isAlexStrictMode || !hasEmployeeTypeData}
                     onChange={(e) =>
                       setOvertimeEmployeeTypeFilter(e.target.value)
                     }
@@ -1831,7 +1859,6 @@ export const HourlyAnalysis = ({
                         ? "bg-white text-slate-900"
                         : "cursor-not-allowed bg-slate-100 text-slate-500"
                     }`}
-                    disabled={!hasEmployeeTypeData}
                   >
                     <option value="all">
                       {hasEmployeeTypeData ? "Todos" : "Sin datos"}
@@ -1851,7 +1878,7 @@ export const HourlyAnalysis = ({
                     value={alexConsistencyMode ? "2" : overtimeMarksFilter}
                     onChange={(e) => setOvertimeMarksFilter(e.target.value)}
                     className={overtimeFilterControlClass}
-                    disabled={alexConsistencyMode}
+                    disabled={alexConsistencyMode || isAlexStrictMode}
                   >
                     {alexConsistencyMode ? (
                       <option value="2">2</option>
@@ -1874,13 +1901,14 @@ export const HourlyAnalysis = ({
                     <button
                       ref={overtimeDepartmentTriggerRef}
                       type="button"
+                      disabled={isAlexStrictMode}
                       onClick={() => {
                         if (!overtimeDepartmentOpen) {
                           updateOvertimeDepartmentPopoverPos();
                         }
                         setOvertimeDepartmentOpen((prev) => !prev);
                       }}
-                      className={`${overtimeFilterControlClass} mt-1 flex items-center justify-between`}
+                      className={`${overtimeFilterControlClass} mt-1 flex items-center justify-between disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
                     >
                       <span>
                         {overtimeDepartmentFilter.length === 0
@@ -1900,6 +1928,7 @@ export const HourlyAnalysis = ({
                     step="0.01"
                     min="0"
                     value={overtimeRangeMin}
+                    disabled={isAlexStrictMode}
                     onChange={(e) => {
                       setOvertimeQuickRange("custom");
                       setOvertimeRangeMin(e.target.value);
@@ -1916,6 +1945,7 @@ export const HourlyAnalysis = ({
                     step="0.01"
                     min="0"
                     value={overtimeRangeMax}
+                    disabled={isAlexStrictMode}
                     onChange={(e) => {
                       setOvertimeQuickRange("custom");
                       setOvertimeRangeMax(e.target.value);
@@ -1924,6 +1954,13 @@ export const HourlyAnalysis = ({
                   />
                 </label>
               </div>
+              {isAlexStrictMode && (
+                <p className="mt-2 text-xs font-semibold text-amber-700">
+                  Modo Alex activo: el listado usa exactamente la misma regla del
+                  reporte (superior a 9:20h con 2 marcaciones) y bloquea filtros que cambian
+                  el conteo.
+                </p>
+              )}
 
               {overtimeSedeOpen &&
                 overtimeSedePopoverPos &&
@@ -2167,6 +2204,7 @@ export const HourlyAnalysis = ({
                             type="checkbox"
                             checked={false}
                             onChange={() => toggleExcludeEmployee(employeeKey)}
+                            disabled={isAlexStrictMode}
                             className="h-4 w-4 accent-rose-600"
                             aria-label="Excluir del Excel"
                           />
