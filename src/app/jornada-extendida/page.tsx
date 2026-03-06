@@ -239,20 +239,20 @@ export default function JornadaExtendidaPage() {
               Tablero
             </p>
             <h1 className="mt-1 text-xl font-bold text-slate-900">Horario</h1>
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <Image
                 src="/logos/mercamio.jpeg"
                 alt="Logo Mercamio"
-                width={120}
-                height={32}
-                className="h-8 w-auto rounded-md border border-slate-200/70 bg-white object-contain px-1 py-0.5"
+                width={180}
+                height={56}
+                className="h-11 w-auto rounded-xl border border-slate-200/70 bg-white object-contain px-2 py-1 shadow-sm"
               />
               <Image
                 src="/logos/mercatodo.jpeg"
                 alt="Logo Mercatodo"
-                width={120}
-                height={32}
-                className="h-8 w-auto rounded-md border border-slate-200/70 bg-white object-contain px-1 py-0.5"
+                width={180}
+                height={56}
+                className="h-11 w-auto rounded-xl border border-slate-200/70 bg-white object-contain px-2 py-1 shadow-sm"
               />
             </div>
           </div>
