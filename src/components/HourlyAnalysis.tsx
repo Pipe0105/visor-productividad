@@ -370,6 +370,9 @@ export const HourlyAnalysis = ({
     useState("all");
   const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
   const [overtimeAlertOnly, setOvertimeAlertOnly] = useState(alexConsistencyMode);
+  const [overtimeAlertRule, setOvertimeAlertRule] = useState<"legacy" | "alex">(
+    alexConsistencyMode ? "alex" : "legacy",
+  );
   const [alexAlertThreshold, setAlexAlertThreshold] = useState<"7:20" | "9:20">(
     "9:20",
   );
@@ -407,6 +410,8 @@ export const HourlyAnalysis = ({
   );
   const bucketOptions = useMemo(() => [60, 30, 20, 15, 10], []);
   const isAlexStrictMode = alexConsistencyMode && overtimeAlertOnly;
+  const effectiveOvertimeAlertRule =
+    alexConsistencyMode ? "alex" : overtimeAlertRule;
 
   const availableDateRange = useMemo(() => {
     if (availableDates.length === 0) return { min: "", max: "" };
@@ -1172,7 +1177,9 @@ export const HourlyAnalysis = ({
                 marks === 2
               : employeeMinutes > ALEX_THRESHOLD_MINUTES["9:20"] &&
                 marks === 2;
-          return alexConsistencyMode ? matchAlexRule : matchLegacyRule;
+          return effectiveOvertimeAlertRule === "alex"
+            ? matchAlexRule
+            : matchLegacyRule;
         })
       : baseFilteredOvertimeEmployees;
     return [...filtered].sort((a, b) => {
@@ -1188,10 +1195,19 @@ export const HourlyAnalysis = ({
   }, [
     baseFilteredOvertimeEmployees,
     overtimeAlertOnly,
-    alexConsistencyMode,
+    effectiveOvertimeAlertRule,
     overtimeDateOrder,
     alexAlertThreshold,
   ]);
+  const legacyAlertCount = useMemo(
+    () =>
+      baseFilteredOvertimeEmployees.filter((employee) => {
+        const minutes = decimalHoursToMinutes(employee.workedHours);
+        const marks = employee.marksCount ?? 0;
+        return minutes > 7 * 60 + 20 && marks !== 4;
+      }).length,
+    [baseFilteredOvertimeEmployees],
+  );
   const alexAlertCount720 = useMemo(
     () =>
       baseFilteredOvertimeEmployees.filter((employee) => {
@@ -1213,25 +1229,6 @@ export const HourlyAnalysis = ({
         return minutes > ALEX_THRESHOLD_MINUTES["9:20"] && marks === 2;
       }).length,
     [baseFilteredOvertimeEmployees],
-  );
-  const overtimeAlertCount = useMemo(
-    () =>
-      baseFilteredOvertimeEmployees.filter((employee) => {
-        const minutes = decimalHoursToMinutes(employee.workedHours);
-        const marks = employee.marksCount ?? 0;
-        if (alexConsistencyMode) {
-          if (alexAlertThreshold === "7:20") {
-            return (
-              minutes > ALEX_THRESHOLD_MINUTES["7:20"] &&
-              minutes <= ALEX_THRESHOLD_MINUTES["9:20"] &&
-              marks === 2
-            );
-          }
-          return minutes > ALEX_THRESHOLD_MINUTES["9:20"] && marks === 2;
-        }
-        return minutes > 7 * 60 + 20 && marks !== 4;
-      }).length,
-    [baseFilteredOvertimeEmployees, alexConsistencyMode, alexAlertThreshold],
   );
   useEffect(() => {
     if (!isAlexStrictMode) return;
@@ -1785,19 +1782,47 @@ export const HourlyAnalysis = ({
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setOvertimeAlertOnly((prev) => !prev)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
-                      overtimeAlertOnly
-                        ? "bg-red-600 text-white shadow-sm"
-                        : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
-                    }`}
-                  >
-                    {overtimeAlertOnly
-                      ? `Personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`
-                      : `Ver personas >7:20h sin 4 marcaciones (${overtimeAlertCount})`}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOvertimeAlertRule("legacy");
+                        setOvertimeAlertOnly((prev) =>
+                          prev && overtimeAlertRule === "legacy" ? false : true,
+                        );
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                        overtimeAlertOnly && overtimeAlertRule === "legacy"
+                          ? "bg-red-600 text-white shadow-sm"
+                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                      }`}
+                    >
+                      {`Ver personas >7:20h sin 4 marcaciones (${legacyAlertCount})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOvertimeAlertRule("alex");
+                        setAlexAlertThreshold("9:20");
+                        setOvertimeAlertOnly((prev) =>
+                          prev &&
+                          overtimeAlertRule === "alex" &&
+                          alexAlertThreshold === "9:20"
+                            ? false
+                            : true,
+                        );
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                        overtimeAlertOnly &&
+                        overtimeAlertRule === "alex" &&
+                        alexAlertThreshold === "9:20"
+                          ? "bg-red-600 text-white shadow-sm"
+                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                      }`}
+                    >
+                      {`Ver personas >9:20h con 2 marcaciones (${alexAlertCount920})`}
+                    </button>
+                  </>
                 )}
                 {overtimeExcludedIds.size > 0 && (
                   <button
