@@ -1166,8 +1166,12 @@ export const HourlyAnalysis = ({
           const marks = employee.marksCount ?? 0;
           const matchLegacyRule = employeeMinutes > 7 * 60 + 20 && marks !== 4;
           const matchAlexRule =
-            employeeMinutes > ALEX_THRESHOLD_MINUTES[alexAlertThreshold] &&
-            marks === 2;
+            alexAlertThreshold === "7:20"
+              ? employeeMinutes > ALEX_THRESHOLD_MINUTES["7:20"] &&
+                employeeMinutes <= ALEX_THRESHOLD_MINUTES["9:20"] &&
+                marks === 2
+              : employeeMinutes > ALEX_THRESHOLD_MINUTES["9:20"] &&
+                marks === 2;
           return alexConsistencyMode ? matchAlexRule : matchLegacyRule;
         })
       : baseFilteredOvertimeEmployees;
@@ -1193,7 +1197,11 @@ export const HourlyAnalysis = ({
       baseFilteredOvertimeEmployees.filter((employee) => {
         const minutes = decimalHoursToMinutes(employee.workedHours);
         const marks = employee.marksCount ?? 0;
-        return minutes > ALEX_THRESHOLD_MINUTES["7:20"] && marks === 2;
+        return (
+          minutes > ALEX_THRESHOLD_MINUTES["7:20"] &&
+          minutes <= ALEX_THRESHOLD_MINUTES["9:20"] &&
+          marks === 2
+        );
       }).length,
     [baseFilteredOvertimeEmployees],
   );
@@ -1212,7 +1220,14 @@ export const HourlyAnalysis = ({
         const minutes = decimalHoursToMinutes(employee.workedHours);
         const marks = employee.marksCount ?? 0;
         if (alexConsistencyMode) {
-          return minutes > ALEX_THRESHOLD_MINUTES[alexAlertThreshold] && marks === 2;
+          if (alexAlertThreshold === "7:20") {
+            return (
+              minutes > ALEX_THRESHOLD_MINUTES["7:20"] &&
+              minutes <= ALEX_THRESHOLD_MINUTES["9:20"] &&
+              marks === 2
+            );
+          }
+          return minutes > ALEX_THRESHOLD_MINUTES["9:20"] && marks === 2;
         }
         return minutes > 7 * 60 + 20 && marks !== 4;
       }).length,
