@@ -102,7 +102,7 @@ export default function LoginPage() {
 
         <div className="mt-6 border-t border-slate-200/70 pt-3 text-center">
           <p className="text-xs font-medium tracking-[0.08em] text-slate-500">
-            Created by Juan Felipe Gomez
+            Created by Juan Felipe Gomez and Juan Manuel Velasquez
           </p>
         </div>
       </div>
