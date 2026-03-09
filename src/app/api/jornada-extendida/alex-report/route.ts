@@ -120,8 +120,7 @@ const parseHoursValue = (value: string | number | null | undefined): number => {
 };
 
 // "7.2h" y "9.2h" en el reporte significan 7:20 y 9:20 (base 60).
-// Para 7:20 aplicamos tolerancia de +10 min para alinear con el listado horario.
-const HOURS_7_20 = 7 + 30 / 60;
+const HOURS_7_20 = 7 + 20 / 60;
 const HOURS_9_20 = 9 + 20 / 60;
 
 export async function GET(request: Request) {
