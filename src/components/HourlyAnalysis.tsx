@@ -380,8 +380,8 @@ export const HourlyAnalysis = ({
     () => new Set(),
   );
   const [overtimeQuickRange, setOvertimeQuickRange] = useState("custom");
-  const [overtimeDateOrder, setOvertimeDateOrder] = useState<"recent" | "old">(
-    "recent",
+  const [overtimeDateOrder, setOvertimeDateOrder] = useState<"asc" | "desc">(
+    "desc",
   );
   const [overtimeDateStart, setOvertimeDateStart] = useState(defaultDate ?? "");
   const [overtimeDateEnd, setOvertimeDateEnd] = useState(defaultDate ?? "");
@@ -1184,14 +1184,13 @@ export const HourlyAnalysis = ({
         })
       : baseFilteredOvertimeEmployees;
     return [...filtered].sort((a, b) => {
+      const hoursDiff = a.workedHours - b.workedHours;
+      if (hoursDiff !== 0) {
+        return overtimeDateOrder === "asc" ? hoursDiff : -hoursDiff;
+      }
       const aDateTs = a.workedDate ? new Date(a.workedDate).getTime() : 0;
       const bDateTs = b.workedDate ? new Date(b.workedDate).getTime() : 0;
-      if (aDateTs !== bDateTs) {
-        return overtimeDateOrder === "recent"
-          ? bDateTs - aDateTs
-          : aDateTs - bDateTs;
-      }
-      return b.workedHours - a.workedHours;
+      return bDateTs - aDateTs;
     });
   }, [
     baseFilteredOvertimeEmployees,
@@ -1897,17 +1896,17 @@ export const HourlyAnalysis = ({
               >
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">
-                    Fecha
+                    Orden
                   </span>
                   <select
                     value={overtimeDateOrder}
                     onChange={(e) =>
-                      setOvertimeDateOrder(e.target.value as "recent" | "old")
+                      setOvertimeDateOrder(e.target.value as "asc" | "desc")
                     }
                     className={overtimeFilterControlClass}
                   >
-                    <option value="recent">Mas reciente</option>
-                    <option value="old">Mas lejana</option>
+                    <option value="asc">Ascendente</option>
+                    <option value="desc">Descendente</option>
                   </select>
                 </label>
                 <label className="block">
