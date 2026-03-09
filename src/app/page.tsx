@@ -3560,6 +3560,13 @@ export default function Home() {
       new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(
         value,
       );
+    const formatHoursAsClock = (value: number) => {
+      const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+      const totalMinutes = Math.round(safeValue * 60);
+      const hoursPart = Math.floor(totalMinutes / 60);
+      const minutesPart = totalMinutes % 60;
+      return `${hoursPart}:${String(minutesPart).padStart(2, "0")}`;
+    };
 
     // === TÍTULO ===
     doc.setFillColor(...primaryColor);
@@ -3618,7 +3625,7 @@ export default function Home() {
         line.name,
         line.id,
         `$ ${formatNumber(Math.round(line.sales))}`,
-        hours.toFixed(2),
+        formatHoursAsClock(hours),
       ];
     });
 
@@ -3628,12 +3635,12 @@ export default function Home() {
       "TOTAL",
       "",
       `$ ${formatNumber(Math.round(totalSales))}`,
-      totalHours.toFixed(2),
+      formatHoursAsClock(totalHours),
     ];
 
     autoTable(doc, {
       startY: tableStartY,
-      head: [["#", "Línea", "Código", "Ventas", "Horas"]],
+      head: [["#", "Línea", "Código", "Ventas", "Horas trabajadas"]],
       body: tableBody,
       foot: [totalsRow],
       theme: "grid",
