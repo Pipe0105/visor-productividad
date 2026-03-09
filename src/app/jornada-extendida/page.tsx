@@ -334,10 +334,10 @@ export default function JornadaExtendidaPage() {
                             Sede
                           </th>
                           <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
-                            MÃ¡s de 7:20h con 2 marcaciones
+                            Más de 7:20h con 2 marcaciones
                           </th>
                           <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
-                            MÃƒÂ¡s de 9:20h
+                            Más de 9:20h
                           </th>
                         </tr>
                       </thead>
