@@ -1722,6 +1722,9 @@ export const HourlyAnalysis = ({
                 <button
                   type="button"
                   onClick={() => {
+                    setOvertimeRangeMin("");
+                    setOvertimeRangeMax("");
+                    setOvertimeQuickRange("custom");
                     setOvertimeAlertMode("920");
                     setOvertimeAlertOnly((prev) =>
                       prev && overtimeAlertMode === "920" ? false : true,
@@ -1738,6 +1741,9 @@ export const HourlyAnalysis = ({
                 <button
                   type="button"
                   onClick={() => {
+                    setOvertimeRangeMin("");
+                    setOvertimeRangeMax("");
+                    setOvertimeQuickRange("custom");
                     setOvertimeAlertMode("720-2marks");
                     setOvertimeAlertOnly((prev) =>
                       prev && overtimeAlertMode === "720-2marks" ? false : true,
