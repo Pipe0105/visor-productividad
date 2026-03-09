@@ -129,8 +129,7 @@ const OVERTIME_QUICK_RANGE_OPTIONS: Array<{
 const OVERTIME_PAGE_SIZE = 150;
 const OVERTIME_PAGE_TAB_WINDOW = 8;
 const ALEX_THRESHOLD_MINUTES = {
-  // Tolerancia de 10 min: el filtro rotulado como 7:20 aplica desde 7:30.
-  "7:20": 7 * 60 + 30,
+  "7:20": 7 * 60 + 20,
   "9:20": 9 * 60 + 20,
 } as const;
 
