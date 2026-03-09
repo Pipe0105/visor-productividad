@@ -1700,7 +1700,12 @@ export const HourlyAnalysis = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setOvertimeAlertOnly((prev) => !prev)}
+                  onClick={() => {
+                    setOvertimeRangeMin("");
+                    setOvertimeRangeMax("");
+                    setOvertimeQuickRange("custom");
+                    setOvertimeAlertOnly((prev) => !prev);
+                  }}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
                     overtimeAlertOnly
                       ? "bg-red-600 text-white shadow-sm"
