@@ -1890,11 +1890,11 @@ export const HourlyAnalysis = ({
               <div
                 className={`mt-3 grid gap-3 ${
                   showDepartmentFilterInOvertime
-                    ? "sm:grid-cols-9"
-                    : "sm:grid-cols-8"
+                    ? "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9"
+                    : "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
                 }`}
               >
-                <label className="block">
+                <label className="block xl:col-span-2">
                   <span className="text-xs font-semibold text-slate-700">
                     Orden
                   </span>
@@ -1903,7 +1903,7 @@ export const HourlyAnalysis = ({
                     onChange={(e) =>
                       setOvertimeDateOrder(e.target.value as "asc" | "desc")
                     }
-                    className={`${overtimeFilterControlClass} min-w-[11rem]`}
+                    className={`${overtimeFilterControlClass} min-w-0`}
                   >
                     <option value="asc">Ascendente</option>
                     <option value="desc">Descendente</option>
