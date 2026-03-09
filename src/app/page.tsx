@@ -3565,7 +3565,7 @@ export default function Home() {
       const totalMinutes = Math.round(safeValue * 60);
       const hoursPart = Math.floor(totalMinutes / 60);
       const minutesPart = totalMinutes % 60;
-      return `${hoursPart}:${String(minutesPart).padStart(2, "0")}`;
+      return `${String(hoursPart).padStart(2, "0")}:${String(minutesPart).padStart(2, "0")}`;
     };
 
     // === TÍTULO ===
