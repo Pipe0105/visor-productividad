@@ -58,7 +58,7 @@ export default function LoginPage() {
           />
         </div>
         <div className="mb-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <p className="text-lg font-bold uppercase tracking-[0.16em] text-slate-700 sm:text-xl">
             Tableros de análisis
           </p>
           <p className="mt-1 text-sm text-slate-600">MercaMio y MercaTodo</p>
