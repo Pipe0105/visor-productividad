@@ -77,6 +77,7 @@ export default function JornadaExtendidaPage() {
   const [alexTotals, setAlexTotals] = useState({ moreThan72With2: 0, moreThan92: 0 });
   const [alexLoading, setAlexLoading] = useState(false);
   const [alexError, setAlexError] = useState<string | null>(null);
+  const [exportingAlexPng, setExportingAlexPng] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -174,6 +175,128 @@ export default function JornadaExtendidaPage() {
     if (alexStartDate === alexEndDate) return fmt(alexStartDate);
     return `${fmt(alexStartDate)} a ${fmt(alexEndDate)}`;
   }, [alexEndDate, alexStartDate]);
+
+  const handleExportAlexTablePng = async () => {
+    if (alexRows.length === 0) return;
+    setExportingAlexPng(true);
+    try {
+      const headers = ["Sede", "Mas de 7:20h con 2 marcaciones", "Mas de 9:20h"];
+      const rows = alexRows.map((row) => [
+        row.sede,
+        row.moreThan72With2 === 0 ? "-" : String(row.moreThan72With2),
+        row.moreThan92 === 0 ? "-" : String(row.moreThan92),
+      ]);
+      rows.push(["TOTAL", String(alexTotals.moreThan72With2), String(alexTotals.moreThan92)]);
+
+      const colWidths = [260, 330, 220];
+      const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
+      const rowHeight = 34;
+      const headerHeight = 40;
+      const paddingX = 24;
+      const paddingY = 24;
+      const titleHeight = 64;
+      const tableHeight = headerHeight + rows.length * rowHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = tableWidth + paddingX * 2;
+      canvas.height = paddingY * 2 + titleHeight + tableHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const title = "Reporte Alex";
+      const subtitle = "Laboraron mas de 7:20h con 2 marcaciones y mas de 9:20h";
+      const range = alexRangeLabel || `${alexStartDate} a ${alexEndDate}`;
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "700 26px Arial";
+      ctx.fillText(title, paddingX, paddingY + 26);
+      ctx.font = "600 18px Arial";
+      ctx.fillText(subtitle, paddingX, paddingY + 50);
+      ctx.fillStyle = "#b91c1c";
+      ctx.font = "700 18px Arial";
+      ctx.fillText(range, paddingX, paddingY + 74);
+
+      const tableTop = paddingY + titleHeight;
+      ctx.fillStyle = "#f1f5f9";
+      ctx.fillRect(paddingX, tableTop, tableWidth, headerHeight);
+
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(paddingX, tableTop, tableWidth, tableHeight);
+
+      let x = paddingX;
+      for (let i = 0; i < colWidths.length; i += 1) {
+        const width = colWidths[i];
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.beginPath();
+        ctx.moveTo(x, tableTop);
+        ctx.lineTo(x, tableTop + tableHeight);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "700 18px Arial";
+        if (i === 0) {
+          ctx.textAlign = "left";
+          ctx.fillText(headers[i], x + 12, tableTop + 26);
+        } else {
+          ctx.textAlign = "right";
+          ctx.fillText(headers[i], x + width - 12, tableTop + 26);
+        }
+        x += width;
+      }
+      ctx.beginPath();
+      ctx.moveTo(paddingX + tableWidth, tableTop);
+      ctx.lineTo(paddingX + tableWidth, tableTop + tableHeight);
+      ctx.stroke();
+
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const y = tableTop + headerHeight + rowIndex * rowHeight;
+        const isTotal = rowIndex === rows.length - 1;
+        if (isTotal) {
+          ctx.fillStyle = "#f8fafc";
+          ctx.fillRect(paddingX, y, tableWidth, rowHeight);
+        }
+
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.beginPath();
+        ctx.moveTo(paddingX, y);
+        ctx.lineTo(paddingX + tableWidth, y);
+        ctx.stroke();
+
+        let cellX = paddingX;
+        for (let col = 0; col < colWidths.length; col += 1) {
+          const width = colWidths[col];
+          ctx.fillStyle = "#0f172a";
+          ctx.font = isTotal ? "700 18px Arial" : "500 18px Arial";
+          if (col === 0) {
+            ctx.textAlign = "left";
+            ctx.fillText(rows[rowIndex][col], cellX + 12, y + 23);
+          } else {
+            ctx.textAlign = "right";
+            ctx.fillText(rows[rowIndex][col], cellX + width - 12, y + 23);
+          }
+          cellX += width;
+        }
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(paddingX, tableTop + tableHeight);
+      ctx.lineTo(paddingX + tableWidth, tableTop + tableHeight);
+      ctx.stroke();
+
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `reporte-alex-${alexStartDate || "inicio"}-${alexEndDate || "fin"}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setExportingAlexPng(false);
+    }
+  };
 
   useEffect(() => {
     if (!canSeeAlexReport) return;
@@ -312,6 +435,16 @@ export default function JornadaExtendidaPage() {
                       />
                     </label>
                   </div>
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleExportAlexTablePng()}
+                    disabled={alexLoading || alexRows.length === 0 || exportingAlexPng}
+                    className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {exportingAlexPng ? "Generando PNG..." : "Exportar tabla PNG"}
+                  </button>
                 </div>
                 {alexStartDate > alexEndDate && (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
