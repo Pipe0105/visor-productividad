@@ -1305,6 +1305,9 @@ export const HourlyAnalysis = ({
     exportEmployees.forEach((employee) => {
       const rawId = employee.employeeId?.toString().trim() ?? "";
       const numericId = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
+      const workedHoursValue = Number.isFinite(employee.workedHours)
+        ? Math.max(0, employee.workedHours) / 24
+        : null;
       sheet.addRow({
         employeeId: numericId,
         employeeName: employee.employeeName,
@@ -1318,7 +1321,7 @@ export const HourlyAnalysis = ({
         markBreak1: employee.markBreak1 ?? "",
         markBreak2: employee.markBreak2 ?? "",
         markOut: employee.markOut ?? "",
-        workedHours: formatHoursBase60(employee.workedHours),
+        workedHours: workedHoursValue,
       });
     });
 
@@ -1326,7 +1329,11 @@ export const HourlyAnalysis = ({
     header.font = { bold: true };
     header.alignment = { vertical: "middle", horizontal: "center" };
     sheet.getColumn("employeeId").numFmt = "0";
-    sheet.getColumn("workedHours").numFmt = "@";
+    sheet.getColumn("workedHours").numFmt = "[h]:mm";
+    sheet.getColumn("workedHours").alignment = {
+      vertical: "middle",
+      horizontal: "right",
+    };
 
     const dateKey =
       enableOvertimeDateRange &&
