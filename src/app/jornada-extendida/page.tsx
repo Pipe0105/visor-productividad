@@ -194,31 +194,56 @@ export default function JornadaExtendidaPage() {
       const headerHeight = 40;
       const paddingX = 24;
       const paddingY = 24;
-      const titleHeight = 64;
+      const title = "Reporte Alex";
+      const subtitle = "Laboraron mas de 7:20h con 2 marcaciones y mas de 9:20h";
+      const range = alexRangeLabel || `${alexStartDate} a ${alexEndDate}`;
+      const maxTextWidth = tableWidth - 16;
+      const measureCanvas = document.createElement("canvas");
+      const measureCtx = measureCanvas.getContext("2d");
+      if (!measureCtx) return;
+      const wrapText = (ctx: CanvasRenderingContext2D, text: string, width: number) => {
+        const words = text.split(/\s+/).filter(Boolean);
+        const lines: string[] = [];
+        let line = "";
+        for (const word of words) {
+          const test = line ? `${line} ${word}` : word;
+          if (ctx.measureText(test).width <= width) {
+            line = test;
+          } else {
+            if (line) lines.push(line);
+            line = word;
+          }
+        }
+        if (line) lines.push(line);
+        return lines.length > 0 ? lines : [text];
+      };
+      measureCtx.font = "600 18px Arial";
+      const subtitleLines = wrapText(measureCtx, subtitle, maxTextWidth);
+      const titleHeight = 34 + subtitleLines.length * 22 + 28;
+      const tableTop = paddingY + titleHeight + 8;
       const tableHeight = headerHeight + rows.length * rowHeight;
       const canvas = document.createElement("canvas");
       canvas.width = tableWidth + paddingX * 2;
-      canvas.height = paddingY * 2 + titleHeight + tableHeight;
+      canvas.height = tableTop + tableHeight + paddingY;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const title = "Reporte Alex";
-      const subtitle = "Laboraron mas de 7:20h con 2 marcaciones y mas de 9:20h";
-      const range = alexRangeLabel || `${alexStartDate} a ${alexEndDate}`;
-
       ctx.fillStyle = "#0f172a";
       ctx.font = "700 26px Arial";
       ctx.fillText(title, paddingX, paddingY + 26);
       ctx.font = "600 18px Arial";
-      ctx.fillText(subtitle, paddingX, paddingY + 50);
+      let textY = paddingY + 52;
+      for (const line of subtitleLines) {
+        ctx.fillText(line, paddingX, textY);
+        textY += 22;
+      }
       ctx.fillStyle = "#b91c1c";
       ctx.font = "700 18px Arial";
-      ctx.fillText(range, paddingX, paddingY + 74);
+      ctx.fillText(range, paddingX, textY);
 
-      const tableTop = paddingY + titleHeight;
       ctx.fillStyle = "#f1f5f9";
       ctx.fillRect(paddingX, tableTop, tableWidth, headerHeight);
 
