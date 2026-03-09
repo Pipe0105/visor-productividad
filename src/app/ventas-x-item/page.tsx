@@ -631,24 +631,14 @@ export default function VentasXItemPage() {
         throw new Error(payload.error ?? "No se pudo cargar datos desde base de datos.");
       }
       const prepared = prepareDataframe(payload.rows ?? []);
-      const withDate = prepared.filter((row) => row.fecha !== null);
-      if (withDate.length === 0) throw new Error("La base de datos no tiene fechas válidas.");
-      const min = withDate.reduce(
-        (acc, row) => (row.fecha!.getTime() < acc.getTime() ? row.fecha! : acc),
-        withDate[0].fecha!,
-      );
-      const max = withDate.reduce(
-        (acc, row) => (row.fecha!.getTime() > acc.getTime() ? row.fecha! : acc),
-        withDate[0].fecha!,
-      );
+      const hasValidDates = prepared.some((row) => row.fecha !== null);
+      if (!hasValidDates) throw new Error("La base de datos no tiene fechas válidas.");
       const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
       setRows(prepared);
       setFileName(
         `DB: ventas_item_diario (${dateStart} a ${dateEnd}) | ${EMPRESA_LABELS[empresaCarga] ?? empresaCarga.toUpperCase()}`,
       );
       setEmpresasSel(empresas.includes(empresaCarga) ? [empresaCarga] : empresas);
-      setDateStart(toDateKey(min));
-      setDateEnd(toDateKey(max));
       setItemsSel([]);
       setItemsOrder([]);
       setItemSearch("");
