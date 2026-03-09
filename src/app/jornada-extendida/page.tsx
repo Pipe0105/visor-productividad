@@ -18,7 +18,6 @@ type ApiResponse = {
 
 type AlexReportRow = {
   sede: string;
-  moreThan72With2: number;
   moreThan92: number;
 };
 
@@ -26,7 +25,6 @@ type AlexReportResponse = {
   usedRange?: { start: string; end: string } | null;
   rows?: AlexReportRow[];
   totals?: {
-    moreThan72With2: number;
     moreThan92: number;
   };
   error?: string;
@@ -74,7 +72,7 @@ export default function JornadaExtendidaPage() {
   const [alexStartDate, setAlexStartDate] = useState("");
   const [alexEndDate, setAlexEndDate] = useState("");
   const [alexRows, setAlexRows] = useState<AlexReportRow[]>([]);
-  const [alexTotals, setAlexTotals] = useState({ moreThan72With2: 0, moreThan92: 0 });
+  const [alexTotals, setAlexTotals] = useState({ moreThan92: 0 });
   const [alexLoading, setAlexLoading] = useState(false);
   const [alexError, setAlexError] = useState<string | null>(null);
 
@@ -198,7 +196,6 @@ export default function JornadaExtendidaPage() {
         setAlexRows(payload.rows ?? []);
         setAlexTotals(
           payload.totals ?? {
-            moreThan72With2: 0,
             moreThan92: 0,
           },
         );
@@ -281,9 +278,7 @@ export default function JornadaExtendidaPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
                       Reporte Alex
                     </p>
-                    <h2 className="mt-1 text-lg font-bold text-slate-900">
-                      Laboraron más de 7:20h con 2 marcaciones y más de 9:20h
-                    </h2>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">Laboraron mas de 9:20h</h2>
                     {alexRangeLabel && (
                       <p className="mt-1 text-base font-bold text-red-700">{alexRangeLabel}</p>
                     )}
@@ -327,14 +322,11 @@ export default function JornadaExtendidaPage() {
                   <p className="mt-3 text-sm text-slate-600">Cargando reporte Alex...</p>
                 ) : (
                   <div className="mt-3 overflow-auto rounded-xl border border-slate-200">
-                    <table className="min-w-[680px] w-full text-sm">
+                    <table className="min-w-[520px] w-full text-sm">
                       <thead className="bg-slate-100 text-slate-800">
                         <tr>
                           <th className="border-b border-slate-200 px-3 py-2 text-left font-bold">
                             Sede
-                          </th>
-                          <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
-                            Más de 7:20h con 2 marcaciones
                           </th>
                           <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
                             Más de 9:20h
@@ -346,16 +338,13 @@ export default function JornadaExtendidaPage() {
                           <tr key={row.sede} className="border-b border-slate-100">
                             <td className="px-3 py-2 font-semibold text-slate-900">{row.sede}</td>
                             <td className="px-3 py-2 text-right text-slate-800">
-                              {row.moreThan72With2 === 0 ? "-" : row.moreThan72With2}
-                            </td>
-                            <td className="px-3 py-2 text-right text-slate-800">
                               {row.moreThan92 === 0 ? "-" : row.moreThan92}
                             </td>
                           </tr>
                         ))}
                         <tr className="bg-slate-50 font-bold text-slate-900">
                           <td className="px-3 py-2">TOTAL</td>
-                          <td className="px-3 py-2 text-right">{alexTotals.moreThan72With2}</td>
+                          
                           <td className="px-3 py-2 text-right">{alexTotals.moreThan92}</td>
                         </tr>
                       </tbody>
@@ -386,3 +375,5 @@ export default function JornadaExtendidaPage() {
     </div>
   );
 }
+
+
