@@ -137,7 +137,7 @@ export default function VentasXItemPage() {
   const [fileName, setFileName] = useState("");
   const [dbMinDate, setDbMinDate] = useState("");
   const [dbMaxDate, setDbMaxDate] = useState("");
-  const [empresaCarga, setEmpresaCarga] = useState("");
+  const [empresasCargaSel, setEmpresasCargaSel] = useState<string[]>([]);
   const [empresasSel, setEmpresasSel] = useState<string[]>([]);
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -601,8 +601,8 @@ export default function VentasXItemPage() {
       setError("Debes seleccionar un rango de fechas antes de cargar.");
       return;
     }
-    if (!empresaCarga) {
-      setError("Debes seleccionar una empresa antes de cargar.");
+    if (empresasCargaSel.length === 0) {
+      setError("Debes seleccionar al menos una empresa antes de cargar.");
       return;
     }
     if (dateStart > dateEnd) {
@@ -616,7 +616,7 @@ export default function VentasXItemPage() {
         end: dateEnd,
         maxRows: "300000",
       });
-      params.set("empresa", empresaCarga);
+      params.set("empresa", empresasCargaSel.join(","));
       const response = await fetch(
         `${VENTAS_X_ITEM_API_BASE}?${params.toString()}`,
         {
@@ -635,10 +635,16 @@ export default function VentasXItemPage() {
       if (!hasValidDates) throw new Error("La base de datos no tiene fechas válidas.");
       const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
       setRows(prepared);
-      setFileName(
-        `DB: ventas_item_diario (${dateStart} a ${dateEnd}) | ${EMPRESA_LABELS[empresaCarga] ?? empresaCarga.toUpperCase()}`,
+      const selectedEmpresasLoaded = empresasCargaSel.filter((empresa) =>
+        empresas.includes(empresa),
       );
-      setEmpresasSel(empresas.includes(empresaCarga) ? [empresaCarga] : empresas);
+      const empresaLabel = selectedEmpresasLoaded
+        .map((empresa) => EMPRESA_LABELS[empresa] ?? empresa.toUpperCase())
+        .join(" + ");
+      setFileName(`DB: ventas_item_diario (${dateStart} a ${dateEnd}) | ${empresaLabel}`);
+      setEmpresasSel(
+        selectedEmpresasLoaded.length > 0 ? selectedEmpresasLoaded : empresas,
+      );
       setItemsSel([]);
       setItemsOrder([]);
       setItemSearch("");
@@ -909,16 +915,22 @@ export default function VentasXItemPage() {
           </div>
           <div className="mt-3">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-              Empresa a cargar
+              Empresa(s) a cargar
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {LOAD_EMPRESA_OPTIONS.map((empresa) => {
-                const selected = empresaCarga === empresa;
+                const selected = empresasCargaSel.includes(empresa);
                 return (
                   <button
                     key={empresa}
                     type="button"
-                    onClick={() => setEmpresaCarga(empresa)}
+                    onClick={() =>
+                      setEmpresasCargaSel((prev) =>
+                        selected
+                          ? prev.filter((value) => value !== empresa)
+                          : [...prev, empresa],
+                      )
+                    }
                     disabled={loadingDb}
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
                       selected
@@ -936,7 +948,7 @@ export default function VentasXItemPage() {
             <button
               type="button"
               onClick={() => void onLoadFromDb()}
-              disabled={loadingDb || !dateStart || !dateEnd || !empresaCarga}
+              disabled={loadingDb || !dateStart || !dateEnd || empresasCargaSel.length === 0}
               className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingDb ? "Cargando BD..." : "Cargar rango desde BD"}
@@ -945,7 +957,7 @@ export default function VentasXItemPage() {
           <p className="mt-2 text-xs text-slate-500">
             {fileName
               ? `Fuente actual: ${fileName}`
-              : "Selecciona fecha y empresa, luego carga desde BD."}
+              : "Selecciona fecha y una o varias empresas, luego carga desde BD."}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
             API activa: {USE_V2_API ? "v2 (controlada por flag)" : "v1 (estable)"}
