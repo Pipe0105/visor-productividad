@@ -434,17 +434,17 @@ export default function JornadaExtendidaPage() {
                         max={availableDates[availableDates.length - 1]}
                       />
                     </label>
+                    <div className="md:col-span-2 md:flex md:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void handleExportAlexTablePng()}
+                        disabled={alexLoading || alexRows.length === 0 || exportingAlexPng}
+                        className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {exportingAlexPng ? "Generando PNG..." : "PNG tabla"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleExportAlexTablePng()}
-                    disabled={alexLoading || alexRows.length === 0 || exportingAlexPng}
-                    className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {exportingAlexPng ? "Generando PNG..." : "Exportar tabla PNG"}
-                  </button>
                 </div>
                 {alexStartDate > alexEndDate && (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
