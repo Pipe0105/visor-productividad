@@ -35,6 +35,7 @@ const ITEM_DROPDOWN_NO_SEARCH_LIMIT = 120;
 const ITEM_DROPDOWN_SEARCH_LIMIT = 250;
 const USE_V2_API = process.env.NEXT_PUBLIC_VENTAS_X_ITEM_USE_V2 === "1";
 const VENTAS_X_ITEM_API_BASE = USE_V2_API ? "/api/ventas-x-item/v2" : "/api/ventas-x-item";
+const LOAD_EMPRESA_OPTIONS = Object.keys(EMPRESA_LABELS).sort();
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
 const addDaysUtc = (dateKey: string, days: number) => {
@@ -141,6 +142,7 @@ export default function VentasXItemPage() {
   const [fileName, setFileName] = useState("");
   const [dbMinDate, setDbMinDate] = useState("");
   const [dbMaxDate, setDbMaxDate] = useState("");
+  const [empresaCarga, setEmpresaCarga] = useState("");
   const [empresasSel, setEmpresasSel] = useState<string[]>([]);
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -157,7 +159,6 @@ export default function VentasXItemPage() {
   const [parityLoading, setParityLoading] = useState(false);
   const [parityResult, setParityResult] = useState<ParityCheckResult | null>(null);
   const itemsDropdownRef = useRef<HTMLDivElement | null>(null);
-  const initialWeekLoadedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -256,6 +257,7 @@ export default function VentasXItemPage() {
     () => Array.from(new Set(rows.map((row) => row.empresa_norm))).sort(),
     [rows],
   );
+  const singleEmpresaLoaded = empresasDisponibles.length === 1;
   const empresasVisibles = empresasSel.length > 0 ? empresasSel : empresasDisponibles;
 
   const rowsEmpresa = useMemo(
@@ -609,14 +611,24 @@ export default function VentasXItemPage() {
       setError("Debes seleccionar un rango de fechas antes de cargar.");
       return;
     }
+    if (!empresaCarga) {
+      setError("Debes seleccionar una empresa antes de cargar.");
+      return;
+    }
     if (dateStart > dateEnd) {
       setError("La fecha inicio no puede ser mayor que la fecha fin.");
       return;
     }
     setLoadingDb(true);
     try {
+      const params = new URLSearchParams({
+        start: dateStart,
+        end: dateEnd,
+        maxRows: "300000",
+      });
+      params.set("empresa", empresaCarga);
       const response = await fetch(
-        `${VENTAS_X_ITEM_API_BASE}?start=${encodeURIComponent(dateStart)}&end=${encodeURIComponent(dateEnd)}&maxRows=300000`,
+        `${VENTAS_X_ITEM_API_BASE}?${params.toString()}`,
         {
           cache: "no-store",
         },
@@ -641,8 +653,10 @@ export default function VentasXItemPage() {
       );
       const empresas = Array.from(new Set(prepared.map((row) => row.empresa_norm))).sort();
       setRows(prepared);
-      setFileName(`DB: ventas_item_diario (${dateStart} a ${dateEnd})`);
-      setEmpresasSel(empresas);
+      setFileName(
+        `DB: ventas_item_diario (${dateStart} a ${dateEnd}) | ${EMPRESA_LABELS[empresaCarga] ?? empresaCarga.toUpperCase()}`,
+      );
+      setEmpresasSel(empresas.includes(empresaCarga) ? [empresaCarga] : empresas);
       setDateStart(toDateKey(min));
       setDateEnd(toDateKey(max));
       setItemsSel([]);
@@ -719,14 +733,6 @@ export default function VentasXItemPage() {
     if (!ready || loadingMeta || dbMinDate || dbMaxDate) return;
     void onLoadMeta();
   }, [ready, loadingMeta, dbMinDate, dbMaxDate]);
-
-  useEffect(() => {
-    if (!ready || loadingMeta || loadingDb) return;
-    if (initialWeekLoadedRef.current) return;
-    if (!dateStart || !dateEnd) return;
-    initialWeekLoadedRef.current = true;
-    void onLoadFromDb();
-  }, [ready, loadingMeta, loadingDb, dateStart, dateEnd]);
 
   const handleDownloadCsv = () => {
     if (tableRows.length === 0 || tableColumns.length === 0) return;
@@ -896,7 +902,7 @@ export default function VentasXItemPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">Carga automatica desde base de datos</p>
+          <p className="text-sm font-semibold text-slate-800">Carga manual desde base de datos</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               Fecha inicio
@@ -924,10 +930,35 @@ export default function VentasXItemPage() {
             </label>
           </div>
           <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+              Empresa a cargar
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {LOAD_EMPRESA_OPTIONS.map((empresa) => {
+                const selected = empresaCarga === empresa;
+                return (
+                  <button
+                    key={empresa}
+                    type="button"
+                    onClick={() => setEmpresaCarga(empresa)}
+                    disabled={loadingDb}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      selected
+                        ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                        : "border-slate-300 bg-white text-slate-700"
+                    }`}
+                  >
+                    {EMPRESA_LABELS[empresa] ?? empresa.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="mt-3">
             <button
               type="button"
               onClick={() => void onLoadFromDb()}
-              disabled={loadingDb || loadingMeta || !dateStart || !dateEnd}
+              disabled={loadingDb || loadingMeta || !dateStart || !dateEnd || !empresaCarga}
               className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingMeta
@@ -942,7 +973,7 @@ export default function VentasXItemPage() {
               ? `Fuente actual: ${fileName}`
               : loadingMeta
                 ? "Consultando rango disponible en base de datos..."
-                : "Se carga por defecto la ultima semana disponible en BD."}
+                : "Selecciona fecha y empresa, luego carga desde BD."}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
             API activa: {USE_V2_API ? "v2 (controlada por flag)" : "v1 (estable)"}
@@ -1054,17 +1085,23 @@ export default function VentasXItemPage() {
                               : [...prev, empresa],
                           )
                         }
+                        disabled={singleEmpresaLoaded}
                         className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
                           checked
                             ? "border-blue-300 bg-blue-100 text-blue-800"
                             : "border-slate-300 bg-white text-slate-700"
-                        }`}
+                        } ${singleEmpresaLoaded ? "cursor-not-allowed opacity-75" : ""}`}
                       >
                         {EMPRESA_LABELS[empresa] ?? empresa.toUpperCase()}
                       </button>
                     );
                   })}
                 </div>
+                {singleEmpresaLoaded && (
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    Solo lectura: el rango se cargo para una unica empresa.
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">

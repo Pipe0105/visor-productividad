@@ -66,6 +66,13 @@ const checkRateLimit = (request: Request) => {
 };
 
 const isDateKey = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const parseList = (raw: string | null) =>
+  (raw ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+const normalizeEmpresa = (value: string) =>
+  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export async function GET(request: Request) {
   const session = await requireAuthSession();
@@ -120,6 +127,7 @@ export async function GET(request: Request) {
   const start = url.searchParams.get("start");
   const end = url.searchParams.get("end");
   const mode = url.searchParams.get("mode");
+  const empresas = parseList(url.searchParams.get("empresa")).map(normalizeEmpresa);
   const maxRowsParam = Number(url.searchParams.get("maxRows") ?? 500000);
   const maxRows = Number.isFinite(maxRowsParam)
     ? Math.max(1000, Math.min(1000000, Math.floor(maxRowsParam)))
@@ -248,6 +256,10 @@ export async function GET(request: Request) {
     where.push(`parsed.fecha_norm >= $${params.length}::date`);
     params.push(effectiveEnd);
     where.push(`parsed.fecha_norm <= $${params.length}::date`);
+    if (empresas.length > 0) {
+      params.push(empresas);
+      where.push(`LOWER(COALESCE(parsed.empresa, '')) = ANY($${params.length}::text[])`);
+    }
     params.push(maxRows);
 
     const result = await client.query(
