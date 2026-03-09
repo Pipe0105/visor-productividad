@@ -369,10 +369,7 @@ export const HourlyAnalysis = ({
   const [overtimeEmployeeTypeFilter, setOvertimeEmployeeTypeFilter] =
     useState("all");
   const [overtimeMarksFilter, setOvertimeMarksFilter] = useState("all");
-  const [overtimeAlertOnly, setOvertimeAlertOnly] = useState(alexConsistencyMode);
-  const [overtimeAlertRule, setOvertimeAlertRule] = useState<"legacy" | "alex">(
-    alexConsistencyMode ? "alex" : "legacy",
-  );
+  const [overtimeAlertOnly, setOvertimeAlertOnly] = useState(false);
   const [alexAlertThreshold, setAlexAlertThreshold] = useState<"7:20" | "9:20">(
     "9:20",
   );
@@ -411,8 +408,6 @@ export const HourlyAnalysis = ({
   const bucketOptions = useMemo(() => [60, 30, 20, 15, 10], []);
   // Modo estricto desactivado: usuarios con rol Alex pueden ajustar filtros libremente.
   const isAlexStrictMode = false;
-  const effectiveOvertimeAlertRule =
-    alexConsistencyMode ? "alex" : overtimeAlertRule;
 
   const availableDateRange = useMemo(() => {
     if (availableDates.length === 0) return { min: "", max: "" };
@@ -1170,17 +1165,14 @@ export const HourlyAnalysis = ({
       ? baseFilteredOvertimeEmployees.filter((employee) => {
           const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
           const marks = employee.marksCount ?? 0;
-          const matchLegacyRule = employeeMinutes > 7 * 60 + 20 && marks !== 4;
-          const matchAlexRule =
+          return (
             alexAlertThreshold === "7:20"
               ? employeeMinutes > ALEX_THRESHOLD_MINUTES["7:20"] &&
                 employeeMinutes <= ALEX_THRESHOLD_MINUTES["9:20"] &&
                 marks === 2
               : employeeMinutes > ALEX_THRESHOLD_MINUTES["9:20"] &&
-                marks === 2;
-          return effectiveOvertimeAlertRule === "alex"
-            ? matchAlexRule
-            : matchLegacyRule;
+                marks === 2
+          );
         })
       : baseFilteredOvertimeEmployees;
     return [...filtered].sort((a, b) => {
@@ -1195,19 +1187,9 @@ export const HourlyAnalysis = ({
   }, [
     baseFilteredOvertimeEmployees,
     overtimeAlertOnly,
-    effectiveOvertimeAlertRule,
     overtimeDateOrder,
     alexAlertThreshold,
   ]);
-  const legacyAlertCount = useMemo(
-    () =>
-      baseFilteredOvertimeEmployees.filter((employee) => {
-        const minutes = decimalHoursToMinutes(employee.workedHours);
-        const marks = employee.marksCount ?? 0;
-        return minutes > 7 * 60 + 20 && marks !== 4;
-      }).length,
-    [baseFilteredOvertimeEmployees],
-  );
   const alexAlertCount720 = useMemo(
     () =>
       baseFilteredOvertimeEmployees.filter((employee) => {
@@ -1746,84 +1728,38 @@ export const HourlyAnalysis = ({
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
                   {visibleOvertimeEmployees.length} empleado(s)
                 </span>
-                {alexConsistencyMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAlexAlertThreshold("9:20");
-                        setOvertimeAlertOnly((prev) =>
-                          prev && alexAlertThreshold === "9:20" ? false : true,
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
-                        overtimeAlertOnly && alexAlertThreshold === "9:20"
-                          ? "bg-red-600 text-white shadow-sm"
-                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
-                      }`}
-                    >
-                      {`Ver personas >9:20h con 2 marcaciones (${alexAlertCount920})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAlexAlertThreshold("7:20");
-                        setOvertimeAlertOnly((prev) =>
-                          prev && alexAlertThreshold === "7:20" ? false : true,
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
-                        overtimeAlertOnly && alexAlertThreshold === "7:20"
-                          ? "bg-red-600 text-white shadow-sm"
-                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
-                      }`}
-                    >
-                      {`Ver personas >7:20h con 2 marcaciones (${alexAlertCount720})`}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOvertimeAlertRule("legacy");
-                        setOvertimeAlertOnly((prev) =>
-                          prev && overtimeAlertRule === "legacy" ? false : true,
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
-                        overtimeAlertOnly && overtimeAlertRule === "legacy"
-                          ? "bg-red-600 text-white shadow-sm"
-                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
-                      }`}
-                    >
-                      {`Ver personas >7:20h sin 4 marcaciones (${legacyAlertCount})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOvertimeAlertRule("alex");
-                        setAlexAlertThreshold("9:20");
-                        setOvertimeAlertOnly((prev) =>
-                          prev &&
-                          overtimeAlertRule === "alex" &&
-                          alexAlertThreshold === "9:20"
-                            ? false
-                            : true,
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
-                        overtimeAlertOnly &&
-                        overtimeAlertRule === "alex" &&
-                        alexAlertThreshold === "9:20"
-                          ? "bg-red-600 text-white shadow-sm"
-                          : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
-                      }`}
-                    >
-                      {`Ver personas >9:20h con 2 marcaciones (${alexAlertCount920})`}
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlexAlertThreshold("9:20");
+                    setOvertimeAlertOnly((prev) =>
+                      prev && alexAlertThreshold === "9:20" ? false : true,
+                    );
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                    overtimeAlertOnly && alexAlertThreshold === "9:20"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                  }`}
+                >
+                  {`Ver personas >9:20h con 2 marcaciones (${alexAlertCount920})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlexAlertThreshold("7:20");
+                    setOvertimeAlertOnly((prev) =>
+                      prev && alexAlertThreshold === "7:20" ? false : true,
+                    );
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-all ${
+                    overtimeAlertOnly && alexAlertThreshold === "7:20"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "border border-red-200/70 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
+                  }`}
+                >
+                  {`Ver personas >7:20h con 2 marcaciones (${alexAlertCount720})`}
+                </button>
                 {overtimeExcludedIds.size > 0 && (
                   <button
                     type="button"
