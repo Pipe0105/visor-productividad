@@ -1447,7 +1447,7 @@ export const HourlyAnalysis = ({
 
             {showTimeFilters && (
               <>
-                <label className="block">
+                <label className="block sm:col-span-2">
                   <span className="text-xs font-semibold text-slate-700">
                     Intervalo
                   </span>
@@ -1903,7 +1903,7 @@ export const HourlyAnalysis = ({
                     onChange={(e) =>
                       setOvertimeDateOrder(e.target.value as "asc" | "desc")
                     }
-                    className={overtimeFilterControlClass}
+                    className={`${overtimeFilterControlClass} min-w-[11rem]`}
                   >
                     <option value="asc">Ascendente</option>
                     <option value="desc">Descendente</option>
