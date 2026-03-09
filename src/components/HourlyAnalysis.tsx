@@ -409,7 +409,8 @@ export const HourlyAnalysis = ({
     [bucketMinutes],
   );
   const bucketOptions = useMemo(() => [60, 30, 20, 15, 10], []);
-  const isAlexStrictMode = alexConsistencyMode && overtimeAlertOnly;
+  // Modo estricto desactivado: usuarios con rol Alex pueden ajustar filtros libremente.
+  const isAlexStrictMode = false;
   const effectiveOvertimeAlertRule =
     alexConsistencyMode ? "alex" : overtimeAlertRule;
 
@@ -1092,7 +1093,7 @@ export const HourlyAnalysis = ({
     const validMaxMinutes = isAlexStrictMode
       ? null
       : parseBase60HoursInputToMinutes(overtimeRangeMax);
-    const effectiveMarksFilter = alexConsistencyMode ? "2" : overtimeMarksFilter;
+    const effectiveMarksFilter = isAlexStrictMode ? "2" : overtimeMarksFilter;
 
     const filtered = overtimeEmployeesResolved.filter((employee) => {
       const employeeMinutes = decimalHoursToMinutes(employee.workedHours);
@@ -1984,12 +1985,12 @@ export const HourlyAnalysis = ({
                     Marcaciones
                   </span>
                   <select
-                    value={alexConsistencyMode ? "2" : overtimeMarksFilter}
+                    value={isAlexStrictMode ? "2" : overtimeMarksFilter}
                     onChange={(e) => setOvertimeMarksFilter(e.target.value)}
                     className={overtimeFilterControlClass}
-                    disabled={alexConsistencyMode || isAlexStrictMode}
+                    disabled={isAlexStrictMode}
                   >
-                    {alexConsistencyMode ? (
+                    {isAlexStrictMode ? (
                       <option value="2">2</option>
                     ) : (
                       <>
