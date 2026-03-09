@@ -38,11 +38,6 @@ const VENTAS_X_ITEM_API_BASE = USE_V2_API ? "/api/ventas-x-item/v2" : "/api/vent
 const LOAD_EMPRESA_OPTIONS = Object.keys(EMPRESA_LABELS).sort();
 
 const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
-const addDaysUtc = (dateKey: string, days: number) => {
-  const date = new Date(`${dateKey}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return toDateKey(date);
-};
 type ComparisonMode = "day" | "week" | "month";
 
 const getIsoWeekKey = (date: Date) => {
@@ -592,11 +587,6 @@ export default function VentasXItemPage() {
       const max = payload.maxDate ?? "";
       setDbMinDate(min);
       setDbMaxDate(max);
-      if (min && max) {
-        const suggestedStart = addDaysUtc(max, -6);
-        setDateStart(suggestedStart < min ? min : suggestedStart);
-        setDateEnd(max);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -913,7 +903,6 @@ export default function VentasXItemPage() {
                 max={maxDateKey || undefined}
                 onChange={(e) => setDateStart(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                disabled={loadingMeta}
               />
             </label>
             <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
@@ -925,7 +914,6 @@ export default function VentasXItemPage() {
                 max={maxDateKey || undefined}
                 onChange={(e) => setDateEnd(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                disabled={loadingMeta}
               />
             </label>
           </div>
@@ -958,22 +946,16 @@ export default function VentasXItemPage() {
             <button
               type="button"
               onClick={() => void onLoadFromDb()}
-              disabled={loadingDb || loadingMeta || !dateStart || !dateEnd || !empresaCarga}
+              disabled={loadingDb || !dateStart || !dateEnd || !empresaCarga}
               className="inline-flex items-center rounded-full border border-emerald-300/80 bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 transition-all hover:border-emerald-400 hover:bg-emerald-200/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingMeta
-                ? "Preparando rango..."
-                : loadingDb
-                  ? "Cargando BD..."
-                  : "Cargar rango desde BD"}
+              {loadingDb ? "Cargando BD..." : "Cargar rango desde BD"}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
             {fileName
               ? `Fuente actual: ${fileName}`
-              : loadingMeta
-                ? "Consultando rango disponible en base de datos..."
-                : "Selecciona fecha y empresa, luego carga desde BD."}
+              : "Selecciona fecha y empresa, luego carga desde BD."}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
             API activa: {USE_V2_API ? "v2 (controlada por flag)" : "v1 (estable)"}
