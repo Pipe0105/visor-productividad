@@ -57,6 +57,12 @@ export default function LoginPage() {
             priority
           />
         </div>
+        <div className="mb-4 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Tableros de análisis
+          </p>
+          <p className="mt-1 text-sm text-slate-600">MercaMio y MercaTodo</p>
+        </div>
 
         <h1 className="text-2xl font-bold text-slate-900">Iniciar sesión</h1>
         <p className="mt-1 text-sm text-slate-600">
