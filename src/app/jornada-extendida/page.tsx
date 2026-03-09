@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -282,7 +282,7 @@ export default function JornadaExtendidaPage() {
                       Reporte Alex
                     </p>
                     <h2 className="mt-1 text-lg font-bold text-slate-900">
-                      Laboraron mÃ¡s de 7:20h con 2 marcaciones y mÃ¡s de 9:20h
+                      Laboraron mas de 7:20h con 2 marcaciones y mas de 9:20h
                     </h2>
                     {alexRangeLabel && (
                       <p className="mt-1 text-base font-bold text-red-700">{alexRangeLabel}</p>
@@ -327,17 +327,17 @@ export default function JornadaExtendidaPage() {
                   <p className="mt-3 text-sm text-slate-600">Cargando reporte Alex...</p>
                 ) : (
                   <div className="mt-3 overflow-auto rounded-xl border border-slate-200">
-                    <table className="min-w-[680px] w-full text-sm">
+                    <table className="min-w-[520px] w-full text-sm">
                       <thead className="bg-slate-100 text-slate-800">
                         <tr>
                           <th className="border-b border-slate-200 px-3 py-2 text-left font-bold">
                             Sede
                           </th>
                           <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
-                            Más de 7:20h con 2 marcaciones
+                            MÃ¡s de 7:20h con 2 marcaciones
                           </th>
                           <th className="border-b border-slate-200 px-3 py-2 text-right font-bold">
-                            MÃ¡s de 9:20h
+                            MÃƒÂ¡s de 9:20h
                           </th>
                         </tr>
                       </thead>
@@ -356,7 +356,6 @@ export default function JornadaExtendidaPage() {
                         <tr className="bg-slate-50 font-bold text-slate-900">
                           <td className="px-3 py-2">TOTAL</td>
                           <td className="px-3 py-2 text-right">{alexTotals.moreThan72With2}</td>
-                          
                           <td className="px-3 py-2 text-right">{alexTotals.moreThan92}</td>
                         </tr>
                       </tbody>
@@ -387,6 +386,8 @@ export default function JornadaExtendidaPage() {
     </div>
   );
 }
+
+
 
 
 

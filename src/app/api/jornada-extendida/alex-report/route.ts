@@ -333,7 +333,7 @@ export async function GET(request: Request) {
       if (totalHours > HOURS_7_20 && totalHours <= HOURS_9_20 && marksCount === 2) {
         current.moreThan72With2 += 1;
       }
-      if (totalHours > HOURS_9_20 && marksCount === 2) {
+      if (totalHours > HOURS_9_20) {
         current.moreThan92 += 1;
       }
     }
