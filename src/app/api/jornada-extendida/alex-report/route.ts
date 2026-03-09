@@ -4,6 +4,7 @@ import { getSessionCookieOptions, requireAuthSession } from "@/lib/auth";
 
 type AlexRow = {
   sede: string;
+  moreThan72With2: number;
   moreThan92: number;
 };
 
@@ -118,7 +119,8 @@ const parseHoursValue = (value: string | number | null | undefined): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-// "9.2h" en el reporte significa 9:20 (base 60).
+// "7.2h" y "9.2h" en el reporte significan 7:20 y 9:20 (base 60).
+const HOURS_7_20 = 7 + 20 / 60;
 const HOURS_9_20 = 9 + 20 / 60;
 
 export async function GET(request: Request) {
@@ -215,7 +217,7 @@ export async function GET(request: Request) {
             {
               usedRange: null,
               rows: [],
-              totals: { moreThan92: 0 },
+              totals: { moreThan72With2: 0, moreThan92: 0 },
             },
           ),
         );
@@ -271,6 +273,12 @@ export async function GET(request: Request) {
           NULLIF(TRIM(CAST(sede AS text)), '') AS raw_sede,
           fecha::date AS worked_date,
           COALESCE(total_laborado_horas, 0) AS total_laborado_horas,
+          (
+            (CASE WHEN hora_entrada IS NOT NULL THEN 1 ELSE 0 END) +
+            (CASE WHEN hora_intermedia1 IS NOT NULL THEN 1 ELSE 0 END) +
+            (CASE WHEN hora_intermedia2 IS NOT NULL THEN 1 ELSE 0 END) +
+            (CASE WHEN hora_salida IS NOT NULL THEN 1 ELSE 0 END)
+          )::int AS marks_count_row,
           COALESCE(
             ${employeeIdExpr},
             ${employeeNameExpr},
@@ -292,47 +300,56 @@ export async function GET(request: Request) {
           raw_sede,
           worked_date,
           employee_key,
-          COALESCE(SUM(total_laborado_horas), 0) AS total_hours
+          COALESCE(SUM(total_laborado_horas), 0) AS total_hours,
+          MAX(marks_count_row)::int AS marks_count
         FROM raw
         GROUP BY raw_sede, worked_date, employee_key
       )
       SELECT
         raw_sede,
-        total_hours
+        total_hours,
+        marks_count
       FROM base
       `,
       [startDate, endDate],
     );
-    const counters = new Map<string, { moreThan92: number }>();
+    const counters = new Map<string, { moreThan72With2: number; moreThan92: number }>();
     REPORT_SEDES.forEach((sede) => {
-      counters.set(sede, { moreThan92: 0 });
+      counters.set(sede, { moreThan72With2: 0, moreThan92: 0 });
     });
 
     for (const row of result.rows ?? []) {
       const typed = row as {
         raw_sede: string | null;
         total_hours: number | string | null;
+        marks_count: number | null;
       };
       const sedeMapped = mapSedeToCanonical(typed.raw_sede ?? "");
       if (!sedeMapped || !counters.has(sedeMapped)) continue;
       const totalHours = parseHoursValue(typed.total_hours);
+      const marksCount = Number(typed.marks_count ?? 0);
       const current = counters.get(sedeMapped)!;
 
-      if (totalHours > HOURS_9_20) {
+      if (totalHours > HOURS_7_20 && totalHours <= HOURS_9_20 && marksCount === 2) {
+        current.moreThan72With2 += 1;
+      }
+      if (totalHours > HOURS_9_20 && marksCount === 2) {
         current.moreThan92 += 1;
       }
     }
 
     const rows: AlexRow[] = REPORT_SEDES.map((sede) => ({
       sede,
+      moreThan72With2: counters.get(sede)?.moreThan72With2 ?? 0,
       moreThan92: counters.get(sede)?.moreThan92 ?? 0,
     }));
 
     const totals = rows.reduce(
       (acc, row) => ({
+        moreThan72With2: acc.moreThan72With2 + row.moreThan72With2,
         moreThan92: acc.moreThan92 + row.moreThan92,
       }),
-      { moreThan92: 0 },
+      { moreThan72With2: 0, moreThan92: 0 },
     );
 
     return withSession(
